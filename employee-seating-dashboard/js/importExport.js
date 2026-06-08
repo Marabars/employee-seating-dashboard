@@ -562,7 +562,7 @@ App.importExport = (function () {
       App.render.setActiveTab('dashboard');
     }
     var target = U.qs('#tab-content');
-    window.html2canvas(target, { backgroundColor: '#ffffff', scale: 1 }).then(function (canvas) {
+    window.html2canvas(target, { backgroundColor: '#0a0814', scale: 1 }).then(function (canvas) {
       canvas.toBlob(function (blob) {
         if (blob) {
           U.downloadBlob(blob, 'seating-dashboard.png');
@@ -584,7 +584,7 @@ App.importExport = (function () {
       App.modals.alert('Карточка офиса не найдена на экране.');
       return;
     }
-    window.html2canvas(card, { backgroundColor: '#ffffff' }).then(function (canvas) {
+    window.html2canvas(card, { backgroundColor: '#0a0814' }).then(function (canvas) {
       canvas.toBlob(function (blob) {
         if (blob) {
           U.downloadBlob(blob, 'office-fragment.png');
