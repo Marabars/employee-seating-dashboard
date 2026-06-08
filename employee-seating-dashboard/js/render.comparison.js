@@ -1,6 +1,8 @@
 /**
  * render.comparison.js
- * "Сравнение сценариев" tab: KPI table across all scenarios (11 KPI rows).
+ * "Сравнение сценариев" tab: a KPI dashboard — one card panel per scenario
+ * with KPI tiles and a move-progress bar, so scenarios can be compared
+ * visually rather than as a dense table.
  */
 window.App = window.App || {};
 
@@ -12,51 +14,80 @@ window.App = window.App || {};
   var calc = App.calc;
   var state = App.state;
 
-  // KPI rows: label + accessor on a computed kpi object.
-  var ROWS = [
+  // KPI tiles shown per scenario. `accent` chooses a status color when the
+  // value indicates a problem.
+  var TILES = [
     { label: 'Всего сотрудников', key: 'totalEmployees' },
-    { label: 'Требуется посадочных мест', key: 'requiredSeats' },
-    { label: 'Вместимость новых офисов', key: 'newOfficesCapacity' },
-    { label: 'Распределено в офисы', key: 'placedInOffices' },
-    { label: 'На удаленке', key: 'remoteCount' },
-    { label: 'Не размещено', key: 'unplacedCount' },
-    { label: 'Свободный резерв', key: 'freeReserve' },
-    { label: 'Переполнение офисов', key: 'officeOverflow' },
-    { label: 'Переполнение зон', key: 'zoneOverflow' },
-    { label: 'Количество предупреждений', key: 'warningsCount' },
-    { label: 'Количество ошибок', key: 'errorsCount' }
+    { label: 'Требуется мест', key: 'requiredSeats' },
+    { label: 'Вместимость', key: 'newOfficesCapacity' },
+    { label: 'В офисах', key: 'placedInOffices' },
+    { label: 'На удаленке', key: 'remoteCount', accent: 'blue' },
+    { label: 'Не размещено', key: 'unplacedCount', warnIfPositive: true },
+    { label: 'Своб. резерв', key: 'freeReserve', redIfNegative: true },
+    { label: 'Переполн. офисов', key: 'officeOverflow', redIfPositive: true },
+    { label: 'Переполн. зон', key: 'zoneOverflow', redIfPositive: true },
+    { label: 'Предупреждений', key: 'warningsCount', warnIfPositive: true },
+    { label: 'Ошибок', key: 'errorsCount', redIfPositive: true }
   ];
 
   function render(container) {
-    var panel = R.section('Сравнение сценариев');
     var project = state.getProject();
+    var active = state.getActiveScenario();
 
-    var computed = project.scenarios.map(function (s) {
+    var intro = R.section('Сравнение сценариев');
+    intro.appendChild(U.el('p', { class: 'muted', text:
+      'Дашборд KPI по всем сценариям. Активный сценарий выделен.' }));
+    container.appendChild(intro);
+
+    var grid = U.el('div', { class: 'comparison-grid' });
+    project.scenarios.forEach(function (s) {
       var messages = App.validation.validateScenario(s);
-      return { scenario: s, kpis: calc.calculateScenarioKpis(s, messages) };
+      var kpis = calc.calculateScenarioKpis(s, messages);
+      grid.appendChild(renderScenarioCard(s, kpis, s.id === active.id));
     });
+    container.appendChild(grid);
+  }
 
-    var table = U.el('table', { class: 'data-table comparison-table' });
+  function renderScenarioCard(scenario, kpis, isActive) {
+    var card = U.el('div', { class: 'panel comparison-card' + (isActive ? ' active' : '') });
 
-    var headRow = U.el('tr', {}, [U.el('th', { text: 'KPI' })]);
-    computed.forEach(function (c) {
-      headRow.appendChild(U.el('th', { text: c.scenario.name }));
+    var head = U.el('div', { class: 'comparison-card-head' }, [
+      U.el('h2', { text: scenario.name }),
+      isActive ? R.badge('Активный', 'blue') : null
+    ]);
+    card.appendChild(head);
+    if (scenario.comment) {
+      card.appendChild(U.el('div', { class: 'scenario-comment', text: scenario.comment }));
+    }
+
+    // Move-progress bar (clamped — never exceeds 100%).
+    var p = calc.calculateMoveProgress(scenario);
+    card.appendChild(U.el('div', { class: 'progress progress-stacked' }, [
+      U.el('div', { class: 'progress-fill progress-green', style: 'width:' + p.inOfficesPercent + '%', title: 'В офисах' }),
+      U.el('div', { class: 'progress-fill progress-blue', style: 'width:' + p.remotePercent + '%', title: 'Удаленка' }),
+      U.el('div', { class: 'progress-fill progress-grey', style: 'width:' + p.unplacedPercent + '%', title: 'Не размещено' })
+    ]));
+    card.appendChild(U.el('div', { class: 'progress-legend' }, [
+      U.el('span', { text: 'Офисы: ' + p.inOfficesPercent + '%' }),
+      U.el('span', { text: 'Удаленка: ' + p.remotePercent + '%' }),
+      U.el('span', { text: 'Не размещено: ' + p.unplacedPercent + '%' })
+    ]));
+
+    var tilesGrid = U.el('div', { class: 'kpi-grid' });
+    TILES.forEach(function (tile) {
+      var value = kpis[tile.key];
+      tilesGrid.appendChild(R.kpiCard(tile.label, value, accentFor(tile, value)));
     });
-    table.appendChild(U.el('thead', {}, headRow));
+    card.appendChild(tilesGrid);
 
-    var tbody = U.el('tbody');
-    ROWS.forEach(function (row) {
-      var tr = U.el('tr', {}, [U.el('td', { class: 'row-label', text: row.label })]);
-      computed.forEach(function (c) {
-        var value = c.kpis[row.key];
-        tr.appendChild(U.el('td', { text: String(value) }));
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
+    return card;
+  }
 
-    panel.appendChild(table);
-    container.appendChild(panel);
+  function accentFor(tile, value) {
+    if (tile.redIfPositive && value > 0) { return 'red'; }
+    if (tile.redIfNegative && value < 0) { return 'red'; }
+    if (tile.warnIfPositive && value > 0) { return 'yellow'; }
+    return tile.accent || null;
   }
 
   App.render.registerTab('comparison', { label: 'Сравнение сценариев', render: render });

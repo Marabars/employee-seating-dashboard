@@ -243,7 +243,51 @@ App.dragDrop = (function () {
       dropEmployee(scenario, payload.id, office, zone, isRemote);
     } else if (payload.kind === 'team') {
       dropTeam(scenario, payload.id, office, zone, isRemote);
+    } else if (payload.kind === 'allocation') {
+      dropAllocation(scenario, payload.id, office, zone, isRemote);
     }
+  }
+
+  /**
+   * Move an existing allocation to a new office/zone. If the target is a
+   * physical (new) office and no specific zone was chosen (dropped on the
+   * office body), ask which zone to move into.
+   */
+  function dropAllocation(scenario, allocationId, office, zone, isRemote) {
+    var a = U.findById(scenario.allocations, allocationId);
+    if (!a) {
+      return;
+    }
+    function applyMove(zoneId) {
+      var z = zoneId ? alloc.findZone(scenario, zoneId) : null;
+      if (!isRemote && z) {
+        var isVipEntity = entityIsVip(scenario, a);
+        var conflict = alloc.vipConflict(isVipEntity, z);
+        if (conflict) {
+          announce('Предупреждение: ' + conflict);
+        }
+      }
+      alloc.move(allocationId, office.id, zoneId);
+      announce('Размещение перемещено в ' + office.name + (z ? ' / ' + z.name : ''));
+    }
+
+    if (!isRemote && !zone) {
+      // Dropped on the office body -> must pick a zone.
+      pickZone(office, a.targetZoneId, function (zoneId) {
+        applyMove(zoneId);
+      });
+      return;
+    }
+    applyMove(zone ? zone.id : null);
+  }
+
+  function entityIsVip(scenario, allocation) {
+    if (allocation.type === C.ALLOCATION_TYPE.TEAM) {
+      var team = U.findById(scenario.teams, allocation.teamId);
+      return !!(team && team.isVip);
+    }
+    var emp = U.findById(scenario.employees, allocation.employeeId);
+    return !!(emp && emp.isVip);
   }
 
   function dropEmployee(scenario, employeeId, office, zone, isRemote) {
@@ -280,28 +324,48 @@ App.dragDrop = (function () {
       ? 'Команда отмечена как неделимая и уже частично размещена.'
       : null;
 
-    openCountPopup(team, suggested, splitWarn, function (count, comment) {
-      if (!isRemote && zone) {
-        var conflict = alloc.vipConflict(!!team.isVip, zone);
+    // For physical offices the placement must target a zone. If the team was
+    // dropped on the office body, the popup includes a zone selector.
+    var needZone = !isRemote;
+    openCountPopup(team, suggested, splitWarn, office, zone, needZone, function (count, comment, zoneId) {
+      var z = zoneId ? alloc.findZone(scenario, zoneId) : null;
+      if (!isRemote && z) {
+        var conflict = alloc.vipConflict(!!team.isVip, z);
         if (conflict) {
           announce('Предупреждение: ' + conflict);
         }
       }
-      alloc.addTeamAllocation(teamId, count, office.id, zone ? zone.id : null, comment);
-      announce('Команда ' + team.name + ': размещено ' + count + ' в ' + office.name + (zone ? ' / ' + zone.name : ''));
+      alloc.addTeamAllocation(teamId, count, office.id, zoneId || null, comment);
+      announce('Команда ' + team.name + ': размещено ' + count + ' в ' + office.name + (z ? ' / ' + z.name : ''));
     });
   }
 
-  /** Quantity popup for team allocation. */
-  function openCountPopup(team, suggested, warningText, onConfirm) {
+  /**
+   * Quantity popup for team allocation. When needZone is true and no zone was
+   * pre-selected (team dropped on the office body), a zone selector is shown
+   * so a team is always placed into a specific zone of a physical office.
+   */
+  function openCountPopup(team, suggested, warningText, office, zone, needZone, onConfirm) {
+    var fields = [];
+    if (warningText) {
+      fields.push({ name: '_warn', label: warningText, type: 'text', value: '', help: 'Предупреждение' });
+    }
+    fields.push({ name: 'count', label: 'Количество сотрудников', type: 'number', min: 1, value: suggested,
+      help: 'Предложен остаток команды: ' + suggested });
+
+    var zoneRequired = needZone && (office.zones || []).length > 0;
+    if (zoneRequired) {
+      var zoneOptions = (office.zones || []).map(function (z) {
+        return { value: z.id, label: z.name + (z.isVipZone ? ' ★' : '') };
+      });
+      fields.push({ name: 'zoneId', label: 'Зона офиса «' + office.name + '»', type: 'select',
+        options: zoneOptions, value: zone ? zone.id : zoneOptions[0].value });
+    }
+    fields.push({ name: 'comment', label: 'Комментарий', type: 'textarea', value: '' });
+
     App.modals.form({
       title: 'Размещение команды «' + team.name + '»',
-      fields: [
-        warningText ? { name: '_warn', label: warningText, type: 'text', value: '', help: 'Предупреждение' } : null,
-        { name: 'count', label: 'Количество сотрудников', type: 'number', min: 1, value: suggested,
-          help: 'Предложен остаток команды: ' + suggested },
-        { name: 'comment', label: 'Комментарий', type: 'textarea', value: '' }
-      ].filter(Boolean),
+      fields: fields,
       submitLabel: 'Разместить',
       onSubmit: function (values) {
         var count = U.toNonNegativeInt(values.count);
@@ -309,7 +373,32 @@ App.dragDrop = (function () {
           App.modals.alert('Количество должно быть больше нуля');
           return false;
         }
-        onConfirm(count, values.comment || '');
+        var zoneId = zoneRequired ? values.zoneId : (zone ? zone.id : null);
+        onConfirm(count, values.comment || '', zoneId);
+        return true;
+      }
+    });
+  }
+
+  /** Simple zone picker for moving an existing allocation onto an office body. */
+  function pickZone(office, currentZoneId, onPick) {
+    var zones = office.zones || [];
+    if (zones.length === 0) {
+      onPick(null);
+      return;
+    }
+    var options = zones.map(function (z) {
+      return { value: z.id, label: z.name + (z.isVipZone ? ' ★' : '') };
+    });
+    App.modals.form({
+      title: 'Выбор зоны — «' + office.name + '»',
+      fields: [
+        { name: 'zoneId', label: 'Зона', type: 'select', options: options,
+          value: currentZoneId || options[0].value }
+      ],
+      submitLabel: 'Переместить',
+      onSubmit: function (values) {
+        onPick(values.zoneId);
         return true;
       }
     });

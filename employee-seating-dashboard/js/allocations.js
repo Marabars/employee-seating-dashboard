@@ -137,6 +137,43 @@ App.allocations = (function () {
     });
   }
 
+  /** Move an existing allocation to a new office/zone (drag-and-drop). */
+  function move(allocationId, targetOfficeId, targetZoneId) {
+    var a = find(allocationId);
+    if (!a) {
+      return false;
+    }
+    state.commit('Перемещение размещения', function () {
+      a.targetOfficeId = targetOfficeId;
+      a.targetZoneId = targetZoneId || null;
+    });
+    return true;
+  }
+
+  /**
+   * Reduce a team allocation by `amount` seats (pull part of a team back out).
+   * If amount >= current count, the allocation is removed entirely.
+   */
+  function reduceTeamAllocation(allocationId, amount) {
+    var a = find(allocationId);
+    if (!a || a.type !== C.ALLOCATION_TYPE.TEAM) {
+      return false;
+    }
+    var dec = U.toNonNegativeInt(amount);
+    if (dec <= 0) {
+      return false;
+    }
+    state.commit('Уменьшение размещения', function () {
+      if (dec >= (a.employeesCount || 0)) {
+        var s = scenario();
+        s.allocations = s.allocations.filter(function (x) { return x.id !== allocationId; });
+      } else {
+        a.employeesCount = a.employeesCount - dec;
+      }
+    });
+    return true;
+  }
+
   function remove(allocationId) {
     var a = find(allocationId);
     if (!a) {
@@ -174,6 +211,8 @@ App.allocations = (function () {
     addTeamAllocation: addTeamAllocation,
     setEmployeeAllocation: setEmployeeAllocation,
     update: update,
+    move: move,
+    reduceTeamAllocation: reduceTeamAllocation,
     remove: remove,
     sendTeamRemainderToRemote: sendTeamRemainderToRemote
   };

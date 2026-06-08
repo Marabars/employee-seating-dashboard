@@ -120,14 +120,18 @@ window.App = window.App || {};
     var remote = calc.getRemoteOffice(scenario);
     if (remote) {
       var occ = calc.calculateOfficeOccupancy(scenario, remote.id);
-      col.appendChild(U.el('div', {
+      var remoteBox = U.el('div', {
         class: 'drop-target remote-target',
         dataset: { dropOffice: remote.id },
         'aria-dropeffect': 'move'
       }, [
         U.el('h3', { text: 'Удаленка' }),
         U.el('div', { class: 'muted', text: 'Без лимита · Размещено: ' + occ })
-      ]));
+      ]);
+      allocationsIn(scenario, remote.id, null).forEach(function (a) {
+        remoteBox.appendChild(allocationChip(scenario, a, ctx));
+      });
+      col.appendChild(remoteBox);
     }
     return col;
   }
@@ -151,7 +155,7 @@ window.App = window.App || {};
 
     (office.zones || []).forEach(function (zone) {
       var zOcc = calc.calculateZoneOccupancy(scenario, zone.id);
-      box.appendChild(U.el('div', {
+      var zoneBox = U.el('div', {
         class: 'drop-target zone-target' + (zone.isVipZone ? ' vip' : ''),
         dataset: { dropOffice: office.id, dropZone: zone.id },
         'aria-dropeffect': 'move'
@@ -162,9 +166,79 @@ window.App = window.App || {};
         ]),
         R.progressBar(zOcc, zone.capacity || 0, ctx.thresholds),
         U.el('div', { class: 'target-free', text: R.freeOrOverflowText(zone.capacity || 0, zOcc) })
-      ]));
+      ]);
+      // Allocation chips placed into this zone — draggable to move between zones.
+      allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
+        zoneBox.appendChild(allocationChip(scenario, a, ctx));
+      });
+      box.appendChild(zoneBox);
     });
     return box;
+  }
+
+  /** Allocations whose target is the given office + zone. */
+  function allocationsIn(scenario, officeId, zoneId) {
+    return scenario.allocations.filter(function (a) {
+      return a.targetOfficeId === officeId && (a.targetZoneId || null) === (zoneId || null);
+    });
+  }
+
+  /**
+   * A draggable chip representing an existing allocation. Can be dragged to
+   * another zone/office; offers a quick "вытащить" (reduce) and remove.
+   */
+  function allocationChip(scenario, a, ctx) {
+    var label;
+    if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+      var emp = U.findById(scenario.employees, a.employeeId);
+      label = (emp ? emp.fullName : 'Сотрудник');
+    } else {
+      var team = U.findById(scenario.teams, a.teamId);
+      label = (team ? team.name : 'Команда') + ' · ' + a.employeesCount + ' чел.';
+    }
+    var chip = U.el('div', {
+      class: 'alloc-chip',
+      draggable: ctx.viewOnly ? 'false' : 'true',
+      dataset: { dragKind: 'allocation', dragId: a.id },
+      title: 'Перетащите в другую зону или офис'
+    }, [
+      U.el('span', { class: 'drag-handle', text: '⋮⋮', 'aria-hidden': 'true' }),
+      U.el('span', { class: 'alloc-chip-label', text: label })
+    ]);
+    if (!ctx.viewOnly) {
+      if (a.type === C.ALLOCATION_TYPE.TEAM && a.employeesCount > 1) {
+        chip.appendChild(R.iconBtn('−', 'Вытащить часть', function (e) {
+          e.stopPropagation();
+          openReducePopup(a);
+        }));
+      }
+      chip.appendChild(R.iconBtn('🗑', 'Убрать размещение', function (e) {
+        e.stopPropagation();
+        App.allocations.remove(a.id);
+      }));
+    }
+    return chip;
+  }
+
+  /** Popup to pull part of a team allocation back out. */
+  function openReducePopup(a) {
+    App.modals.form({
+      title: 'Вытащить сотрудников из размещения',
+      fields: [
+        { name: 'amount', label: 'Сколько вытащить', type: 'number', min: 1, value: 1,
+          help: 'Сейчас размещено: ' + a.employeesCount + '. Если вытащить всё — размещение удалится.' }
+      ],
+      submitLabel: 'Вытащить',
+      onSubmit: function (values) {
+        var amount = U.toNonNegativeInt(values.amount);
+        if (amount <= 0) {
+          App.modals.alert('Укажите количество больше нуля');
+          return false;
+        }
+        App.allocations.reduceTeamAllocation(a.id, amount);
+        return true;
+      }
+    });
   }
 
   // ---- Manual allocation table ------------------------------------------

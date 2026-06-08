@@ -150,4 +150,43 @@
       expect(calc.calculateUnplacedCount(s)).toBe(15);
     });
   });
+
+  describe('move progress (no percentages over 100%)', function () {
+    it('normal case partitions correctly', function () {
+      var s = fixture(); // total 40, inOffices 20, remote 5
+      var p = calc.calculateMoveProgress(s);
+      expect(p.inOfficesPercent).toBe(50);  // 20/40
+      expect(p.remotePercent).toBe(13);     // 5/40 rounded
+      expect(p.unplacedPercent).toBe(38);   // 15/40 rounded
+      expect(p.overAllocated).toBe(false);
+    });
+    it('over-allocation never yields percentages over 100%', function () {
+      // Regression: total 10 but 40 in offices + 20 remote -> previously 400%/200%.
+      var s = {
+        id: 's', offices: [
+          { id: 'new1', type: 'new', name: 'B', zones: [{ id: 'z1', name: 'O', type: 'open_space', capacity: 10, isVipZone: false }] },
+          { id: 'remote', type: 'remote', name: 'Удаленка', unlimitedCapacity: true }
+        ],
+        teams: [{ id: 't1', name: 'A', employeesCount: 10, canSplit: true }],
+        employees: [],
+        allocations: [
+          { id: 'a1', type: 'team', teamId: 't1', employeesCount: 40, targetOfficeId: 'new1', targetZoneId: 'z1' },
+          { id: 'a2', type: 'team', teamId: 't1', employeesCount: 20, targetOfficeId: 'remote', targetZoneId: null }
+        ]
+      };
+      var p = calc.calculateMoveProgress(s);
+      expect(p.inOfficesPercent <= 100).toBeTruthy();
+      expect(p.remotePercent <= 100).toBeTruthy();
+      expect(p.inOfficesPercent + p.remotePercent + p.unplacedPercent <= 100).toBeTruthy();
+      expect(p.overAllocated).toBe(true);
+      expect(p.inOfficesPercent).toBe(67); // 40 / max(10,60)=60
+      expect(p.remotePercent).toBe(33);    // 20 / 60
+    });
+    it('zero workforce yields zeros, not NaN', function () {
+      var s = { id: 's', offices: [{ id: 'r', type: 'remote', unlimitedCapacity: true }], teams: [], employees: [], allocations: [] };
+      var p = calc.calculateMoveProgress(s);
+      expect(p.inOfficesPercent).toBe(0);
+      expect(p.unplacedPercent).toBe(0);
+    });
+  });
 })();

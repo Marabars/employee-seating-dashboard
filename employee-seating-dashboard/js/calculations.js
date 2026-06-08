@@ -243,6 +243,45 @@ App.calc = (function () {
   }
 
   /**
+   * Move-progress breakdown for the dashboard bar. Returns counts and
+   * percentages for "in offices / remote / unplaced".
+   *
+   * Percentages are computed against a base that is the larger of the total
+   * workforce and the actually-distributed headcount. This keeps the three
+   * segments partitioning to <= 100% even when a scenario is over-allocated
+   * (over-allocation is allowed by the spec and flagged as an error, so the
+   * progress bar must degrade gracefully instead of showing 200%/1500%).
+   */
+  function calculateMoveProgress(scenario) {
+    var total = calculateTotalEmployees(scenario);
+    var inOffices = calculatePlacedInOffices(scenario);
+    var remote = calculateRemoteCount(scenario);
+    var distributed = inOffices + remote;
+    var unplaced = Math.max(0, total - distributed);
+
+    // Base never smaller than what is distributed, so percentages stay <=100.
+    var base = Math.max(total, distributed);
+    function pct(n) {
+      if (base <= 0) {
+        return 0;
+      }
+      return Math.round((n / base) * 100);
+    }
+
+    return {
+      total: total,
+      inOffices: inOffices,
+      remote: remote,
+      unplaced: unplaced,
+      base: base,
+      inOfficesPercent: pct(inOffices),
+      remotePercent: pct(remote),
+      unplacedPercent: pct(unplaced),
+      overAllocated: distributed > total
+    };
+  }
+
+  /**
    * Compute the full KPI block for a scenario. validationMessages is the
    * array returned by App.validation.validateScenario (optional) so we can
    * report warning/error counts without a circular dependency.
@@ -301,6 +340,7 @@ App.calc = (function () {
     calculateTotalOfficeOverflow: calculateTotalOfficeOverflow,
     calculateTotalZoneOverflow: calculateTotalZoneOverflow,
     calculateUnplacedCount: calculateUnplacedCount,
+    calculateMoveProgress: calculateMoveProgress,
     calculateScenarioKpis: calculateScenarioKpis
   };
 })();

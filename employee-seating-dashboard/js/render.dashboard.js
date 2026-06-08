@@ -23,7 +23,7 @@ window.App = window.App || {};
     var kpis = ctx.kpis;
 
     container.appendChild(renderKpiBlock(kpis));
-    container.appendChild(renderProgress(kpis));
+    container.appendChild(renderProgress(scenario));
 
     var newOffices = calc.getNewOffices(scenario);
     var officesPanel = R.section('Новые офисы');
@@ -72,29 +72,27 @@ window.App = window.App || {};
     return panel;
   }
 
-  function renderProgress(kpis) {
+  function renderProgress(scenario) {
     var panel = R.section('Общий прогресс переезда');
-    var total = kpis.totalEmployees || 0;
-    var inOffices = kpis.placedInOffices || 0;
-    var remote = kpis.remoteCount || 0;
-    var unplaced = kpis.unplacedCount || 0;
-
-    function pct(n) {
-      return total > 0 ? Math.round((n / total) * 100) : 0;
-    }
+    var p = calc.calculateMoveProgress(scenario);
 
     var stacked = U.el('div', { class: 'progress progress-stacked' }, [
-      U.el('div', { class: 'progress-fill progress-green', style: 'width:' + pct(inOffices) + '%', title: 'В офисах' }),
-      U.el('div', { class: 'progress-fill progress-blue', style: 'width:' + pct(remote) + '%', title: 'Удаленка' }),
-      U.el('div', { class: 'progress-fill progress-grey', style: 'width:' + pct(unplaced) + '%', title: 'Не размещено' })
+      U.el('div', { class: 'progress-fill progress-green', style: 'width:' + p.inOfficesPercent + '%', title: 'В офисах' }),
+      U.el('div', { class: 'progress-fill progress-blue', style: 'width:' + p.remotePercent + '%', title: 'Удаленка' }),
+      U.el('div', { class: 'progress-fill progress-grey', style: 'width:' + p.unplacedPercent + '%', title: 'Не размещено' })
     ]);
 
     panel.appendChild(stacked);
     panel.appendChild(U.el('div', { class: 'progress-legend' }, [
-      U.el('span', { text: 'Размещено в офисах: ' + pct(inOffices) + '%' }),
-      U.el('span', { text: 'Удаленка: ' + pct(remote) + '%' }),
-      U.el('span', { text: 'Не размещено: ' + pct(unplaced) + '%' })
+      U.el('span', { text: 'Размещено в офисах: ' + p.inOfficesPercent + '% (' + p.inOffices + ')' }),
+      U.el('span', { text: 'Удаленка: ' + p.remotePercent + '% (' + p.remote + ')' }),
+      U.el('span', { text: 'Не размещено: ' + p.unplacedPercent + '% (' + p.unplaced + ')' })
     ]));
+    if (p.overAllocated) {
+      panel.appendChild(U.el('div', { class: 'progress-warn', text:
+        'Размещено больше, чем сотрудников в сценарии (' + (p.inOffices + p.remote) +
+        ' из ' + p.total + '). Проверьте размещения команд.' }));
+    }
     return panel;
   }
 
@@ -162,7 +160,6 @@ window.App = window.App || {};
     var wrap = U.el('div', { class: 'zone-list' });
     (office.zones || []).forEach(function (zone) {
       var occ = calc.calculateZoneOccupancy(scenario, zone.id);
-      var percent = calc.calculateOccupancyPercent(occ, zone.capacity || 0);
       var zoneEl = U.el('div', {
         class: 'zone-row',
         dataset: { dropOffice: office.id, dropZone: zone.id }

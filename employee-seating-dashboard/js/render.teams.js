@@ -94,6 +94,8 @@ window.App = window.App || {};
     var allocs = scenario.allocations.filter(function (a) {
       return a.teamId === team.id;
     });
+    var viewOnly = App.state.isViewOnly();
+
     if (allocs.length > 0) {
       var allocList = U.el('div', { class: 'team-detail-allocs' }, [U.el('h4', { text: 'Размещения' })]);
       allocs.forEach(function (a) {
@@ -101,27 +103,85 @@ window.App = window.App || {};
         var zone = office && office.zones ? U.findById(office.zones, a.targetZoneId) : null;
         var place = (office ? office.name : '—') + (zone ? ' / ' + zone.name : '');
         var label = a.type === C.ALLOCATION_TYPE.EMPLOYEE ? 'Сотрудник' : (a.employeesCount + ' чел.');
-        allocList.appendChild(U.el('div', { class: 'composition-row', text: label + ' → ' + place }));
+        var row = U.el('div', { class: 'composition-row alloc-row' }, [
+          U.el('span', { class: 'alloc-row-label', text: label + ' → ' + place })
+        ]);
+        if (!viewOnly) {
+          if (a.type === C.ALLOCATION_TYPE.TEAM && a.employeesCount > 1) {
+            row.appendChild(R.iconBtn('−', 'Вытащить часть', function () { openReducePopup(a); }));
+          }
+          row.appendChild(R.iconBtn('🗑', 'Убрать размещение', function () { App.allocations.remove(a.id); }));
+        }
+        allocList.appendChild(row);
       });
       wrap.appendChild(allocList);
     } else {
       wrap.appendChild(U.el('p', { class: 'muted', text: 'Нет размещений' }));
     }
 
-    // Members of this team.
+    // Members of this team (by ФИО) with reassignment / removal.
     var members = scenario.employees.filter(function (e) {
       return e.teamId === team.id;
     });
+    var memberWrap = U.el('div', { class: 'team-detail-members' }, [U.el('h4', { text: 'Сотрудники команды (' + members.length + ')' })]);
     if (members.length > 0) {
-      var memberList = U.el('div', { class: 'team-detail-members' }, [U.el('h4', { text: 'Сотрудники команды' })]);
       members.forEach(function (emp) {
         var placement = App.employees.placementOf(scenario, emp);
-        memberList.appendChild(U.el('div', { class: 'composition-row', text:
-          emp.fullName + ' — ' + C.PLACEMENT_STATUS_LABEL[placement.status] }));
+        var row = U.el('div', { class: 'composition-row member-row' }, [
+          U.el('span', { class: 'member-name', text: emp.fullName }),
+          U.el('span', { class: 'muted', text: C.PLACEMENT_STATUS_LABEL[placement.status] })
+        ]);
+        if (!viewOnly) {
+          row.appendChild(R.iconBtn('↔', 'Перенести в другую команду', function () { openReassignPopup(scenario, emp); }));
+          row.appendChild(R.iconBtn('✕', 'Убрать из команды', function () {
+            App.employees.update(emp.id, { teamId: '' });
+          }));
+        }
+        memberWrap.appendChild(row);
       });
-      wrap.appendChild(memberList);
+    } else {
+      memberWrap.appendChild(U.el('p', { class: 'muted', text: 'В списке нет сотрудников этой команды (работа по численности).' }));
     }
+    wrap.appendChild(memberWrap);
     return wrap;
+  }
+
+  /** Pull part of a team allocation back out. */
+  function openReducePopup(a) {
+    App.modals.form({
+      title: 'Вытащить сотрудников из размещения',
+      fields: [
+        { name: 'amount', label: 'Сколько вытащить', type: 'number', min: 1, value: 1,
+          help: 'Сейчас размещено: ' + a.employeesCount + '. Если вытащить всё — размещение удалится.' }
+      ],
+      submitLabel: 'Вытащить',
+      onSubmit: function (values) {
+        var amount = U.toNonNegativeInt(values.amount);
+        if (amount <= 0) {
+          App.modals.alert('Укажите количество больше нуля');
+          return false;
+        }
+        App.allocations.reduceTeamAllocation(a.id, amount);
+        return true;
+      }
+    });
+  }
+
+  /** Move an employee to another team (or out of any team). */
+  function openReassignPopup(scenario, emp) {
+    var options = [{ value: '', label: '— Без команды' }].concat(
+      scenario.teams.map(function (t) { return { value: t.id, label: t.name }; }));
+    App.modals.form({
+      title: 'Перенести «' + emp.fullName + '» в команду',
+      fields: [
+        { name: 'teamId', label: 'Команда', type: 'select', options: options, value: emp.teamId || '' }
+      ],
+      submitLabel: 'Перенести',
+      onSubmit: function (values) {
+        App.employees.update(emp.id, { teamId: values.teamId || '' });
+        return true;
+      }
+    });
   }
 
   function openTeamForm(team) {
