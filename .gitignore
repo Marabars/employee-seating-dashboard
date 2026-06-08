@@ -1,0 +1,16 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+# Editor dirs
+.vscode/
+.idea/
+
+# Node (not used at runtime, but in case of local tooling)
+node_modules/
+npm-debug.log*
+
+# Local autosave / scratch
+*.log

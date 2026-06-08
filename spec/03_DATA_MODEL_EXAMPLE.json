@@ -1,0 +1,124 @@
+{
+  "projectVersion": "1.0.0",
+  "appName": "Дашборд рассадки сотрудников",
+  "settings": {
+    "thresholds": {
+      "greenMaxPercent": 85,
+      "yellowMaxPercent": 100
+    },
+    "export": {
+      "includePersonalDataInPdf": false
+    },
+    "autosaveEnabled": false,
+    "viewOnlyMode": false,
+    "lastSelectedScenarioId": "scenario_1"
+  },
+  "scenarios": [
+    {
+      "id": "scenario_1",
+      "name": "Базовый сценарий",
+      "comment": "Основной вариант рассадки",
+      "offices": [
+        {
+          "id": "office_old_1",
+          "type": "old",
+          "name": "Старый офис A",
+          "area": 500,
+          "currentCapacity": 80,
+          "isDraft": false,
+          "comment": ""
+        },
+        {
+          "id": "office_new_1",
+          "type": "new",
+          "name": "Новый офис B",
+          "area": 1200,
+          "isDraft": false,
+          "comment": "",
+          "zones": [
+            {
+              "id": "zone_1",
+              "name": "Опенспейс",
+              "type": "open_space",
+              "capacity": 130,
+              "isVipZone": false,
+              "isSystem": true,
+              "comment": ""
+            },
+            {
+              "id": "zone_2",
+              "name": "Кабинеты",
+              "type": "cabinet",
+              "capacity": 40,
+              "isVipZone": false,
+              "isSystem": false,
+              "comment": ""
+            },
+            {
+              "id": "zone_3",
+              "name": "VIP-кабинеты",
+              "type": "vip",
+              "capacity": 10,
+              "isVipZone": true,
+              "isSystem": false,
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "id": "office_remote",
+          "type": "remote",
+          "name": "Удаленка",
+          "isSystem": true,
+          "unlimitedCapacity": true,
+          "comment": ""
+        }
+      ],
+      "teams": [
+        {
+          "id": "team_1",
+          "name": "Finance",
+          "employeesCount": 40,
+          "currentOfficeId": "office_old_1",
+          "isVip": false,
+          "canSplit": true,
+          "comment": ""
+        }
+      ],
+      "employees": [
+        {
+          "id": "employee_1",
+          "fullName": "Иванов Иван",
+          "position": "Analyst",
+          "teamId": "team_1",
+          "currentOfficeId": "office_old_1",
+          "isVip": false,
+          "workFormat": "office",
+          "comment": ""
+        }
+      ],
+      "allocations": [
+        {
+          "id": "allocation_1",
+          "type": "team",
+          "teamId": "team_1",
+          "employeeId": null,
+          "employeesCount": 20,
+          "targetOfficeId": "office_new_1",
+          "targetZoneId": "zone_1",
+          "comment": ""
+        },
+        {
+          "id": "allocation_2",
+          "type": "employee",
+          "teamId": "team_1",
+          "employeeId": "employee_1",
+          "employeesCount": 1,
+          "targetOfficeId": "office_remote",
+          "targetZoneId": null,
+          "comment": "Удаленный формат"
+        }
+      ]
+    }
+  ]
+}

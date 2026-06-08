@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тесты — Дашборд рассадки сотрудников</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin: 24px; color: #1f2933; }
+    h1 { font-size: 20px; }
+    .summary { font-size: 16px; font-weight: 700; padding: 8px 12px; border-radius: 6px; margin: 12px 0; display: inline-block; }
+    .summary.ok { background: #dcfce7; color: #16a34a; }
+    .summary.fail { background: #fee2e2; color: #dc2626; }
+    .suite { margin: 16px 0; }
+    .suite h2 { font-size: 15px; border-bottom: 1px solid #e2e6ec; padding-bottom: 4px; }
+    .test { padding: 4px 8px; font-size: 13px; border-radius: 4px; margin: 2px 0; }
+    .test.pass { color: #16a34a; }
+    .test.fail { color: #dc2626; background: #fee2e2; }
+  </style>
+</head>
+<body>
+  <h1>Юнит-тесты: расчёты и валидация</h1>
+  <p class="muted">Откройте этот файл в браузере двойным кликом. Тесты прогоняются автоматически.</p>
+  <div id="summary" class="summary">Запуск…</div>
+  <div id="results"></div>
+
+  <!-- App modules under test (no DOM/render dependencies needed) -->
+  <script src="js/constants.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/calculations.js"></script>
+  <script src="js/validation.js"></script>
+
+  <!-- Test harness + suites -->
+  <script src="js/tests/test-harness.js"></script>
+  <script src="js/tests/calculations.test.js"></script>
+  <script src="js/tests/validation.test.js"></script>
+  <script>
+    // Run all registered suites once the page is loaded.
+    TestHarness.run();
+  </script>
+</body>
+</html>
