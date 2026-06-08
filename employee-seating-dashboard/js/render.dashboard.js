@@ -42,12 +42,13 @@ window.App = window.App || {};
   function renderKpiBlock(kpis) {
     var panel = R.section('Ключевые показатели');
 
+    // Main KPIs show bare numbers (units are shown in details, not here).
     var main = U.el('div', { class: 'kpi-grid kpi-grid-main' });
-    main.appendChild(R.kpiCard('Всего мест', U.fmtPlaces(kpis.totalPlaces)));
+    main.appendChild(R.kpiCard('Всего мест', kpis.totalPlaces));
     main.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
-    main.appendChild(R.kpiCard('Потребность мест', U.fmtPlaces(kpis.requiredSeats)));
+    main.appendChild(R.kpiCard('Потребность мест', kpis.requiredSeats));
     main.appendChild(R.kpiCard('Баланс мест',
-      (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance + ' шт.',
+      (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance,
       kpis.placesBalance >= 0 ? 'green' : 'red'));
     panel.appendChild(main);
 
