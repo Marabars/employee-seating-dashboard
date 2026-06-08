@@ -71,6 +71,15 @@ App.scenarios = (function () {
       }
     });
 
+    // Remap linked-team references now that all team ids are known.
+    (scenario.teams || []).forEach(function (team) {
+      if (Array.isArray(team.linkedTeamIds)) {
+        team.linkedTeamIds = team.linkedTeamIds
+          .map(function (id) { return map[id] || null; })
+          .filter(Boolean);
+      }
+    });
+
     (scenario.employees || []).forEach(function (emp) {
       var newEmpId = U.genId('employee');
       map[emp.id] = newEmpId;

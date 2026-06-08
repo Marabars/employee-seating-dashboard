@@ -104,6 +104,54 @@
     });
   });
 
+  describe('linked teams (must move together)', function () {
+    function withLinkedTeams() {
+      var s = base();
+      // second office to test separation
+      s.offices.splice(1, 0, {
+        id: 'new2', type: 'new', name: 'Новый C', area: 100, isDraft: false,
+        zones: [{ id: 'z2_open', name: 'Опен C', type: 'open_space', capacity: 30, isVipZone: false }]
+      });
+      s.teams.push({ id: 'tA', name: 'A', employeesCount: 5, isVip: false, canSplit: true, linkedTeamIds: ['tB'] });
+      s.teams.push({ id: 'tB', name: 'B', employeesCount: 5, isVip: false, canSplit: true, linkedTeamIds: ['tA'] });
+      return s;
+    }
+
+    it('error when linked teams are in different offices', function () {
+      var s = withLinkedTeams();
+      s.allocations.push({ id: 'a1', type: 'team', teamId: 'tA', employeesCount: 5, targetOfficeId: 'new1', targetZoneId: 'z_open' });
+      s.allocations.push({ id: 'a2', type: 'team', teamId: 'tB', employeesCount: 5, targetOfficeId: 'new2', targetZoneId: 'z2_open' });
+      expect(codes(V.validateScenario(s))).toContain(C.CODE.LINKED_TEAMS_SEPARATED);
+    });
+
+    it('no error when linked teams are in the same office (different zones OK)', function () {
+      var s = withLinkedTeams();
+      // both in new1, but different zones
+      s.allocations.push({ id: 'a1', type: 'team', teamId: 'tA', employeesCount: 5, targetOfficeId: 'new1', targetZoneId: 'z_open' });
+      s.allocations.push({ id: 'a2', type: 'team', teamId: 'tB', employeesCount: 5, targetOfficeId: 'new1', targetZoneId: 'z_vip' });
+      expect(codes(V.validateScenario(s)).indexOf(C.CODE.LINKED_TEAMS_SEPARATED)).toBe(-1);
+    });
+
+    it('error when one linked team is placed and the other is not', function () {
+      var s = withLinkedTeams();
+      s.allocations.push({ id: 'a1', type: 'team', teamId: 'tA', employeesCount: 5, targetOfficeId: 'new1', targetZoneId: 'z_open' });
+      expect(codes(V.validateScenario(s))).toContain(C.CODE.LINKED_TEAMS_SEPARATED);
+    });
+
+    it('reports a linked pair only once', function () {
+      var s = withLinkedTeams();
+      s.allocations.push({ id: 'a1', type: 'team', teamId: 'tA', employeesCount: 5, targetOfficeId: 'new1', targetZoneId: 'z_open' });
+      s.allocations.push({ id: 'a2', type: 'team', teamId: 'tB', employeesCount: 5, targetOfficeId: 'new2', targetZoneId: 'z2_open' });
+      var count = V.validateScenario(s).filter(function (m) { return m.code === C.CODE.LINKED_TEAMS_SEPARATED; }).length;
+      expect(count).toBe(1);
+    });
+
+    it('no error when neither linked team is placed', function () {
+      var s = withLinkedTeams();
+      expect(codes(V.validateScenario(s)).indexOf(C.CODE.LINKED_TEAMS_SEPARATED)).toBe(-1);
+    });
+  });
+
   describe('info', function () {
     it('has remote employees', function () {
       var s = base();

@@ -248,6 +248,22 @@ App.state = (function () {
       s.employees = s.employees || [];
       s.allocations = s.allocations || [];
 
+      // Ensure each team has a linkedTeamIds array (forward-compat for older
+      // saved projects) and that links are symmetric.
+      s.teams.forEach(function (t) {
+        if (!Array.isArray(t.linkedTeamIds)) {
+          t.linkedTeamIds = [];
+        }
+      });
+      s.teams.forEach(function (t) {
+        t.linkedTeamIds.forEach(function (otherId) {
+          var other = U.findById(s.teams, otherId);
+          if (other && other.linkedTeamIds.indexOf(t.id) === -1) {
+            other.linkedTeamIds.push(t.id);
+          }
+        });
+      });
+
       var hasRemote = s.offices.some(function (o) {
         return o.type === C.OFFICE_TYPE.REMOTE;
       });

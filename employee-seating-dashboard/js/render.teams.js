@@ -57,12 +57,24 @@ window.App = window.App || {};
         }));
       }
 
+      var linkedNames = (team.linkedTeamIds || []).map(function (id) {
+        var t = U.findById(scenario.teams, id);
+        return t ? t.name : null;
+      }).filter(Boolean);
+      var nameCell = U.el('td', {}, [
+        U.el('span', { text: team.name }),
+        linkedNames.length ? U.el('span', {
+          class: 'link-indicator',
+          title: 'Связана с: ' + linkedNames.join(', ')
+        }, ' 🔗') : null
+      ]);
+
       tbody.appendChild(U.el('tr', {}, [
         U.el('td', {}, R.iconBtn(isExpanded ? '▾' : '▸', 'Раскрыть', function () {
           expanded[team.id] = !isExpanded;
           R.render();
         })),
-        U.el('td', { text: team.name }),
+        nameCell,
         U.el('td', { text: String(team.employeesCount || 0) }),
         U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
         U.el('td', { text: team.isVip ? 'Да' : '—' }),
@@ -89,6 +101,18 @@ window.App = window.App || {};
 
   function renderTeamDetail(scenario, team) {
     var wrap = U.el('div', { class: 'team-detail' });
+
+    // Linked teams (must move together).
+    var linkedNames = (team.linkedTeamIds || []).map(function (id) {
+      var t = U.findById(scenario.teams, id);
+      return t ? t.name : null;
+    }).filter(Boolean);
+    if (linkedNames.length) {
+      wrap.appendChild(U.el('div', { class: 'team-linked' }, [
+        U.el('h4', { text: 'Связанные команды (один офис)' }),
+        U.el('div', { class: 'composition-row', text: linkedNames.join(', ') })
+      ]));
+    }
 
     // Allocations of this team.
     var allocs = scenario.allocations.filter(function (a) {
@@ -185,12 +209,18 @@ window.App = window.App || {};
   }
 
   function openTeamForm(team) {
+    var scenario = App.state.getActiveScenario();
     var officeOptions = [{ value: '', label: '—' }];
-    App.state.getActiveScenario().offices.forEach(function (o) {
+    scenario.offices.forEach(function (o) {
       if (o.type !== C.OFFICE_TYPE.REMOTE) {
         officeOptions.push({ value: o.id, label: o.name });
       }
     });
+
+    // Other teams available to link with (exclude the team being edited).
+    var linkOptions = scenario.teams
+      .filter(function (t) { return !team || t.id !== team.id; })
+      .map(function (t) { return { value: t.id, label: t.name }; });
 
     App.modals.form({
       title: (team ? 'Редактирование' : 'Добавление') + ' команды',
@@ -200,6 +230,9 @@ window.App = window.App || {};
         { name: 'currentOfficeId', label: 'Текущий офис', type: 'select', options: officeOptions, value: team ? team.currentOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: team ? team.isVip : false },
         { name: 'canSplit', label: 'Можно делить', type: 'checkbox', value: team ? team.canSplit !== false : true },
+        { name: 'linkedTeamIds', label: 'Связанные команды (переезжают вместе, в одном офисе)',
+          type: 'checkboxgroup', options: linkOptions, value: team ? (team.linkedTeamIds || []) : [],
+          help: 'Связанные команды должны размещаться в одном офисе (зоны могут отличаться). Иначе — ошибка.' },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: team ? team.comment : '' }
       ],
       onSubmit: function (values) {

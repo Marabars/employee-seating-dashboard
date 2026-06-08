@@ -66,6 +66,44 @@ App.allocations = (function () {
   }
 
   /**
+   * Pure check used at drop time: does placing `teamId` into `targetOfficeId`
+   * separate it from any linked team that is already placed in a DIFFERENT
+   * office? Returns a warning string or null. Linked teams must share the same
+   * office (zones may differ).
+   */
+  function linkedConflict(scenarioObj, teamId, targetOfficeId) {
+    var team = U.findById(scenarioObj.teams, teamId);
+    if (!team || !team.linkedTeamIds || !team.linkedTeamIds.length) {
+      return null;
+    }
+    var conflicting = [];
+    team.linkedTeamIds.forEach(function (otherId) {
+      var other = U.findById(scenarioObj.teams, otherId);
+      if (!other) {
+        return;
+      }
+      var otherOffices = {};
+      (scenarioObj.allocations || []).forEach(function (a) {
+        if (a.teamId === otherId && a.targetOfficeId) {
+          otherOffices[a.targetOfficeId] = true;
+        }
+      });
+      var officeIds = Object.keys(otherOffices);
+      if (officeIds.length === 0) {
+        return; // other team not placed yet — no conflict at this moment
+      }
+      // Conflict if the other team is placed somewhere, but not in this office.
+      if (!otherOffices[targetOfficeId]) {
+        conflicting.push(other.name);
+      }
+    });
+    if (conflicting.length) {
+      return 'Связанные команды должны быть в одном офисе. Конфликт с: ' + conflicting.join(', ');
+    }
+    return null;
+  }
+
+  /**
    * Create a team allocation. count is clamped to [1, +inf]; the caller (popup)
    * decides the suggested value. Returns the new allocation id.
    */
@@ -208,6 +246,7 @@ App.allocations = (function () {
     findZone: findZone,
     suggestRemainder: suggestRemainder,
     vipConflict: vipConflict,
+    linkedConflict: linkedConflict,
     addTeamAllocation: addTeamAllocation,
     setEmployeeAllocation: setEmployeeAllocation,
     update: update,

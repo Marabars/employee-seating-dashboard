@@ -172,6 +172,23 @@ App.modals = (function () {
           }
           control.appendChild(o);
         });
+      } else if (field.type === 'checkboxgroup') {
+        // Multi-select rendered as a list of checkboxes. field.value is an
+        // array of pre-selected values. The "control" is the container; its
+        // checkbox children carry value="..." for collection.
+        control = U.el('div', { class: 'checkbox-group' });
+        var selected = {};
+        (field.value || []).forEach(function (v) { selected[String(v)] = true; });
+        if (!(field.options || []).length) {
+          control.appendChild(U.el('div', { class: 'form-help', text: 'Нет доступных вариантов' }));
+        }
+        (field.options || []).forEach(function (opt) {
+          var cb = U.el('input', { type: 'checkbox', value: opt.value });
+          cb.checked = !!selected[String(opt.value)];
+          control.appendChild(U.el('label', { class: 'checkbox-label' }, [
+            cb, U.el('span', { text: opt.label })
+          ]));
+        });
       } else {
         control = U.el('input', {
           id: inputId,
@@ -208,6 +225,14 @@ App.modals = (function () {
         var control = inputs[field.name];
         if (field.type === 'checkbox') {
           values[field.name] = control.checked;
+        } else if (field.type === 'checkboxgroup') {
+          var picked = [];
+          U.qsa('input[type=checkbox]', control).forEach(function (cb) {
+            if (cb.checked) {
+              picked.push(cb.value);
+            }
+          });
+          values[field.name] = picked;
         } else if (field.type === 'number') {
           values[field.name] = control.value === '' ? '' : Number(control.value);
         } else {

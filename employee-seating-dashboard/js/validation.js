@@ -58,6 +58,7 @@ App.validation = (function () {
     }
 
     validateTeams(scenario, out);
+    validateLinkedTeams(scenario, out);
     validateEmployeesDuplicates(scenario, out);
     validateEmployeesUnplaced(scenario, out);
     validateOfficeAndZoneOverflow(scenario, out);
@@ -66,6 +67,76 @@ App.validation = (function () {
     validateRemoteInfo(scenario, out);
 
     return out;
+  }
+
+  /** Set of office ids a team currently occupies (via its team allocations). */
+  function officeSetOfTeam(scenario, teamId) {
+    var set = {};
+    (scenario.allocations || []).forEach(function (a) {
+      if (a.teamId === teamId && a.targetOfficeId) {
+        set[a.targetOfficeId] = true;
+      }
+    });
+    return set;
+  }
+
+  function setsEqual(a, b) {
+    var ak = Object.keys(a);
+    var bk = Object.keys(b);
+    if (ak.length !== bk.length) {
+      return false;
+    }
+    for (var i = 0; i < ak.length; i++) {
+      if (!b[ak[i]]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Linked teams must move together: they must occupy the same set of offices
+   * (zones may differ). If at least one of a linked pair is placed and their
+   * office sets differ, that's an error. Each pair is reported once.
+   */
+  function validateLinkedTeams(scenario, out) {
+    var reported = {};
+    (scenario.teams || []).forEach(function (team) {
+      var linked = team.linkedTeamIds || [];
+      if (!linked.length) {
+        return;
+      }
+      var officesA = officeSetOfTeam(scenario, team.id);
+      linked.forEach(function (otherId) {
+        var pairKey = [team.id, otherId].sort().join('|');
+        if (reported[pairKey]) {
+          return;
+        }
+        var other = findTeam(scenario, otherId);
+        if (!other) {
+          return;
+        }
+        var officesB = officeSetOfTeam(scenario, otherId);
+        var aPlaced = Object.keys(officesA).length > 0;
+        var bPlaced = Object.keys(officesB).length > 0;
+
+        // Only meaningful once at least one of them is placed.
+        if (!aPlaced && !bPlaced) {
+          return;
+        }
+        if (!setsEqual(officesA, officesB)) {
+          reported[pairKey] = true;
+          out.push(msg(
+            C.LEVEL.ERROR,
+            C.CODE.LINKED_TEAMS_SEPARATED,
+            'Связанные команды «' + team.name + '» и «' + other.name +
+              '» должны находиться в одном офисе, но размещены раздельно',
+            'team',
+            team.id
+          ));
+        }
+      });
+    });
   }
 
   /** Team over-allocation (error), partial allocation & illegal split (warn). */

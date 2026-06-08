@@ -335,6 +335,10 @@ App.dragDrop = (function () {
           announce('Предупреждение: ' + conflict);
         }
       }
+      var linkWarn = alloc.linkedConflict(scenario, teamId, office.id);
+      if (linkWarn) {
+        announce('Предупреждение: ' + linkWarn);
+      }
       alloc.addTeamAllocation(teamId, count, office.id, zoneId || null, comment);
       announce('Команда ' + team.name + ': размещено ' + count + ' в ' + office.name + (z ? ' / ' + z.name : ''));
     });
