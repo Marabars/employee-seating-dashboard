@@ -515,6 +515,18 @@ input[type=search]::placeholder { color: var(--text-muted); }
 /* ---- Allocation / member action rows (Teams tab) ---- */
 .alloc-row, .member-row { display: flex; align-items: center; gap: 8px; }
 .alloc-row-label, .member-name { flex: 1; }
+.member-pos { flex: 0 0 auto; }
+.member-summary {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.member-rest { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.member-rest.member-over { color: var(--yellow); }
+.member-add { margin-top: 10px; }
 
 /* ---- Print (force light, ink-friendly) ---- */
 @media print {

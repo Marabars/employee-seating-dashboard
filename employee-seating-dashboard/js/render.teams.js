@@ -143,31 +143,129 @@ window.App = window.App || {};
       wrap.appendChild(U.el('p', { class: 'muted', text: 'Нет размещений' }));
     }
 
-    // Members of this team (by ФИО) with reassignment / removal.
+    wrap.appendChild(renderMembers(scenario, team, viewOnly));
+    return wrap;
+  }
+
+  /**
+   * Members section: named employees (ФИО) at the top, then a summary line
+   * "N с ФИО, команда X человек", then the unnamed remainder "ещё M сотрудников".
+   * A team of X people may consist of named and unnamed members; named ones
+   * are the employees whose teamId points here.
+   */
+  function renderMembers(scenario, team, viewOnly) {
     var members = scenario.employees.filter(function (e) {
       return e.teamId === team.id;
     });
-    var memberWrap = U.el('div', { class: 'team-detail-members' }, [U.el('h4', { text: 'Сотрудники команды (' + members.length + ')' })]);
-    if (members.length > 0) {
+    var headcount = team.employeesCount || 0;
+    var namedCount = members.length;
+    var remainder = headcount - namedCount; // may be negative if over-named
+
+    var wrap = U.el('div', { class: 'team-detail-members' }, [
+      U.el('h4', { text: 'Сотрудники команды' })
+    ]);
+
+    // 1) Named employees on top.
+    if (namedCount > 0) {
       members.forEach(function (emp) {
         var placement = App.employees.placementOf(scenario, emp);
         var row = U.el('div', { class: 'composition-row member-row' }, [
           U.el('span', { class: 'member-name', text: emp.fullName }),
+          emp.position ? U.el('span', { class: 'muted member-pos', text: emp.position }) : null,
           U.el('span', { class: 'muted', text: C.PLACEMENT_STATUS_LABEL[placement.status] })
         ]);
         if (!viewOnly) {
+          row.appendChild(R.iconBtn('✎', 'Редактировать ФИО', function () { openMemberForm(scenario, team, emp); }));
           row.appendChild(R.iconBtn('↔', 'Перенести в другую команду', function () { openReassignPopup(scenario, emp); }));
           row.appendChild(R.iconBtn('✕', 'Убрать из команды', function () {
             App.employees.update(emp.id, { teamId: '' });
           }));
         }
-        memberWrap.appendChild(row);
+        wrap.appendChild(row);
       });
-    } else {
-      memberWrap.appendChild(U.el('p', { class: 'muted', text: 'В списке нет сотрудников этой команды (работа по численности).' }));
     }
-    wrap.appendChild(memberWrap);
+
+    // 2) Summary line.
+    wrap.appendChild(U.el('div', { class: 'member-summary', text:
+      namedCount + ' ' + pluralEmployees(namedCount) + ' с ФИО · команда ' +
+      headcount + ' ' + pluralPeople(headcount)
+    }));
+
+    // 3) Unnamed remainder.
+    if (remainder > 0) {
+      wrap.appendChild(U.el('div', { class: 'member-rest', text:
+        'ещё ' + remainder + ' ' + pluralEmployees(remainder) + ' без ФИО' }));
+    } else if (remainder < 0) {
+      wrap.appendChild(U.el('div', { class: 'member-rest member-over', text:
+        'указано на ' + (-remainder) + ' ' + pluralEmployees(-remainder) +
+        ' больше численности команды — увеличьте «Количество сотрудников»' }));
+    } else if (namedCount > 0) {
+      wrap.appendChild(U.el('div', { class: 'member-rest', text: 'все сотрудники указаны по ФИО' }));
+    }
+
+    // 4) Add a named employee directly to this team.
+    if (!viewOnly) {
+      wrap.appendChild(U.el('button', {
+        class: 'btn btn-sm btn-secondary member-add',
+        onclick: function () { openMemberForm(scenario, team, null); }
+      }, '＋ Добавить сотрудника с ФИО'));
+    }
     return wrap;
+  }
+
+  /** Russian plural for "сотрудник". */
+  function pluralEmployees(n) {
+    var abs = Math.abs(n) % 100;
+    var last = abs % 10;
+    if (abs > 10 && abs < 20) { return 'сотрудников'; }
+    if (last === 1) { return 'сотрудник'; }
+    if (last > 1 && last < 5) { return 'сотрудника'; }
+    return 'сотрудников';
+  }
+
+  /** Russian plural for "человек". */
+  function pluralPeople(n) {
+    var abs = Math.abs(n) % 100;
+    var last = abs % 10;
+    if (abs > 10 && abs < 20) { return 'человек'; }
+    if (last === 1) { return 'человек'; }
+    if (last > 1 && last < 5) { return 'человека'; }
+    return 'человек';
+  }
+
+  /**
+   * Add or edit a named employee in the context of a team. When `emp` is null,
+   * a new employee is created and assigned to the team.
+   */
+  function openMemberForm(scenario, team, emp) {
+    var formatOptions = Object.keys(C.WORK_FORMAT).map(function (k) {
+      var v = C.WORK_FORMAT[k];
+      return { value: v, label: C.WORK_FORMAT_LABEL[v] };
+    });
+    App.modals.form({
+      title: (emp ? 'Редактирование' : 'Добавление') + ' сотрудника · команда «' + team.name + '»',
+      fields: [
+        { name: 'fullName', label: 'ФИО', type: 'text', value: emp ? emp.fullName : '' },
+        { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
+        { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : !!team.isVip },
+        { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions,
+          value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
+        { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }
+      ],
+      onSubmit: function (values) {
+        if (!values.fullName) {
+          App.modals.alert('Укажите ФИО сотрудника');
+          return false;
+        }
+        if (emp) {
+          App.employees.update(emp.id, values);
+        } else {
+          values.teamId = team.id;
+          App.employees.add(values);
+        }
+        return true;
+      }
+    });
   }
 
   /** Pull part of a team allocation back out. */
