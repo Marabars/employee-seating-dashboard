@@ -55,7 +55,7 @@ App.importExport = (function () {
       return;
     }
     var wb = XLSX.utils.book_new();
-    addSheetFromHeaders(wb, 'Offices', ['office_name', 'office_type', 'area', 'capacity', 'cabinet_capacity', 'open_space_capacity', 'vip_capacity', 'is_draft', 'comment']);
+    addSheetFromHeaders(wb, 'Offices', ['office_name', 'office_type', 'area', 'cabinet_capacity', 'open_space_capacity', 'vip_capacity', 'rent_per_sqm', 'opex_per_sqm', 'indexation_pct', 'is_draft', 'comment']);
     addSheetFromHeaders(wb, 'Zones', ['office_name', 'zone_name', 'zone_type', 'capacity', 'is_vip_zone', 'comment']);
     addSheetFromHeaders(wb, 'Teams', ['team_name', 'employees_count', 'current_office', 'is_vip', 'can_split', 'comment']);
     addSheetFromHeaders(wb, 'Employees', ['full_name', 'position', 'team_name', 'current_office', 'is_vip', 'work_format', 'comment']);
@@ -155,8 +155,8 @@ App.importExport = (function () {
         scenario.offices.push(office);
         officeByName[data.name.toLowerCase()] = office;
       }
-      // Inline zone capacities for new offices (cabinet/open_space/vip columns).
-      if (office.type === C.OFFICE_TYPE.NEW) {
+      // Inline zone capacities (cabinet/open_space/vip columns).
+      if (office.type === C.OFFICE_TYPE.PHYSICAL) {
         applyInlineZones(office, data);
       }
     });
@@ -164,8 +164,8 @@ App.importExport = (function () {
     // Zones (explicit sheet rows).
     parsed.zones.forEach(function (z) {
       var office = officeByName[z.officeName.toLowerCase()];
-      if (!office || office.type !== C.OFFICE_TYPE.NEW) {
-        parsed.report.warnings.push('Зона «' + z.name + '»: офис «' + z.officeName + '» не найден или не является новым');
+      if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) {
+        parsed.report.warnings.push('Зона «' + z.name + '»: офис «' + z.officeName + '» не найден');
         return;
       }
       office.zones = office.zones || [];
@@ -221,27 +221,22 @@ App.importExport = (function () {
   }
 
   function makeOffice(data) {
-    if (data.type === C.OFFICE_TYPE.OLD) {
-      return {
-        id: U.genId('office_old'),
-        type: C.OFFICE_TYPE.OLD,
-        name: data.name,
-        area: data.area,
-        currentCapacity: data.currentCapacity || U.toNonNegativeInt(data.capacity),
-        isDraft: data.isDraft,
-        comment: data.comment
-      };
-    }
-    var office = {
-      id: U.genId('office_new'),
-      type: C.OFFICE_TYPE.NEW,
+    // Build a physical office in the parsed phase via the state factory.
+    return state.createOffice(data.phase, {
       name: data.name,
       area: data.area,
       isDraft: data.isDraft,
       comment: data.comment,
-      zones: [state.createDefaultOpenSpaceZone()]
-    };
-    return office;
+      rentPerSqm: numericOrNull(data.rent_per_sqm),
+      opexPerSqm: numericOrNull(data.opex_per_sqm),
+      indexationPct: numericOrNull(data.indexation_pct)
+    });
+  }
+
+  function numericOrNull(v) {
+    if (v === undefined || v === null || String(v).trim() === '') { return null; }
+    var n = Number(v);
+    return isNaN(n) ? null : n;
   }
 
   function removeAutoOpenSpaceIfEmpty(office) {
@@ -360,8 +355,9 @@ App.importExport = (function () {
     scenarios.forEach(function (s) {
       s.offices.forEach(function (o) {
         var cap = calc.calculateOfficeCapacity(o);
+        var phaseOut = o.type === C.OFFICE_TYPE.REMOTE ? 'remote' : (o.phase || '');
         aoa.push(rowWithScenario(s, [
-          o.name, o.type, o.area || 0,
+          o.name, phaseOut, o.area || 0,
           isFinite(cap) ? cap : '∞',
           calc.calculateOfficeOccupancy(s, o.id),
           o.isDraft ? 'да' : 'нет', o.comment || ''

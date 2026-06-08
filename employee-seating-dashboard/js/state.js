@@ -48,6 +48,49 @@ App.state = (function () {
     };
   }
 
+  /**
+   * Create a physical office for a phase (asis/tobe). `data.zones` is an
+   * optional array of { name, type, capacity, isVipZone }. If none given, an
+   * auto "Опенспейс" zone is created. Money fields default to null.
+   */
+  function createOffice(phase, data) {
+    data = data || {};
+    var office = {
+      id: U.genId('office'),
+      type: C.OFFICE_TYPE.PHYSICAL,
+      phase: phase === C.OFFICE_PHASE.ASIS ? C.OFFICE_PHASE.ASIS : C.OFFICE_PHASE.TOBE,
+      name: data.name || 'Офис',
+      area: U.toNonNegativeInt(data.area),
+      isDraft: !!data.isDraft,
+      comment: data.comment || '',
+      zones: [],
+      rentPerSqm: (data.rentPerSqm === undefined || data.rentPerSqm === '') ? null : Number(data.rentPerSqm),
+      opexPerSqm: (data.opexPerSqm === undefined || data.opexPerSqm === '') ? null : Number(data.opexPerSqm),
+      indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct)
+    };
+    (data.zones || []).forEach(function (z) {
+      office.zones.push(makeZoneObject(z));
+    });
+    if (office.zones.length === 0) {
+      office.zones.push(createDefaultOpenSpaceZone());
+    }
+    return office;
+  }
+
+  /** Build a normalized zone object from partial data. */
+  function makeZoneObject(z) {
+    var isVip = z.type === C.ZONE_TYPE.VIP || !!z.isVipZone;
+    return {
+      id: U.genId('zone'),
+      name: z.name || 'Зона',
+      type: z.type || C.ZONE_TYPE.OPEN_SPACE,
+      capacity: U.toNonNegativeInt(z.capacity),
+      isVipZone: isVip,
+      isSystem: false,
+      comment: z.comment || ''
+    };
+  }
+
   /** Create a fresh scenario with only the system remote office. */
   function createScenario(name, comment) {
     return {
@@ -77,6 +120,7 @@ App.state = (function () {
         },
         autosaveEnabled: false,
         viewOnlyMode: false,
+        showMoveProgress: false,
         lastSelectedScenarioId: scenario.id
       },
       scenarios: [scenario]
@@ -240,6 +284,9 @@ App.state = (function () {
     if (typeof p.settings.viewOnlyMode !== 'boolean') {
       p.settings.viewOnlyMode = false;
     }
+    if (typeof p.settings.showMoveProgress !== 'boolean') {
+      p.settings.showMoveProgress = false;
+    }
 
     p.scenarios.forEach(function (s) {
       s.comment = s.comment || '';
@@ -271,13 +318,27 @@ App.state = (function () {
         s.offices.push(createRemoteOffice());
       }
 
+      // Normalize physical offices: migrate legacy old/new -> phase, ensure
+      // zones + money fields exist.
       s.offices.forEach(function (o) {
-        if (o.type === C.OFFICE_TYPE.NEW) {
-          o.zones = o.zones || [];
-          if (o.zones.length === 0) {
-            o.zones.push(createDefaultOpenSpaceZone());
-          }
+        if (o.type === C.OFFICE_TYPE.REMOTE) {
+          return;
         }
+        // Legacy migration: old -> physical/asis, new -> physical/tobe.
+        if (o.type === 'old') { o.phase = C.OFFICE_PHASE.ASIS; }
+        else if (o.type === 'new') { o.phase = C.OFFICE_PHASE.TOBE; }
+        if (o.phase !== C.OFFICE_PHASE.ASIS && o.phase !== C.OFFICE_PHASE.TOBE) {
+          o.phase = C.OFFICE_PHASE.TOBE;
+        }
+        o.type = C.OFFICE_TYPE.PHYSICAL;
+        o.area = o.area || 0;
+        o.zones = o.zones || [];
+        if (o.zones.length === 0) {
+          o.zones.push(createDefaultOpenSpaceZone());
+        }
+        if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
+        if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
+        if (o.indexationPct === undefined) { o.indexationPct = null; }
       });
     });
 
@@ -292,6 +353,8 @@ App.state = (function () {
     // factories (reused by scenarios/offices modules)
     createRemoteOffice: createRemoteOffice,
     createDefaultOpenSpaceZone: createDefaultOpenSpaceZone,
+    createOffice: createOffice,
+    makeZoneObject: makeZoneObject,
     createScenario: createScenario,
     createDefaultProject: createDefaultProject,
     // lifecycle

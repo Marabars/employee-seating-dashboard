@@ -20,9 +20,7 @@ App.calc = (function () {
     if (office.type === C.OFFICE_TYPE.REMOTE) {
       return Infinity;
     }
-    if (office.type !== C.OFFICE_TYPE.NEW) {
-      return 0; // old offices do not participate in new-office capacity
-    }
+    // Physical office capacity = sum of its zone capacities (places).
     return U.sumBy(office.zones, 'capacity');
   }
 
@@ -51,6 +49,14 @@ App.calc = (function () {
 
   /** Free places = capacity - occupied (may be negative -> overflow). */
   function calculateFreePlaces(capacity, occupied) {
+    if (!isFinite(capacity)) {
+      return Infinity;
+    }
+    return capacity - occupied;
+  }
+
+  /** Places balance = capacity - occupied (positive = profit, negative = deficit). */
+  function calculateBalance(capacity, occupied) {
     if (!isFinite(capacity)) {
       return Infinity;
     }
@@ -91,11 +97,66 @@ App.calc = (function () {
     })[0] || null;
   }
 
-  /** All new offices of a scenario. */
-  function getNewOffices(scenario) {
+  /** Physical offices of a scenario (both phases). */
+  function getPhysicalOffices(scenario) {
     return (scenario.offices || []).filter(function (o) {
-      return o.type === C.OFFICE_TYPE.NEW;
+      return o.type === C.OFFICE_TYPE.PHYSICAL;
     });
+  }
+
+  /** Physical offices filtered by phase ('asis' | 'tobe'). */
+  function getOfficesByPhase(scenario, phase) {
+    return getPhysicalOffices(scenario).filter(function (o) {
+      return o.phase === phase;
+    });
+  }
+
+  function getTobeOffices(scenario) {
+    return getOfficesByPhase(scenario, C.OFFICE_PHASE.TOBE);
+  }
+
+  function getAsisOffices(scenario) {
+    return getOfficesByPhase(scenario, C.OFFICE_PHASE.ASIS);
+  }
+
+  /**
+   * Back-compat alias: previously "new offices" meant the planning offices.
+   * KPIs/overflow now compute over TO BE offices.
+   */
+  function getNewOffices(scenario) {
+    return getTobeOffices(scenario);
+  }
+
+  // ---- Money (lease) ----------------------------------------------------
+
+  /** Annual lease cost = (rent + opex) per sqm * area. null if rates unset. */
+  function officeAnnualCost(office) {
+    if (!office || office.type === C.OFFICE_TYPE.REMOTE) {
+      return null;
+    }
+    if (office.rentPerSqm == null && office.opexPerSqm == null) {
+      return null;
+    }
+    var rent = office.rentPerSqm || 0;
+    var opex = office.opexPerSqm || 0;
+    return (rent + opex) * (office.area || 0);
+  }
+
+  /**
+   * Total lease cost over N years with compound annual indexation.
+   * Year k cost = annual * (1+i)^k, summed k=0..N-1. null if no annual cost.
+   */
+  function officeCostNYears(office, years) {
+    var annual = officeAnnualCost(office);
+    if (annual == null) {
+      return null;
+    }
+    var i = (office.indexationPct || 0) / 100;
+    var total = 0;
+    for (var k = 0; k < years; k++) {
+      total += annual * Math.pow(1 + i, k);
+    }
+    return total;
   }
 
   /** Total seats allocated to the remote office. */
@@ -307,13 +368,15 @@ App.calc = (function () {
     return {
       totalEmployees: total,
       requiredSeats: total - remote,
-      newOfficesCapacity: newCapacity,
+      // "Всего мест" / "Баланс" are computed over TO BE offices.
+      totalPlaces: newCapacity,
+      newOfficesCapacity: newCapacity, // alias kept for older callers
       placedInOffices: placedInOffices,
+      placesBalance: newCapacity - placedInOffices,
       remoteCount: remote,
       unplacedCount: calculateUnplacedCount(scenario),
       freeReserve: freeReserve,
       reserveByZone: reserveByZone,
-      officeOverflow: calculateTotalOfficeOverflow(scenario),
       zoneOverflow: calculateTotalZoneOverflow(scenario),
       warningsCount: warnings,
       errorsCount: errors
@@ -328,8 +391,15 @@ App.calc = (function () {
     calculateFreePlaces: calculateFreePlaces,
     calculateOccupancyPercent: calculateOccupancyPercent,
     statusColor: statusColor,
+    calculateBalance: calculateBalance,
     getRemoteOffice: getRemoteOffice,
+    getPhysicalOffices: getPhysicalOffices,
+    getOfficesByPhase: getOfficesByPhase,
+    getTobeOffices: getTobeOffices,
+    getAsisOffices: getAsisOffices,
     getNewOffices: getNewOffices,
+    officeAnnualCost: officeAnnualCost,
+    officeCostNYears: officeCostNYears,
     calculateRemoteCount: calculateRemoteCount,
     calculatePlacedInOffices: calculatePlacedInOffices,
     calculateTotalEmployees: calculateTotalEmployees,

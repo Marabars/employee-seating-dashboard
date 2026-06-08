@@ -16,7 +16,7 @@
       id: 's', name: 'T', comment: '',
       offices: [
         {
-          id: 'new1', type: 'new', name: 'Новый B', area: 100, isDraft: false,
+          id: 'new1', type: 'physical', phase: 'tobe', name: 'Новый B', area: 100, isDraft: false,
           zones: [
             { id: 'z_open', name: 'Опенспейс', type: 'open_space', capacity: 30, isVipZone: false },
             { id: 'z_vip', name: 'VIP', type: 'vip', capacity: 5, isVipZone: true }
@@ -109,7 +109,7 @@
       var s = base();
       // second office to test separation
       s.offices.splice(1, 0, {
-        id: 'new2', type: 'new', name: 'Новый C', area: 100, isDraft: false,
+        id: 'new2', type: 'physical', phase: 'tobe', name: 'Новый C', area: 100, isDraft: false,
         zones: [{ id: 'z2_open', name: 'Опен C', type: 'open_space', capacity: 30, isVipZone: false }]
       });
       s.teams.push({ id: 'tA', name: 'A', employeesCount: 5, isVip: false, canSplit: true, linkedTeamIds: ['tB'] });

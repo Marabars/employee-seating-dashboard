@@ -106,25 +106,27 @@ App.importValidation = (function () {
         result.report.errors.push('Offices, строка ' + rowNo + ': дубликат офиса «' + name + '»');
         return;
       }
-      var typeRaw = String(cell(row, idx, 'office_type') || 'new').trim().toLowerCase();
-      var type = C.OFFICE_TYPE_ALIASES[typeRaw] || C.OFFICE_TYPE.NEW;
+      // office_type column now carries the phase (AS IS / TO BE).
+      var phaseRaw = String(cell(row, idx, 'office_type') || 'tobe').trim().toLowerCase();
+      var phase = C.OFFICE_PHASE_ALIASES[phaseRaw] || C.OFFICE_PHASE.TOBE;
 
       names[name.toLowerCase()] = true;
       var office = {
         name: name,
-        type: type,
+        phase: phase,
         area: U.toNonNegativeInt(cell(row, idx, 'area')),
         isDraft: U.parseBoolean(cell(row, idx, 'is_draft')),
         comment: String(cell(row, idx, 'comment') || ''),
-        // optional inline zone capacities for new offices
+        // optional inline zone capacities
         cabinet_capacity: cell(row, idx, 'cabinet_capacity'),
         open_space_capacity: cell(row, idx, 'open_space_capacity'),
         vip_capacity: cell(row, idx, 'vip_capacity'),
-        capacity: cell(row, idx, 'capacity')
+        capacity: cell(row, idx, 'capacity'),
+        // optional money fields
+        rent_per_sqm: cell(row, idx, 'rent_per_sqm'),
+        opex_per_sqm: cell(row, idx, 'opex_per_sqm'),
+        indexation_pct: cell(row, idx, 'indexation_pct')
       };
-      if (type === C.OFFICE_TYPE.OLD) {
-        office.currentCapacity = U.toNonNegativeInt(cell(row, idx, 'capacity'));
-      }
       result.offices.push(office);
       result.report.imported.offices += 1;
     });

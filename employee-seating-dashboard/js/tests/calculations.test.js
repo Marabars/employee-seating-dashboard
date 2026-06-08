@@ -18,9 +18,10 @@
       name: 'Test',
       comment: '',
       offices: [
-        { id: 'old1', type: 'old', name: 'Старый', area: 500, currentCapacity: 80 },
+        { id: 'old1', type: 'physical', phase: 'asis', name: 'Старый', area: 500,
+          zones: [{ id: 'z_as', name: 'Опен AS', type: 'open_space', capacity: 80, isVipZone: false }] },
         {
-          id: 'new1', type: 'new', name: 'Новый B', area: 1200, isDraft: false,
+          id: 'new1', type: 'physical', phase: 'tobe', name: 'Новый B', area: 1200, isDraft: false,
           zones: [
             { id: 'z_open', name: 'Опенспейс', type: 'open_space', capacity: 130, isVipZone: false },
             { id: 'z_cab', name: 'Кабинеты', type: 'cabinet', capacity: 40, isVipZone: false },
@@ -51,9 +52,9 @@
       var s = fixture();
       expect(calc.calculateOfficeCapacity(s.offices[2])).toBe(Infinity);
     });
-    it('returns 0 for old office (not counted)', function () {
+    it('AS IS physical office also sums its zones', function () {
       var s = fixture();
-      expect(calc.calculateOfficeCapacity(s.offices[0])).toBe(0);
+      expect(calc.calculateOfficeCapacity(s.offices[0])).toBe(80);
     });
   });
 
@@ -127,19 +128,41 @@
       var k = calc.calculateScenarioKpis(s, []);
       expect(k.remoteCount).toBe(5);
     });
-    it('free reserve = new capacity - placed in offices', function () {
+    it('total places = TO BE capacity (180), balance = 180 - 20', function () {
       var s = fixture();
       var k = calc.calculateScenarioKpis(s, []);
-      expect(k.freeReserve).toBe(160); // 180 - 20
+      expect(k.totalPlaces).toBe(180);
+      expect(k.placesBalance).toBe(160); // 180 - 20 placed
     });
-    it('office and zone overflow reported separately', function () {
+    it('zone overflow still reported; office overflow metric removed', function () {
       var s = fixture();
-      // Overload the open space zone: add 130 more to z_open (20 + 130 = 150 > 130)
       s.allocations.push({ id: 'a3', type: 'team', teamId: 't1', employeesCount: 130, targetOfficeId: 'new1', targetZoneId: 'z_open' });
       var k = calc.calculateScenarioKpis(s, []);
-      // office capacity 180, occupied 150 -> no office overflow; zone 130 cap, 150 occ -> 20 zone overflow
-      expect(k.zoneOverflow).toBe(20);
-      expect(k.officeOverflow).toBe(0);
+      expect(k.zoneOverflow).toBe(20); // zone 130 cap, 150 occ
+      expect(k.officeOverflow).toBe(undefined); // metric removed
+    });
+    it('negative balance = deficit', function () {
+      var s = fixture();
+      s.allocations.push({ id: 'a4', type: 'team', teamId: 't1', employeesCount: 200, targetOfficeId: 'new1', targetZoneId: 'z_open' });
+      var k = calc.calculateScenarioKpis(s, []);
+      // placed in offices now 220, capacity 180 -> balance -40
+      expect(k.placesBalance).toBe(-40);
+    });
+  });
+
+  describe('money (lease)', function () {
+    it('annual cost = (rent + opex) * area', function () {
+      var office = { type: 'physical', phase: 'tobe', area: 100, zones: [], rentPerSqm: 30000, opexPerSqm: 5000, indexationPct: 0 };
+      expect(calc.officeAnnualCost(office)).toBe(3500000); // (30000+5000)*100
+    });
+    it('returns null when rates unset', function () {
+      var office = { type: 'physical', phase: 'tobe', area: 100, zones: [], rentPerSqm: null, opexPerSqm: null };
+      expect(calc.officeAnnualCost(office)).toBe(null);
+    });
+    it('5-year cost compounds with indexation', function () {
+      var office = { type: 'physical', phase: 'tobe', area: 100, zones: [], rentPerSqm: 10000, opexPerSqm: 0, indexationPct: 10 };
+      // annual = 1,000,000; sum k=0..4 of 1e6*(1.1)^k = 1e6*(1+1.1+1.21+1.331+1.4641)=6,105,100
+      expect(Math.round(calc.officeCostNYears(office, 5))).toBe(6105100);
     });
   });
 
@@ -164,7 +187,7 @@
       // Regression: total 10 but 40 in offices + 20 remote -> previously 400%/200%.
       var s = {
         id: 's', offices: [
-          { id: 'new1', type: 'new', name: 'B', zones: [{ id: 'z1', name: 'O', type: 'open_space', capacity: 10, isVipZone: false }] },
+          { id: 'new1', type: 'physical', phase: 'tobe', name: 'B', zones: [{ id: 'z1', name: 'O', type: 'open_space', capacity: 10, isVipZone: false }] },
           { id: 'remote', type: 'remote', name: 'Удаленка', unlimitedCapacity: true }
         ],
         teams: [{ id: 't1', name: 'A', employeesCount: 10, canSplit: true }],

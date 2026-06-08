@@ -15,60 +15,94 @@ window.App = window.App || {};
   var calc = App.calc;
   var state = App.state;
 
-  // Track which office cards are expanded (UI-only, survives re-render).
-  var expanded = {};
+  // UI-only view state (survives re-render).
+  var expanded = {};       // office card expanded
+  var expandedZones = {};  // zone expanded within an office card
+  var moneyMode = false;   // money toggle for office cards
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
     var kpis = ctx.kpis;
 
     container.appendChild(renderKpiBlock(kpis));
-    container.appendChild(renderProgress(scenario));
 
-    var newOffices = calc.getNewOffices(scenario);
-    var officesPanel = R.section('Новые офисы');
-    if (newOffices.length === 0) {
-      officesPanel.appendChild(R.emptyState(
-        C.EMPTY_STATES.offices,
-        'Перейти к офисам',
-        function () { R.setActiveTab('offices'); }
-      ));
-    } else {
-      var grid = U.el('div', { class: 'office-grid' });
-      newOffices.forEach(function (office) {
-        grid.appendChild(renderOfficeCard(scenario, office, ctx));
-      });
-      officesPanel.appendChild(grid);
+    // Move-progress is hidden by default (kept behind a setting flag).
+    if (state.getSettings().showMoveProgress) {
+      container.appendChild(renderProgress(scenario));
     }
-    container.appendChild(officesPanel);
 
+    container.appendChild(renderOfficesBlock(scenario, ctx));
     container.appendChild(renderRemoteCard(scenario, ctx));
     container.appendChild(renderTeamList(scenario, ctx));
     container.appendChild(renderProblemOffices(scenario, ctx));
     container.appendChild(renderWarningsPanel(ctx));
   }
 
+  /** 4 large KPIs + a compact secondary row. */
   function renderKpiBlock(kpis) {
     var panel = R.section('Ключевые показатели');
-    var grid = U.el('div', { class: 'kpi-grid' });
-    grid.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
-    grid.appendChild(R.kpiCard('Требуется посадочных мест', kpis.requiredSeats));
-    grid.appendChild(R.kpiCard('Вместимость новых офисов', kpis.newOfficesCapacity));
-    grid.appendChild(R.kpiCard('Распределено в офисы', kpis.placedInOffices));
-    grid.appendChild(R.kpiCard('На удаленке', kpis.remoteCount, 'blue'));
-    grid.appendChild(R.kpiCard('Не размещено', kpis.unplacedCount,
+
+    var main = U.el('div', { class: 'kpi-grid kpi-grid-main' });
+    main.appendChild(R.kpiCard('Всего мест', U.fmtPlaces(kpis.totalPlaces)));
+    main.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
+    main.appendChild(R.kpiCard('Потребность мест', U.fmtPlaces(kpis.requiredSeats)));
+    main.appendChild(R.kpiCard('Баланс мест',
+      (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance + ' шт.',
+      kpis.placesBalance >= 0 ? 'green' : 'red'));
+    panel.appendChild(main);
+
+    var sub = U.el('div', { class: 'kpi-grid kpi-grid-sub' });
+    sub.appendChild(R.kpiCard('На удаленке', kpis.remoteCount, 'blue'));
+    sub.appendChild(R.kpiCard('Не размещено', kpis.unplacedCount,
       kpis.unplacedCount > 0 ? 'yellow' : null));
-    grid.appendChild(R.kpiCard('Свободный резерв', kpis.freeReserve,
-      kpis.freeReserve < 0 ? 'red' : 'green'));
-    grid.appendChild(R.kpiCard('Переполнение офисов', kpis.officeOverflow,
-      kpis.officeOverflow > 0 ? 'red' : null));
-    grid.appendChild(R.kpiCard('Переполнение зон', kpis.zoneOverflow,
+    sub.appendChild(R.kpiCard('Распределено в офисы', kpis.placedInOffices));
+    sub.appendChild(R.kpiCard('Переполнение зон', kpis.zoneOverflow,
       kpis.zoneOverflow > 0 ? 'red' : null));
-    grid.appendChild(R.kpiCard('Предупреждения', kpis.warningsCount,
+    sub.appendChild(R.kpiCard('Предупреждения', kpis.warningsCount,
       kpis.warningsCount > 0 ? 'yellow' : null));
-    grid.appendChild(R.kpiCard('Ошибки', kpis.errorsCount,
+    sub.appendChild(R.kpiCard('Ошибки', kpis.errorsCount,
       kpis.errorsCount > 0 ? 'red' : null));
-    panel.appendChild(grid);
+    panel.appendChild(sub);
+    return panel;
+  }
+
+  /** Offices block with AS IS / TO BE groups and a money toggle. */
+  function renderOfficesBlock(scenario, ctx) {
+    var panel = R.section('Офисы');
+    // Money toggle in the top-right corner of the block.
+    var toggle = U.el('label', { class: 'money-toggle' }, [
+      U.el('input', { type: 'checkbox', onchange: function (e) {
+        moneyMode = e.target.checked;
+        R.render();
+      } }),
+      U.el('span', { text: '₽ Деньги (аренда)' })
+    ]);
+    if (moneyMode) {
+      toggle.querySelector('input').checked = true;
+    }
+    panel.querySelector('.section-head').appendChild(toggle);
+
+    var tobe = calc.getTobeOffices(scenario);
+    var asis = calc.getAsisOffices(scenario);
+
+    if (tobe.length === 0 && asis.length === 0) {
+      panel.appendChild(R.emptyState(C.EMPTY_STATES.offices, 'Перейти к офисам',
+        function () { R.setActiveTab('offices'); }));
+      return panel;
+    }
+
+    if (tobe.length) {
+      panel.appendChild(U.el('h3', { class: 'phase-head phase-tobe', text: 'TO BE — план переезда' }));
+      var gT = U.el('div', { class: 'office-grid' });
+      tobe.forEach(function (o) { gT.appendChild(renderOfficeCard(scenario, o, ctx)); });
+      panel.appendChild(gT);
+    }
+    if (asis.length) {
+      panel.appendChild(U.el('h3', { class: 'phase-head phase-asis', text: 'AS IS — как есть' }));
+      var gA = U.el('div', { class: 'office-grid' });
+      asis.forEach(function (o) { gA.appendChild(renderOfficeCard(scenario, o, ctx)); });
+      panel.appendChild(gA);
+    }
     return panel;
   }
 
@@ -99,101 +133,148 @@ window.App = window.App || {};
   function renderOfficeCard(scenario, office, ctx) {
     var capacity = calc.calculateOfficeCapacity(office);
     var occupied = calc.calculateOfficeOccupancy(scenario, office.id);
+    var balance = calc.calculateBalance(capacity, occupied);
     var percent = calc.calculateOccupancyPercent(occupied, capacity);
-    var officeWarnings = ctx.messages.filter(function (m) {
-      return m.entityId === office.id && m.level !== C.LEVEL.INFO;
-    }).length;
     var isExpanded = !!expanded[office.id];
+    var phaseClass = office.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
 
     var card = U.el('div', {
-      class: 'office-card status-border-' + calc.statusColor(percent, ctx.thresholds),
+      class: 'office-card ' + phaseClass + ' status-border-' + calc.statusColor(percent, ctx.thresholds),
       dataset: { dropOffice: office.id }
     });
 
-    var head = U.el('div', { class: 'office-card-head' }, [
+    // Corner balance badge: green + (profit) / red − (deficit).
+    var balPositive = balance >= 0;
+    card.appendChild(U.el('div', {
+      class: 'balance-badge ' + (balPositive ? 'ok' : 'bad'),
+      title: balPositive ? 'Профицит мест' : 'Дефицит мест'
+    }, balPositive ? '+' : '−'));
+
+    card.appendChild(U.el('div', { class: 'office-card-head' }, [
       U.el('div', {}, [
         U.el('h3', { text: office.name }),
+        U.el('span', { class: 'phase-tag ' + phaseClass, text: C.OFFICE_PHASE_LABEL[office.phase] || '' }),
         office.isDraft ? R.badge('Черновик', 'grey') : null
       ]),
       U.el('button', {
         class: 'icon-btn',
         title: isExpanded ? 'Свернуть' : 'Развернуть',
-        onclick: function () {
-          expanded[office.id] = !isExpanded;
-          R.render();
-        }
+        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
       }, isExpanded ? '▾' : '▸')
-    ]);
-    card.appendChild(head);
+    ]));
 
-    var meta = U.el('div', { class: 'office-card-meta' }, [
-      U.el('span', { text: 'Площадь: ' + (office.area || 0) }),
-      U.el('span', { text: 'Вместимость: ' + (isFinite(capacity) ? capacity : '∞') }),
-      U.el('span', { text: 'Занято: ' + occupied })
-    ]);
-    card.appendChild(meta);
+    card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
 
-    card.appendChild(U.el('div', { class: 'office-card-free', text: R.freeOrOverflowText(capacity, occupied) }));
-    card.appendChild(U.el('div', { class: 'office-card-percent', text: 'Заполненность: ' + U.formatPercent(percent) }));
-    card.appendChild(R.progressBar(occupied, capacity, ctx.thresholds));
-    if (officeWarnings > 0) {
-      card.appendChild(R.badge('Предупреждений: ' + officeWarnings, 'yellow'));
+    if (moneyMode) {
+      card.appendChild(renderMoneyMetrics(office));
+    } else {
+      // Three headline metrics before zones: Мест / Сотрудников / Баланс.
+      card.appendChild(U.el('div', { class: 'office-metrics' }, [
+        metric('Мест', isFinite(capacity) ? capacity : '∞'),
+        metric('Сотрудников', occupied),
+        metric('Баланс', (balance >= 0 ? '+' : '') + balance, balPositive ? 'green' : 'red')
+      ]));
+      card.appendChild(R.progressBar(occupied, capacity, ctx.thresholds));
+      card.appendChild(U.el('div', { class: 'office-card-free', text:
+        'Осталось мест: ' + (balance >= 0 ? balance : 0) + (balance < 0 ? ' (дефицит ' + (-balance) + ')' : '') }));
     }
 
     if (isExpanded) {
       card.appendChild(renderZones(scenario, office, ctx));
-      card.appendChild(renderOfficeComposition(scenario, office));
       if (!ctx.viewOnly) {
         card.appendChild(U.el('div', { class: 'office-card-actions' }, [
-          U.el('button', { class: 'btn btn-sm btn-secondary', onclick: function () { R.setActiveTab('offices'); } }, 'Редактировать'),
-          App.importExport ? U.el('button', {
-            class: 'btn btn-sm btn-secondary',
-            onclick: function () { App.importExport.exportOfficeFragment(office.id); }
-          }, 'Экспортировать фрагмент') : null
+          U.el('button', { class: 'btn btn-sm btn-secondary', onclick: function () { R.setActiveTab('offices'); } }, 'Редактировать')
         ]));
       }
     }
     return card;
   }
 
+  /** Small labeled metric tile used inside office cards. */
+  function metric(label, value, color) {
+    return U.el('div', { class: 'office-metric' + (color ? ' metric-' + color : '') }, [
+      U.el('div', { class: 'office-metric-value', text: String(value) }),
+      U.el('div', { class: 'office-metric-label', text: label })
+    ]);
+  }
+
+  /** Money view: rent, opex, indexation, annual total, 5-year total. */
+  function renderMoneyMetrics(office) {
+    var wrap = U.el('div', { class: 'office-money' });
+    var annual = calc.officeAnnualCost(office);
+    if (annual == null) {
+      wrap.appendChild(U.el('div', { class: 'muted', text: 'Ставки аренды не заданы. Укажите их в карточке офиса.' }));
+      return wrap;
+    }
+    var fiveY = calc.officeCostNYears(office, C.MONEY_5Y);
+    wrap.appendChild(rowMoney('Аренда, ₽/м² с НДС', office.rentPerSqm != null ? office.rentPerSqm.toLocaleString('ru-RU') : '—'));
+    wrap.appendChild(rowMoney('Эксплуатация, ₽/м² с НДС', office.opexPerSqm != null ? office.opexPerSqm.toLocaleString('ru-RU') : '—'));
+    wrap.appendChild(rowMoney('Индексация, %/год', office.indexationPct != null ? office.indexationPct : '—'));
+    wrap.appendChild(rowMoney('Итого аренда, ₽/год', U.fmtMoney(annual), true));
+    wrap.appendChild(rowMoney('Аренда за 5 лет, ₽', U.fmtMoney(fiveY), true));
+    return wrap;
+  }
+
+  function rowMoney(label, value, strong) {
+    return U.el('div', { class: 'money-row' + (strong ? ' money-strong' : '') }, [
+      U.el('span', { class: 'money-label', text: label }),
+      U.el('span', { class: 'money-value', text: String(value) })
+    ]);
+  }
+
   function renderZones(scenario, office, ctx) {
     var wrap = U.el('div', { class: 'zone-list' });
     (office.zones || []).forEach(function (zone) {
       var occ = calc.calculateZoneOccupancy(scenario, zone.id);
+      var zoneBalance = calc.calculateBalance(zone.capacity || 0, occ);
+      var zKey = office.id + ':' + zone.id;
+      var zOpen = !!expandedZones[zKey];
+
       var zoneEl = U.el('div', {
         class: 'zone-row',
         dataset: { dropOffice: office.id, dropZone: zone.id }
-      }, [
-        U.el('div', { class: 'zone-row-head' }, [
-          U.el('span', { class: 'zone-name', text: zone.name + (zone.isVipZone ? ' ★' : '') }),
-          U.el('span', { class: 'zone-stat', text: occ + ' / ' + (zone.capacity || 0) })
-        ]),
-        R.progressBar(occ, zone.capacity || 0, ctx.thresholds),
-        U.el('div', { class: 'zone-free', text: R.freeOrOverflowText(zone.capacity || 0, occ) })
-      ]);
+      });
+      zoneEl.appendChild(U.el('div', { class: 'zone-row-head', onclick: function () {
+        expandedZones[zKey] = !zOpen; R.render();
+      } }, [
+        U.el('span', { class: 'zone-toggle', text: zOpen ? '▾' : '▸' }),
+        U.el('span', { class: 'zone-name', text: zone.name + (zone.isVipZone ? ' ★' : '') }),
+        U.el('span', { class: 'zone-stat', text: occ + ' / ' + (zone.capacity || 0) +
+          ' · ост. ' + (zoneBalance >= 0 ? zoneBalance : 0) })
+      ]));
+
+      // Zones start collapsed; expand to show progress + team boxes.
+      if (zOpen) {
+        zoneEl.appendChild(R.progressBar(occ, zone.capacity || 0, ctx.thresholds));
+        zoneEl.appendChild(U.el('div', { class: 'zone-free', text: R.freeOrOverflowText(zone.capacity || 0, occ) }));
+        zoneEl.appendChild(renderZoneTeams(scenario, office, zone));
+      }
       wrap.appendChild(zoneEl);
     });
     return wrap;
   }
 
-  /** Composition of an office by team (how many seats each team holds here). */
-  function renderOfficeComposition(scenario, office) {
+  /** Teams placed into a specific zone, rendered as small boxes. */
+  function renderZoneTeams(scenario, office, zone) {
     var byTeam = {};
     scenario.allocations.forEach(function (a) {
-      if (a.targetOfficeId === office.id && a.teamId) {
+      if (a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.teamId) {
         byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
       }
     });
     var keys = Object.keys(byTeam);
     if (keys.length === 0) {
-      return U.el('div', { class: 'office-composition muted', text: 'Нет размещений' });
+      return U.el('div', { class: 'zone-teams muted', text: 'Нет команд' });
     }
-    var wrap = U.el('div', { class: 'office-composition' }, [U.el('h4', { text: 'Состав по командам' })]);
+    var box = U.el('div', { class: 'zone-teams' });
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      wrap.appendChild(U.el('div', { class: 'composition-row', text: (team ? team.name : teamId) + ': ' + byTeam[teamId] }));
+      box.appendChild(U.el('div', { class: 'team-box' }, [
+        U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
+        U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
+      ]));
     });
-    return wrap;
+    return box;
   }
 
   function renderRemoteCard(scenario, ctx) {

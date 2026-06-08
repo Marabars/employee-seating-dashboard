@@ -71,7 +71,7 @@ async function shot(page, name) {
 
   // Seed sample data through the app API (exercises real render paths).
   await page.evaluate(() => {
-    App.offices.addNewOffice({ name: 'Новый офис B', area: 1200, zones: [
+    App.offices.addOffice('tobe', { name: 'Новый офис B', area: 1200, zones: [
       { name: 'Опенспейс', type: 'open_space', capacity: 130 },
       { name: 'Кабинеты', type: 'cabinet', capacity: 40 },
       { name: 'VIP-кабинеты', type: 'vip', capacity: 10 }
@@ -82,7 +82,7 @@ async function shot(page, name) {
     for (let i = 1; i <= 6; i++) {
       App.employees.add({ fullName: 'Сотрудник ' + i + ' Финансовый', teamId: team.id, position: 'Аналитик' });
     }
-    const off = App.offices.list().find(o => o.type === 'new');
+    const off = App.calc.getTobeOffices(App.state.getActiveScenario())[0];
     App.allocations.addTeamAllocation(team.id, 30, off.id, off.zones[0].id, '');
     App.allocations.addTeamAllocation(App.teams.list()[1].id, 25, off.id, off.zones[1].id, '');
     App.render.render();

@@ -17,14 +17,13 @@ window.App = window.App || {};
   // KPI tiles shown per scenario. `accent` chooses a status color when the
   // value indicates a problem.
   var TILES = [
+    { label: 'Всего мест', key: 'totalPlaces' },
     { label: 'Всего сотрудников', key: 'totalEmployees' },
-    { label: 'Требуется мест', key: 'requiredSeats' },
-    { label: 'Вместимость', key: 'newOfficesCapacity' },
+    { label: 'Потребность мест', key: 'requiredSeats' },
+    { label: 'Баланс мест', key: 'placesBalance', balance: true },
     { label: 'В офисах', key: 'placedInOffices' },
     { label: 'На удаленке', key: 'remoteCount', accent: 'blue' },
     { label: 'Не размещено', key: 'unplacedCount', warnIfPositive: true },
-    { label: 'Своб. резерв', key: 'freeReserve', redIfNegative: true },
-    { label: 'Переполн. офисов', key: 'officeOverflow', redIfPositive: true },
     { label: 'Переполн. зон', key: 'zoneOverflow', redIfPositive: true },
     { label: 'Предупреждений', key: 'warningsCount', warnIfPositive: true },
     { label: 'Ошибок', key: 'errorsCount', redIfPositive: true }
@@ -76,7 +75,8 @@ window.App = window.App || {};
     var tilesGrid = U.el('div', { class: 'kpi-grid' });
     TILES.forEach(function (tile) {
       var value = kpis[tile.key];
-      tilesGrid.appendChild(R.kpiCard(tile.label, value, accentFor(tile, value)));
+      var display = tile.balance ? (value >= 0 ? '+' + value : String(value)) : value;
+      tilesGrid.appendChild(R.kpiCard(tile.label, display, accentFor(tile, value)));
     });
     card.appendChild(tilesGrid);
 
@@ -84,6 +84,7 @@ window.App = window.App || {};
   }
 
   function accentFor(tile, value) {
+    if (tile.balance) { return value >= 0 ? 'green' : 'red'; }
     if (tile.redIfPositive && value > 0) { return 'red'; }
     if (tile.redIfNegative && value < 0) { return 'red'; }
     if (tile.warnIfPositive && value > 0) { return 'yellow'; }

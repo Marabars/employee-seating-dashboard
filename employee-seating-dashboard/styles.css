@@ -219,6 +219,79 @@ h4 { font-size: 13px; color: var(--text-muted); }
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
 }
+/* 4 large KPIs on top, smaller secondary row below. */
+.kpi-grid-main { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 10px; }
+.kpi-grid-main .kpi-value { font-size: 32px; }
+.kpi-grid-sub { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.kpi-grid-sub .kpi-card { padding: 10px; }
+.kpi-grid-sub .kpi-value { font-size: 20px; }
+
+/* Phase accents (AS IS blue, TO BE lime). */
+.phase-head { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+.phase-head.phase-asis { color: var(--blue); }
+.phase-head.phase-tobe { color: var(--accent); }
+.phase-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 6px; }
+.phase-tag.phase-asis { background: var(--blue-bg); color: var(--blue); }
+.phase-tag.phase-tobe { background: rgba(186,247,120,.12); color: var(--accent); }
+.office-card.phase-asis { border-top: 0; }
+.office-card.phase-asis::before { background: var(--blue); }
+.phase-section.phase-asis .phase-title-wrap h2 { color: var(--blue); }
+.phase-title-wrap { display: flex; align-items: center; gap: 6px; }
+
+/* Office card metrics row (Мест / Сотрудников / Баланс). */
+.office-card-area { font-size: 12px; color: var(--text-muted); margin: 4px 0 8px; }
+.office-metrics { display: flex; gap: 8px; margin-bottom: 8px; }
+.office-metric { flex: 1; background: var(--surface-2); border-radius: 8px; padding: 8px; text-align: center; }
+.office-metric-value { font-size: 20px; font-weight: 800; }
+.office-metric-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+.office-metric.metric-green .office-metric-value { color: var(--green); }
+.office-metric.metric-red .office-metric-value { color: var(--red); }
+
+/* Corner balance badge. */
+.office-card { position: relative; }
+.balance-badge {
+  position: absolute; top: 8px; right: 38px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 15px;
+}
+.balance-badge.ok { background: var(--green-bg); color: var(--green); }
+.balance-badge.bad { background: var(--red-bg); color: var(--red); }
+
+/* Team boxes inside zones. */
+.zone-teams { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.team-box {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 10px; font-size: 12px;
+}
+.team-box-name { font-weight: 600; }
+.team-box-count { color: var(--text-muted); }
+.zone-toggle { color: var(--text-muted); margin-right: 4px; }
+.zone-row-head { cursor: pointer; }
+
+/* Money mode. */
+.money-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.money-toggle input { cursor: pointer; }
+.office-money { margin: 6px 0; }
+.money-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.money-row:last-child { border-bottom: none; }
+.money-row.money-strong { font-weight: 700; color: var(--accent); }
+.money-label { color: var(--text-muted); }
+
+/* Office form: inline zone editor. */
+.form-zones { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.form-zone-row { display: flex; gap: 6px; align-items: center; }
+.form-zone-row input[type=text] { flex: 1; }
+.form-zone-row select { flex: 0 0 130px; }
+.form-zone-cap { display: inline-flex; align-items: center; gap: 4px; }
+.form-zone-cap input { width: 70px; }
+.form-zone-total { font-size: 13px; font-weight: 700; color: var(--accent); margin: 6px 0 4px; }
+.cell-ok { color: var(--green); font-weight: 600; }
+
+/* Drag cursor (hand-like). */
+[data-drag-kind], .drag-source, .team-chip, .alloc-chip { cursor: grab; }
+[data-drag-kind]:active, .drag-source:active, .team-chip:active, .alloc-chip:active { cursor: grabbing; }
 .kpi-card {
   border: 1px solid var(--border);
   border-radius: 12px;

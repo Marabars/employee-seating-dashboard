@@ -91,6 +91,24 @@ App.utils = (function () {
     return 'мест';
   }
 
+  /** Format a places count with the "шт. мест" unit. */
+  function fmtPlaces(n) {
+    return (n === null || n === undefined || n === Infinity ? '∞' : n) + ' шт. мест';
+  }
+
+  /** Format an area with the "м²" unit. */
+  function fmtArea(n) {
+    return (n || 0) + ' м²';
+  }
+
+  /** Format a money amount (RUB) with thousands separators. */
+  function fmtMoney(n) {
+    if (n === null || n === undefined || isNaN(n)) {
+      return '—';
+    }
+    return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  }
+
   /** Round a percentage to a whole number for display. */
   function formatPercent(percent) {
     if (percent === null || percent === undefined || isNaN(percent)) {
@@ -256,6 +274,9 @@ App.utils = (function () {
     formatOverflow: formatOverflow,
     pluralPlaces: pluralPlaces,
     formatPercent: formatPercent,
+    fmtPlaces: fmtPlaces,
+    fmtArea: fmtArea,
+    fmtMoney: fmtMoney,
     parseBoolean: parseBoolean,
     qs: qs,
     qsa: qsa,

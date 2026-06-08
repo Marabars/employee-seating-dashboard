@@ -12,10 +12,29 @@ App.constants = (function () {
 
   // Office types
   var OFFICE_TYPE = {
-    OLD: 'old',
-    NEW: 'new',
+    PHYSICAL: 'physical',
     REMOTE: 'remote'
   };
+
+  // Office phase: AS IS (current) vs TO BE (planned). Remote offices have no phase.
+  var OFFICE_PHASE = {
+    ASIS: 'asis',
+    TOBE: 'tobe'
+  };
+
+  var OFFICE_PHASE_LABEL = {
+    asis: 'AS IS',
+    tobe: 'TO BE'
+  };
+
+  // Units shown next to numbers.
+  var UNIT = {
+    PLACES: 'шт. мест',
+    AREA: 'м²'
+  };
+
+  // Default money rates used as placeholders (editable per office).
+  var MONEY_5Y = 5; // lease projection horizon in years
 
   // Zone types
   var ZONE_TYPE = {
@@ -92,8 +111,7 @@ App.constants = (function () {
 
   // Human-readable labels (RU) for enums used in the UI.
   var OFFICE_TYPE_LABEL = {
-    old: 'Старый офис',
-    'new': 'Новый офис',
+    physical: 'Офис',
     remote: 'Удаленка'
   };
 
@@ -148,12 +166,15 @@ App.constants = (function () {
   var EXCEL_HEADERS = {
     offices: {
       office_name: ['office_name', 'название офиса'],
-      office_type: ['office_type', 'тип офиса'],
+      office_type: ['office_type', 'тип офиса', 'фаза', 'phase'],
       area: ['area', 'площадь'],
       capacity: ['capacity', 'вместимость'],
       cabinet_capacity: ['cabinet_capacity', 'кабинеты'],
       open_space_capacity: ['open_space_capacity', 'опенспейс'],
       vip_capacity: ['vip_capacity', 'vip-кабинеты'],
+      rent_per_sqm: ['rent_per_sqm', 'аренда', 'аренда руб/м2', 'аренда, ₽/м²'],
+      opex_per_sqm: ['opex_per_sqm', 'эксплуатация', 'эксплуатация руб/м2', 'эксплуатация, ₽/м²'],
+      indexation_pct: ['indexation_pct', 'индексация', 'индексация %'],
       is_draft: ['is_draft', 'черновик'],
       comment: ['comment', 'комментарий']
     },
@@ -184,15 +205,23 @@ App.constants = (function () {
     }
   };
 
-  // Office-type values accepted in Excel import (RU/EN -> canonical).
-  var OFFICE_TYPE_ALIASES = {
-    old: OFFICE_TYPE.OLD,
-    'старый': OFFICE_TYPE.OLD,
-    'старый офис': OFFICE_TYPE.OLD,
-    'new': OFFICE_TYPE.NEW,
-    'новый': OFFICE_TYPE.NEW,
-    'новый офис': OFFICE_TYPE.NEW
-    // remote offices are system-managed and not importable
+  // Office phase values accepted in Excel import (RU/EN -> canonical).
+  // The Excel `office_type` column now carries the phase (AS IS / TO BE).
+  var OFFICE_PHASE_ALIASES = {
+    asis: OFFICE_PHASE.ASIS,
+    'as is': OFFICE_PHASE.ASIS,
+    'as_is': OFFICE_PHASE.ASIS,
+    'старый': OFFICE_PHASE.ASIS,
+    'старый офис': OFFICE_PHASE.ASIS,
+    'как есть': OFFICE_PHASE.ASIS,
+    old: OFFICE_PHASE.ASIS,
+    'new': OFFICE_PHASE.TOBE,
+    tobe: OFFICE_PHASE.TOBE,
+    'to be': OFFICE_PHASE.TOBE,
+    'to_be': OFFICE_PHASE.TOBE,
+    'новый': OFFICE_PHASE.TOBE,
+    'новый офис': OFFICE_PHASE.TOBE,
+    'как будет': OFFICE_PHASE.TOBE
   };
 
   // Work-format values accepted in Excel import (RU/EN -> canonical).
@@ -220,6 +249,10 @@ App.constants = (function () {
 
   return {
     OFFICE_TYPE: OFFICE_TYPE,
+    OFFICE_PHASE: OFFICE_PHASE,
+    OFFICE_PHASE_LABEL: OFFICE_PHASE_LABEL,
+    UNIT: UNIT,
+    MONEY_5Y: MONEY_5Y,
     ZONE_TYPE: ZONE_TYPE,
     WORK_FORMAT: WORK_FORMAT,
     ALLOCATION_TYPE: ALLOCATION_TYPE,
@@ -239,7 +272,7 @@ App.constants = (function () {
     EMPTY_STATES: EMPTY_STATES,
     ONBOARDING_STEPS: ONBOARDING_STEPS,
     EXCEL_HEADERS: EXCEL_HEADERS,
-    OFFICE_TYPE_ALIASES: OFFICE_TYPE_ALIASES,
+    OFFICE_PHASE_ALIASES: OFFICE_PHASE_ALIASES,
     WORK_FORMAT_ALIASES: WORK_FORMAT_ALIASES,
     ZONE_TYPE_ALIASES: ZONE_TYPE_ALIASES
   };

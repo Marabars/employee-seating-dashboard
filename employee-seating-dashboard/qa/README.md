@@ -1,14 +1,14 @@
 ﻿# QA — визуальные и функциональные тесты (dev-инструмент)
 
 Не часть приложения. Приложение остаётся offline vanilla JS (index.html, без сборки).
-Эти скрипты драйвят локальный Chrome/Edge через puppeteer-core для визуальной
-и функциональной приёмки реального index.html.
+Скрипты драйвят локальный Chrome/Edge через puppeteer-core для приёмки реального index.html.
 
 ## Запуск
 ```
 cd qa
-npm install            # ставит puppeteer-core (использует локальный Chrome/Edge, не качает Chromium)
+npm install            # puppeteer-core (использует локальный Chrome/Edge)
 node qa.js             # скриншоты вкладок -> qa/shots/
-node qa-forms.js       # функциональные проверки форм/расчётов (assert), exit code !=0 при провале
+node qa-iter6.js       # дашборд: 4 KPI, баланс, денежный режим, AS IS/TO BE
+node qa-edit.js        # функц. проверки (assert): создание/редактирование офиса+зон, команды с ФИО и без
 ```
-Если Chrome/Edge в нестандартном месте: `set BROWSER_PATH=...` (Windows) перед запуском.
+Браузер ищется автоматически; иначе задайте BROWSER_PATH.
