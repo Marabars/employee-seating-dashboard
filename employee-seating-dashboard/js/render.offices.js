@@ -77,6 +77,7 @@ window.App = window.App || {};
       if (!ctx.viewOnly) {
         actionsCell.appendChild(R.iconBtn('✎', 'Редактировать', function () { openOfficeForm(phase, office); }));
         actionsCell.appendChild(R.iconBtn('▦', 'Зоны', function () { openZonesEditor(office.id); }));
+        actionsCell.appendChild(R.iconBtn('⊞', 'Копировать', function () { copyOffice(office); }));
         actionsCell.appendChild(R.iconBtn('🗑', 'Удалить', function () {
           App.modals.confirm('Удалить офис «' + office.name + '»? Связанные размещения будут удалены.',
             function () { O.removeOffice(office.id); }, { danger: true, confirmLabel: 'Удалить' });
@@ -104,6 +105,23 @@ window.App = window.App || {};
 
   function th(text) {
     return U.el('th', { text: text });
+  }
+
+  function copyOffice(office) {
+    var zones = (office.zones || []).map(function (z) {
+      return { name: z.name, type: z.type, capacity: z.capacity || 0, isVipZone: !!z.isVipZone, comment: z.comment || '' };
+    });
+    O.addOffice(office.phase, {
+      name: 'Копия — ' + office.name,
+      area: office.area,
+      rentPerSqm: office.rentPerSqm,
+      opexPerSqm: office.opexPerSqm,
+      indexationPct: office.indexationPct,
+      isDraft: office.isDraft,
+      comment: office.comment,
+      phase: office.phase,
+      zones: zones
+    });
   }
 
   /**
