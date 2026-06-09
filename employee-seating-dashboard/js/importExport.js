@@ -55,10 +55,11 @@ App.importExport = (function () {
       return;
     }
     var wb = XLSX.utils.book_new();
-    addSheetFromHeaders(wb, 'Offices', ['office_name', 'office_type', 'area', 'cabinet_capacity', 'open_space_capacity', 'vip_capacity', 'rent_per_sqm', 'opex_per_sqm', 'indexation_pct', 'is_draft', 'comment']);
-    addSheetFromHeaders(wb, 'Zones', ['office_name', 'zone_name', 'zone_type', 'capacity', 'is_vip_zone', 'comment']);
-    addSheetFromHeaders(wb, 'Teams', ['team_name', 'employees_count', 'current_office', 'is_vip', 'can_split', 'comment']);
-    addSheetFromHeaders(wb, 'Employees', ['full_name', 'position', 'team_name', 'current_office', 'is_vip', 'work_format', 'comment']);
+    // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
+    addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Кабинеты', 'Опенспейс', 'VIP-кабинеты', 'Аренда', 'Эксплуатация', 'Индексация', 'Черновик', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'Текущий офис', 'VIP', 'Можно делить', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'VIP', 'Формат работы', 'Комментарий']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
   }
 
