@@ -73,6 +73,7 @@ window.App = window.App || {};
       var actionsCell = U.el('td', { class: 'cell-actions' });
       if (!ctx.viewOnly) {
         actionsCell.appendChild(R.iconBtn('✎', 'Редактировать', function () { openTeamForm(team); }));
+        actionsCell.appendChild(R.iconBtn('⊞', 'Копировать', function () { copyTeam(team); }));
         if (remainder > 0) {
           actionsCell.appendChild(R.iconBtn('→💻', 'Остаток на удаленку', function () {
             App.allocations.sendTeamRemainderToRemote(team.id);
@@ -394,6 +395,18 @@ window.App = window.App || {};
         App.employees.update(emp.id, { teamId: values.teamId || '' });
         return true;
       }
+    });
+  }
+
+  function copyTeam(team) {
+    T.add({
+      name: 'Копия — ' + team.name,
+      employeesCount: team.employeesCount,
+      currentOfficeId: team.currentOfficeId || null,
+      isVip: team.isVip,
+      canSplit: team.canSplit !== false,
+      linkedTeamIds: [],
+      comment: team.comment || ''
     });
   }
 
