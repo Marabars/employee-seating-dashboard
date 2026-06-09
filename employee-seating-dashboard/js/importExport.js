@@ -242,6 +242,12 @@ App.importExport = (function () {
       });
     });
 
+    // Ensure employeesCount >= named count (import bypasses App.employees.add).
+    scenario.teams.forEach(function (team) {
+      var named = scenario.employees.filter(function (e) { return e.teamId === team.id; }).length;
+      if (team.employeesCount < named) { team.employeesCount = named; }
+    });
+
     state.notifyChange('Импорт Excel', { skipHistory: true });
     showImportReport(parsed.report);
   }
