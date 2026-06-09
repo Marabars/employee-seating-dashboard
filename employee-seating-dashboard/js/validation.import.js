@@ -57,8 +57,9 @@ App.importValidation = (function () {
       zones: [],
       teams: [],
       employees: [],
+      allocations: [],
       report: {
-        imported: { offices: 0, zones: 0, teams: 0, employees: 0 },
+        imported: { offices: 0, zones: 0, teams: 0, employees: 0, allocations: 0 },
         errors: [],
         warnings: []
       }
@@ -68,6 +69,7 @@ App.importValidation = (function () {
     parseZones(sheets.zones, result);
     parseTeams(sheets.teams, result);
     parseEmployees(sheets.employees, result);
+    parseAllocations(sheets.allocations, result);
 
     return result;
   }
@@ -222,11 +224,36 @@ App.importValidation = (function () {
         position: String(cell(row, idx, 'position') || ''),
         teamName: String(cell(row, idx, 'team_name') || '').trim(),
         currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
+        cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
         isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
         workFormat: workFormat,
         comment: String(cell(row, idx, 'comment') || '')
       });
       result.report.imported.employees += 1;
+    });
+  }
+
+  function parseAllocations(sheet, result) {
+    if (!sheet || sheet.length < 2) { return; }
+    var data = rowsAfterHeader(sheet);
+    if (!data.rows.length) { return; }
+    var idx = mapHeaders('allocations', data.header);
+    data.rows.forEach(function (row) {
+      if (isEmptyRow(row)) { return; }
+      var typeRaw = String(cell(row, idx, 'type') || '').trim().toLowerCase();
+      var entity  = String(cell(row, idx, 'entity') || '').trim();
+      if (!entity) { return; }
+      var type = (typeRaw === 'employee' || typeRaw === C.ALLOCATION_TYPE.EMPLOYEE)
+        ? C.ALLOCATION_TYPE.EMPLOYEE : C.ALLOCATION_TYPE.TEAM;
+      result.allocations.push({
+        type:       type,
+        entity:     entity,
+        count:      U.toNonNegativeInt(cell(row, idx, 'count')) || 1,
+        officeName: String(cell(row, idx, 'office') || '').trim(),
+        zoneName:   String(cell(row, idx, 'zone')   || '').trim(),
+        comment:    String(cell(row, idx, 'comment') || '')
+      });
+      result.report.imported.allocations += 1;
     });
   }
 

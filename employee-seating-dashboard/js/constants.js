@@ -194,6 +194,14 @@ App.constants = (function () {
       can_split: ['can_split', 'можно делить'],
       comment: ['comment', 'комментарий']
     },
+    allocations: {
+      type:    ['type',    'тип'],
+      entity:  ['entity',  'название'],
+      count:   ['count',   'количество'],
+      office:  ['office',  'офис'],
+      zone:    ['zone',    'зона'],
+      comment: ['comment', 'комментарий']
+    },
     employees: {
       full_name: ['full_name', 'фио'],
       position: ['position', 'должность'],

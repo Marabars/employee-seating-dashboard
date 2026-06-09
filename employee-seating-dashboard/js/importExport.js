@@ -56,10 +56,11 @@ App.importExport = (function () {
     }
     var wb = XLSX.utils.book_new();
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
-    addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Кабинеты', 'Опенспейс', 'VIP-кабинеты', 'Аренда', 'Эксплуатация', 'Индексация', 'Черновик', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
     addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'Текущий офис', 'VIP', 'Можно делить', 'Комментарий']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Количество', 'Офис', 'Зона', 'Комментарий']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
   }
 
@@ -85,7 +86,8 @@ App.importExport = (function () {
             offices: sheetToAoa(wb, 'Offices'),
             zones: sheetToAoa(wb, 'Zones'),
             teams: sheetToAoa(wb, 'Teams'),
-            employees: sheetToAoa(wb, 'Employees')
+            employees: sheetToAoa(wb, 'Employees'),
+            allocations: sheetToAoa(wb, 'Allocations')
           };
           var parsed = App.importValidation.parseWorkbook(sheets);
           chooseImportMode(parsed);
@@ -116,6 +118,7 @@ App.importExport = (function () {
           U.el('li', { text: 'Зон: ' + parsed.report.imported.zones }),
           U.el('li', { text: 'Команд: ' + parsed.report.imported.teams }),
           U.el('li', { text: 'Сотрудников: ' + parsed.report.imported.employees }),
+          U.el('li', { text: 'Размещений: ' + parsed.report.imported.allocations }),
           U.el('li', { text: 'Ошибочных строк: ' + parsed.report.errors.length })
         ])
       ]),
@@ -241,8 +244,9 @@ App.importExport = (function () {
         comment: data.comment
       };
       scenario.employees.push(emp);
-      // Place employee in scenario if Текущий офис or Кабинет is specified.
-      if (office) {
+      // Place employee in scenario if Текущий офис or Кабинет is specified
+      // and no Allocations sheet was provided (avoid duplicates).
+      if (office && !parsed.allocations.length) {
         var zone = null;
         if (data.cabinetName) {
           var cab = data.cabinetName.toLowerCase();
@@ -263,6 +267,54 @@ App.importExport = (function () {
         });
       }
     });
+
+    // Apply Allocations sheet rows.
+    if (parsed.allocations && parsed.allocations.length) {
+      var empByName = {};
+      scenario.employees.forEach(function (e) { empByName[e.fullName.toLowerCase()] = e; });
+      parsed.allocations.forEach(function (data) {
+        var office = officeByName[(data.officeName || '').toLowerCase()];
+        if (!office) {
+          parsed.report.warnings.push('Размещение «' + data.entity + '»: офис «' + data.officeName + '» не найден — пропущено');
+          return;
+        }
+        var zone = null;
+        if (data.zoneName) {
+          var zl = data.zoneName.toLowerCase();
+          for (var zi = 0; zi < (office.zones || []).length; zi++) {
+            if (office.zones[zi].name.toLowerCase() === zl) { zone = office.zones[zi]; break; }
+          }
+        }
+        var alloc = {
+          id: U.genId('alloc'),
+          targetOfficeId: office.id,
+          targetZoneId: zone ? zone.id : null,
+          comment: data.comment || ''
+        };
+        if (data.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+          var emp = empByName[(data.entity || '').toLowerCase()];
+          if (!emp) {
+            parsed.report.warnings.push('Размещение сотрудника «' + data.entity + '»: не найден — пропущено');
+            return;
+          }
+          alloc.type = C.ALLOCATION_TYPE.EMPLOYEE;
+          alloc.teamId = emp.teamId || null;
+          alloc.employeeId = emp.id;
+          alloc.employeesCount = 1;
+        } else {
+          var team = teamByName[(data.entity || '').toLowerCase()];
+          if (!team) {
+            parsed.report.warnings.push('Размещение команды «' + data.entity + '»: не найдена — пропущено');
+            return;
+          }
+          alloc.type = C.ALLOCATION_TYPE.TEAM;
+          alloc.teamId = team.id;
+          alloc.employeeId = null;
+          alloc.employeesCount = data.count || 1;
+        }
+        scenario.allocations.push(alloc);
+      });
+    }
 
     // Ensure employeesCount >= named count (import bypasses App.employees.add).
     scenario.teams.forEach(function (team) {
@@ -338,6 +390,7 @@ App.importExport = (function () {
         U.el('li', { text: 'Импортировано зон: ' + report.imported.zones }),
         U.el('li', { text: 'Импортировано команд: ' + report.imported.teams }),
         U.el('li', { text: 'Импортировано сотрудников: ' + report.imported.employees }),
+        U.el('li', { text: 'Импортировано размещений: ' + (report.imported.allocations || 0) }),
         U.el('li', { text: 'Ошибок: ' + report.errors.length }),
         U.el('li', { text: 'Предупреждений: ' + report.warnings.length })
       ])
@@ -405,15 +458,15 @@ App.importExport = (function () {
   }
 
   function buildOffices(scenarios, inc) {
-    var aoa = [withScenarioCol(['office_name', 'office_type', 'area', 'capacity', 'occupied', 'is_draft', 'comment'], inc)];
+    var aoa = [withScenarioCol(['office_name', 'office_type', 'area', 'rent_per_sqm', 'opex_per_sqm', 'indexation_pct', 'is_draft', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.offices.forEach(function (o) {
-        var cap = calc.calculateOfficeCapacity(o);
         var phaseOut = o.type === C.OFFICE_TYPE.REMOTE ? 'remote' : (o.phase || '');
         aoa.push(rowWithScenario(s, [
           o.name, phaseOut, o.area || 0,
-          isFinite(cap) ? cap : '∞',
-          calc.calculateOfficeOccupancy(s, o.id),
+          (o.rentPerSqm !== null && o.rentPerSqm !== undefined) ? o.rentPerSqm : '',
+          (o.opexPerSqm !== null && o.opexPerSqm !== undefined) ? o.opexPerSqm : '',
+          (o.indexationPct !== null && o.indexationPct !== undefined) ? o.indexationPct : '',
           o.isDraft ? 'да' : 'нет', o.comment || ''
         ], inc));
       });
@@ -422,13 +475,12 @@ App.importExport = (function () {
   }
 
   function buildZones(scenarios, inc) {
-    var aoa = [withScenarioCol(['office_name', 'zone_name', 'zone_type', 'capacity', 'occupied', 'is_vip_zone', 'comment'], inc)];
+    var aoa = [withScenarioCol(['office_name', 'zone_name', 'zone_type', 'capacity', 'is_vip_zone', 'comment'], inc)];
     scenarios.forEach(function (s) {
-      calc.getNewOffices(s).forEach(function (o) {
+      s.offices.filter(function (o) { return o.type === C.OFFICE_TYPE.PHYSICAL; }).forEach(function (o) {
         (o.zones || []).forEach(function (z) {
           aoa.push(rowWithScenario(s, [
             o.name, z.name, z.type, z.capacity || 0,
-            calc.calculateZoneOccupancy(s, z.id),
             z.isVipZone ? 'да' : 'нет', z.comment || ''
           ], inc));
         });
@@ -438,13 +490,13 @@ App.importExport = (function () {
   }
 
   function buildTeams(scenarios, inc) {
-    var aoa = [withScenarioCol(['team_name', 'employees_count', 'allocated', 'remainder', 'is_vip', 'can_split', 'comment'], inc)];
+    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'is_vip', 'can_split', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
+        var currentOffice = U.findById(s.offices, t.currentOfficeId);
         aoa.push(rowWithScenario(s, [
           t.name, t.employeesCount || 0,
-          calc.calculateTeamAllocated(s, t.id),
-          calc.calculateTeamRemainder(s, t),
+          currentOffice ? currentOffice.name : '',
           t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да', t.comment || ''
         ], inc));
       });
@@ -453,16 +505,22 @@ App.importExport = (function () {
   }
 
   function buildEmployees(scenarios, inc) {
-    var aoa = [withScenarioCol(['full_name', 'position', 'team_name', 'work_format', 'is_vip', 'placement', 'comment'], inc)];
+    var aoa = [withScenarioCol(['full_name', 'position', 'team_name', 'current_office', 'cabinet', 'is_vip', 'work_format', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.employees.forEach(function (e) {
         var team = U.findById(s.teams, e.teamId);
+        var currentOffice = U.findById(s.offices, e.currentOfficeId);
         var placement = App.employees.placementOf(s, e);
+        var placementOffice = placement.officeId ? U.findById(s.offices, placement.officeId) : null;
+        var placementZone = (placement.zoneId && placementOffice)
+          ? U.findById(placementOffice.zones || [], placement.zoneId) : null;
         aoa.push(rowWithScenario(s, [
           e.fullName, e.position || '', team ? team.name : '',
-          C.WORK_FORMAT_LABEL[e.workFormat] || e.workFormat,
+          currentOffice ? currentOffice.name : '',
+          placementZone ? placementZone.name : '',
           e.isVip ? 'да' : 'нет',
-          C.PLACEMENT_STATUS_LABEL[placement.status], e.comment || ''
+          C.WORK_FORMAT_LABEL[e.workFormat] || e.workFormat,
+          e.comment || ''
         ], inc));
       });
     });
