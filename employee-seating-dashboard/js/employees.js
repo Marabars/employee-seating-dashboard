@@ -24,6 +24,21 @@ App.employees = (function () {
     return U.findById(list(), employeeId);
   }
 
+  /**
+   * Raise a team's employeesCount to match its named-employee count if
+   * the count has fallen below. Called inside a commit callback so it
+   * stays in the same undo step as the triggering employee change.
+   * Rule: employeesCount >= namedCount (can be higher, never lower).
+   */
+  function bumpTeamCount(teamId) {
+    if (!teamId) { return; }
+    var s = scenario();
+    var team = U.findById(s.teams, teamId);
+    if (!team) { return; }
+    var named = s.employees.filter(function (e) { return e.teamId === teamId; }).length;
+    if (team.employeesCount < named) { team.employeesCount = named; }
+  }
+
   function add(data) {
     var emp = {
       id: U.genId('employee'),
@@ -37,6 +52,7 @@ App.employees = (function () {
     };
     state.commit('Добавление сотрудника', function () {
       scenario().employees.push(emp);
+      bumpTeamCount(emp.teamId);
     });
     return emp.id;
   }
@@ -55,6 +71,7 @@ App.employees = (function () {
       }
       if (data.teamId !== undefined) {
         emp.teamId = data.teamId || null;
+        bumpTeamCount(emp.teamId);
       }
       if (data.currentOfficeId !== undefined) {
         emp.currentOfficeId = data.currentOfficeId || null;
