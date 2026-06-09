@@ -63,7 +63,7 @@ window.App = window.App || {};
 
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
-      th('Название'), th('Площадь, м²'), th('Вместимость, шт. мест'),
+      th('Название'), th('Статус'), th('Площадь, м²'), th('Вместимость, шт. мест'),
       th('Занято'), th('Баланс'), th('Зоны'), th('Черновик'), th('')
     ])));
     var tbody = U.el('tbody');
@@ -83,8 +83,11 @@ window.App = window.App || {};
         }));
       }
 
+      var phaseLabel = C.OFFICE_PHASE_LABEL[office.phase] || office.phase;
+      var phaseClass = office.phase === C.OFFICE_PHASE.ASIS ? 'phase-tag phase-asis' : 'phase-tag phase-tobe';
       tbody.appendChild(U.el('tr', {}, [
         U.el('td', { text: office.name }),
+        U.el('td', {}, U.el('span', { class: phaseClass, text: phaseLabel })),
         U.el('td', { text: String(office.area || 0) }),
         U.el('td', { text: String(capacity) }),
         U.el('td', { text: String(occupied) }),
@@ -119,6 +122,16 @@ window.App = window.App || {};
     var areaInput = numField('Площадь, м²', office ? office.area : '', 'area');
     body.appendChild(nameInput.wrap);
     body.appendChild(areaInput.wrap);
+
+    // Phase selector — freely switch AS IS ↔ TO BE.
+    var currentPhase = office ? office.phase : phase;
+    var phaseSelect = U.el('select', { name: 'phase' });
+    [[C.OFFICE_PHASE.ASIS, C.OFFICE_PHASE_LABEL.asis], [C.OFFICE_PHASE.TOBE, C.OFFICE_PHASE_LABEL.tobe]].forEach(function (opt) {
+      var o = U.el('option', { value: opt[0] }, opt[1]);
+      if (currentPhase === opt[0]) { o.selected = true; }
+      phaseSelect.appendChild(o);
+    });
+    body.appendChild(U.el('div', { class: 'form-field' }, [U.el('label', { text: 'Статус (AS IS / TO BE)' }), phaseSelect]));
 
     // Money fields.
     var rentInput = numField('Аренда, ₽/м² с НДС', office && office.rentPerSqm != null ? office.rentPerSqm : '', 'rentPerSqm');
@@ -180,7 +193,7 @@ window.App = window.App || {};
     body.appendChild(draftInput.wrap);
 
     App.modals.open({
-      title: (office ? 'Редактирование' : 'Добавление') + ' офиса · ' + C.OFFICE_PHASE_LABEL[phase],
+      title: (office ? 'Редактирование' : 'Добавление') + ' офиса',
       body: body,
       wide: true,
       buttons: [
@@ -195,13 +208,14 @@ window.App = window.App || {};
             indexationPct: idxInput.input.value,
             comment: commentInput.input.value,
             isDraft: draftInput.input.checked,
-            zones: zones
+            zones: zones,
+            phase: phaseSelect.value
           };
           if (office) {
             O.updateOffice(office.id, data);
             syncZones(office.id, zones);
           } else {
-            O.addOffice(phase, data);
+            O.addOffice(phaseSelect.value, data);
           }
           return true;
         } }
