@@ -59,7 +59,7 @@ App.importExport = (function () {
     addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Кабинеты', 'Опенспейс', 'VIP-кабинеты', 'Аренда', 'Эксплуатация', 'Индексация', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
     addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'Текущий офис', 'VIP', 'Можно делить', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'VIP', 'Формат работы', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
   }
 
@@ -230,7 +230,7 @@ App.importExport = (function () {
     parsed.employees.forEach(function (data) {
       var team = teamByName[(data.teamName || '').toLowerCase()];
       var office = officeByName[(data.currentOfficeName || '').toLowerCase()];
-      scenario.employees.push({
+      var emp = {
         id: U.genId('employee'),
         fullName: data.fullName,
         position: data.position,
@@ -239,7 +239,29 @@ App.importExport = (function () {
         isVip: data.isVip,
         workFormat: data.workFormat,
         comment: data.comment
-      });
+      };
+      scenario.employees.push(emp);
+      // Place employee in scenario if Текущий офис or Кабинет is specified.
+      if (office) {
+        var zone = null;
+        if (data.cabinetName) {
+          var cab = data.cabinetName.toLowerCase();
+          var zones = office.zones || [];
+          for (var zi = 0; zi < zones.length; zi++) {
+            if (zones[zi].name.toLowerCase() === cab) { zone = zones[zi]; break; }
+          }
+        }
+        scenario.allocations.push({
+          id: U.genId('alloc'),
+          type: C.ALLOCATION_TYPE.EMPLOYEE,
+          teamId: team ? team.id : null,
+          employeeId: emp.id,
+          targetOfficeId: office.id,
+          targetZoneId: zone ? zone.id : null,
+          employeesCount: 1,
+          comment: ''
+        });
+      }
     });
 
     // Ensure employeesCount >= named count (import bypasses App.employees.add).

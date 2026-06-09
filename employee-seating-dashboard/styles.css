@@ -735,3 +735,14 @@ tr.office-drop-below > td {
   outline-offset: -3px;
   border-radius: 6px;
 }
+
+/* ── Dashboard phase visibility toggles ───────────────────────────────────── */
+.phase-vis-toggles {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.phase-vis-btn {
+  font-size: 0.8em;
+  padding: 3px 10px;
+}

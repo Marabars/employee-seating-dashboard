@@ -19,6 +19,8 @@ window.App = window.App || {};
   var expanded = {};       // office card expanded
   var expandedZones = {};  // zone expanded within an office card
   var moneyMode = false;   // money toggle for office cards
+  var hideAsis = false;    // hide AS IS section on dashboard
+  var hideTobe = false;    // hide TO BE section on dashboard
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -81,7 +83,22 @@ window.App = window.App || {};
     if (moneyMode) {
       toggle.querySelector('input').checked = true;
     }
-    panel.querySelector('.section-head').appendChild(toggle);
+    var head = panel.querySelector('.section-head');
+    head.appendChild(toggle);
+    var phaseToggles = U.el('div', { class: 'phase-vis-toggles' });
+    var tobeBtn = U.el('button', {
+      class: 'btn btn-sm ' + (hideTobe ? 'btn-secondary' : 'btn-primary') + ' phase-vis-btn',
+      title: hideTobe ? 'Показать TO BE' : 'Скрыть TO BE',
+      onclick: function () { hideTobe = !hideTobe; R.render(); }
+    }, (hideTobe ? '▸' : '▾') + ' TO BE');
+    var asisBtn = U.el('button', {
+      class: 'btn btn-sm ' + (hideAsis ? 'btn-secondary' : 'btn-primary') + ' phase-vis-btn',
+      title: hideAsis ? 'Показать AS IS' : 'Скрыть AS IS',
+      onclick: function () { hideAsis = !hideAsis; R.render(); }
+    }, (hideAsis ? '▸' : '▾') + ' AS IS');
+    phaseToggles.appendChild(tobeBtn);
+    phaseToggles.appendChild(asisBtn);
+    head.appendChild(phaseToggles);
 
     var tobe = calc.getTobeOffices(scenario);
     var asis = calc.getAsisOffices(scenario);
@@ -92,13 +109,13 @@ window.App = window.App || {};
       return panel;
     }
 
-    if (tobe.length) {
+    if (tobe.length && !hideTobe) {
       panel.appendChild(U.el('h3', { class: 'phase-head phase-tobe', text: 'TO BE — план переезда' }));
       var gT = U.el('div', { class: 'office-grid' });
       tobe.forEach(function (o) { gT.appendChild(renderOfficeCard(scenario, o, ctx)); });
       panel.appendChild(gT);
     }
-    if (asis.length) {
+    if (asis.length && !hideAsis) {
       panel.appendChild(U.el('h3', { class: 'phase-head phase-asis', text: 'AS IS — как есть' }));
       var gA = U.el('div', { class: 'office-grid' });
       asis.forEach(function (o) { gA.appendChild(renderOfficeCard(scenario, o, ctx)); });

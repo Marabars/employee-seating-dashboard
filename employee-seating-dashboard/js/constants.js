@@ -199,6 +199,7 @@ App.constants = (function () {
       position: ['position', 'должность'],
       team_name: ['team_name', 'команда'],
       current_office: ['current_office', 'текущий офис'],
+      cabinet: ['cabinet', 'кабинет'],
       is_vip: ['is_vip', 'vip'],
       work_format: ['work_format', 'формат работы'],
       comment: ['comment', 'комментарий']
