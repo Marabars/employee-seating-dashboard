@@ -201,6 +201,31 @@ App.importExport = (function () {
       teamByName[team.name.toLowerCase()] = team;
     });
 
+    // Auto-create teams referenced by employees but missing from the Teams sheet.
+    var autoCreatedTeams = 0;
+    parsed.employees.forEach(function (data) {
+      var name = (data.teamName || '').trim();
+      if (!name) { return; }
+      if (!teamByName[name.toLowerCase()]) {
+        var newTeam = {
+          id: U.genId('team'),
+          name: name,
+          employeesCount: 0,
+          currentOfficeId: null,
+          isVip: false,
+          canSplit: true,
+          linkedTeamIds: [],
+          comment: ''
+        };
+        scenario.teams.push(newTeam);
+        teamByName[name.toLowerCase()] = newTeam;
+        autoCreatedTeams++;
+      }
+    });
+    if (autoCreatedTeams > 0) {
+      parsed.report.warnings.push('Автоматически создано команд: ' + autoCreatedTeams);
+    }
+
     // Employees.
     parsed.employees.forEach(function (data) {
       var team = teamByName[(data.teamName || '').toLowerCase()];

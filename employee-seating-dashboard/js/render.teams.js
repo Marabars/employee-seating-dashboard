@@ -16,6 +16,33 @@ window.App = window.App || {};
 
   var expanded = {};
 
+  // ---- Drag helpers for member assignment --------------------------------
+  function bindDragSource(el, empId) {
+    el.setAttribute('draggable', 'true');
+    el.addEventListener('dragstart', function (e) {
+      e.dataTransfer.setData('text/plain', empId);
+      e.dataTransfer.effectAllowed = 'move';
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', function () { el.classList.remove('dragging'); });
+  }
+
+  function bindDropZone(el, onDrop) {
+    el.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      el.classList.add('drop-hover');
+    });
+    el.addEventListener('dragleave', function (e) {
+      if (!el.contains(e.relatedTarget)) { el.classList.remove('drop-hover'); }
+    });
+    el.addEventListener('drop', function (e) {
+      e.preventDefault();
+      el.classList.remove('drop-hover');
+      var empId = e.dataTransfer.getData('text/plain');
+      if (empId) { onDrop(empId); }
+    });
+  }
+
   function render(container, ctx) {
     var scenario = ctx.scenario;
     var panel = R.section('Команды', ctx.viewOnly ? null : {
@@ -170,6 +197,7 @@ window.App = window.App || {};
       members.forEach(function (emp) {
         var placement = App.employees.placementOf(scenario, emp);
         var row = U.el('div', { class: 'composition-row member-row' }, [
+          U.el('span', { class: 'member-drag-handle', text: '⠿' }),
           U.el('span', { class: 'member-name', text: emp.fullName }),
           emp.position ? U.el('span', { class: 'muted member-pos', text: emp.position }) : null,
           U.el('span', { class: 'muted', text: C.PLACEMENT_STATUS_LABEL[placement.status] })
@@ -181,6 +209,7 @@ window.App = window.App || {};
             App.employees.update(emp.id, { teamId: '' });
           }));
         }
+        if (!viewOnly) { bindDragSource(row, emp.id); }
         wrap.appendChild(row);
       });
     }
@@ -203,12 +232,74 @@ window.App = window.App || {};
       wrap.appendChild(U.el('div', { class: 'member-rest', text: 'все сотрудники указаны по ФИО' }));
     }
 
-    // 4) Add a named employee directly to this team.
+    // 4) Drop zone on the member wrap: assign unassigned employees by drag.
     if (!viewOnly) {
+      bindDropZone(wrap, function (empId) {
+        var emp = App.employees.find(empId);
+        if (emp && emp.teamId !== team.id) {
+          App.employees.update(empId, { teamId: team.id });
+        }
+      });
+
       wrap.appendChild(U.el('button', {
         class: 'btn btn-sm btn-secondary member-add',
         onclick: function () { openMemberForm(scenario, team, null); }
-      }, '＋ Добавить сотрудника с ФИО'));
+      }, '＋ Добавить нового сотрудника'));
+
+      // Unassigned pool: search + click/drag to assign.
+      // Dropping a member row here unassigns them from the team.
+      var unassigned = scenario.employees.filter(function (e) { return !e.teamId; });
+      var poolSection = U.el('div', { class: 'team-unassigned-pool' });
+      var poolLabel = '▸ Нераспределённые сотрудники (' + unassigned.length + ')';
+      var poolLabelOpen = '▾ Нераспределённые сотрудники (' + unassigned.length + ')';
+      var poolToggle = U.el('button', { class: 'btn btn-sm btn-secondary pool-toggle', onclick: function () {
+        var hidden = poolBody.style.display === 'none';
+        poolBody.style.display = hidden ? '' : 'none';
+        poolToggle.textContent = hidden ? poolLabelOpen : poolLabel;
+      } }, poolLabel);
+      poolSection.appendChild(poolToggle);
+
+      var poolBody = U.el('div', { class: 'pool-body' });
+      poolBody.style.display = 'none';
+      var searchInput = U.el('input', { type: 'text', placeholder: 'Поиск по ФИО...', class: 'member-pool-search' });
+      poolBody.appendChild(searchInput);
+      var poolList = U.el('div', { class: 'member-pool-list' });
+
+      function renderPool(q) {
+        U.clear(poolList);
+        var lq = (q || '').toLowerCase().trim();
+        var filtered = lq ? unassigned.filter(function (e) {
+          return e.fullName.toLowerCase().indexOf(lq) !== -1;
+        }) : unassigned;
+        if (filtered.length === 0) {
+          poolList.appendChild(U.el('div', { class: 'muted', text: lq ? 'Нет совпадений' : 'Нет нераспределённых сотрудников' }));
+          return;
+        }
+        filtered.forEach(function (emp) {
+          var item = U.el('div', { class: 'member-pool-item' });
+          item.appendChild(U.el('span', { class: 'member-drag-handle', text: '⢿' }));
+          item.appendChild(U.el('span', { class: 'member-name', text: emp.fullName }));
+          if (emp.position) { item.appendChild(U.el('span', { class: 'muted', text: ' · ' + emp.position })); }
+          var addBtn = U.el('button', { class: 'btn btn-xs btn-secondary', onclick: function (ev) {
+            ev.stopPropagation();
+            App.employees.update(emp.id, { teamId: team.id });
+          } }, '→');
+          item.appendChild(addBtn);
+          bindDragSource(item, emp.id);
+          poolList.appendChild(item);
+        });
+      }
+
+      bindDropZone(poolSection, function (empId) {
+        var emp = App.employees.find(empId);
+        if (emp && emp.teamId) { App.employees.update(empId, { teamId: '' }); }
+      });
+
+      searchInput.addEventListener('input', function () { renderPool(searchInput.value); });
+      renderPool('');
+      poolBody.appendChild(poolList);
+      poolSection.appendChild(poolBody);
+      wrap.appendChild(poolSection);
     }
     return wrap;
   }
