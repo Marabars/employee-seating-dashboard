@@ -320,11 +320,21 @@ window.App = window.App || {};
       .filter(function (t) { return !team || t.id !== team.id; })
       .map(function (t) { return { value: t.id, label: t.name }; });
 
+    // Named members (ФИО) currently assigned to this team — pre-fill the list.
+    var existingMembers = team ? scenario.employees.filter(function (e) {
+      return e.teamId === team.id;
+    }).map(function (e) {
+      return { id: e.id, fullName: e.fullName };
+    }) : [];
+
     App.modals.form({
       title: (team ? 'Редактирование' : 'Добавление') + ' команды',
       fields: [
         { name: 'name', label: 'Название команды', type: 'text', value: team ? team.name : '' },
-        { name: 'employeesCount', label: 'Количество сотрудников', type: 'number', min: 0, value: team ? team.employeesCount : 0 },
+        { name: 'employeesCount', label: 'Количество сотрудников', type: 'number', min: 0, value: team ? team.employeesCount : 0,
+          help: 'Общая численность команды. Если ФИО указано больше — значение поднимется автоматически.' },
+        { name: 'members', label: 'Сотрудники с ФИО', type: 'namelist', value: existingMembers,
+          help: 'Именованные сотрудники команды. Остальные до численности считаются без ФИО.' },
         { name: 'currentOfficeId', label: 'Текущий офис', type: 'select', options: officeOptions, value: team ? team.currentOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: team ? team.isVip : false },
         { name: 'canSplit', label: 'Можно делить', type: 'checkbox', value: team ? team.canSplit !== false : true },
@@ -338,12 +348,44 @@ window.App = window.App || {};
           App.modals.alert('Укажите название команды');
           return false;
         }
+        var members = values.members || [];
+        // Headcount is "total in team" — never less than the named count.
+        var namedCount = members.length;
+        values.employeesCount = Math.max(U.toNonNegativeInt(values.employeesCount), namedCount);
+        delete values.members; // not a team field
+
         if (team) {
           T.update(team.id, values);
+          syncMembers(team.id, existingMembers, members);
         } else {
-          T.add(values);
+          var teamId = T.add(values);
+          syncMembers(teamId, [], members);
         }
         return true;
+      }
+    });
+  }
+
+  /**
+   * Reconcile a team's named members against the form's namelist rows.
+   * - rows with an id: update the existing employee's ФИО;
+   * - rows without an id: create a new employee assigned to the team;
+   * - previously-named employees missing from rows: detach from the team
+   *   (teamId cleared, not deleted — same as "Убрать из команды").
+   */
+  function syncMembers(teamId, previous, rows) {
+    var keptIds = {};
+    rows.forEach(function (row) {
+      if (row.id) {
+        keptIds[row.id] = true;
+        App.employees.update(row.id, { fullName: row.fullName });
+      } else {
+        App.employees.add({ fullName: row.fullName, teamId: teamId });
+      }
+    });
+    previous.forEach(function (prev) {
+      if (!keptIds[prev.id]) {
+        App.employees.update(prev.id, { teamId: '' });
       }
     });
   }

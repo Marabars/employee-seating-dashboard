@@ -141,9 +141,54 @@ App.modals = (function () {
   }
 
   /**
+   * Build a dynamic "namelist" control: a list of single text rows (ФИО) with
+   * per-row remove buttons and an "add row" button. Each row carries an
+   * optional employee id in dataset so the caller can reconcile edits.
+   * field.value: array of strings or { id?, fullName } objects.
+   */
+  function buildNameList(field) {
+    var container = U.el('div', { class: 'namelist' });
+    var rows = U.el('div', { class: 'namelist-rows' });
+
+    function addRow(entry) {
+      entry = entry || {};
+      var name = typeof entry === 'string' ? entry : (entry.fullName || '');
+      var row = U.el('div', { class: 'namelist-row' });
+      if (entry && entry.id) {
+        row.dataset.empId = entry.id;
+      }
+      var input = U.el('input', { type: 'text', placeholder: 'ФИО сотрудника' });
+      input.value = name;
+      var removeBtn = U.el('button', {
+        type: 'button',
+        class: 'btn btn-sm btn-secondary namelist-remove',
+        'aria-label': 'Убрать',
+        onclick: function () { rows.removeChild(row); }
+      }, '✕');
+      row.appendChild(input);
+      row.appendChild(removeBtn);
+      rows.appendChild(row);
+      return input;
+    }
+
+    (field.value || []).forEach(addRow);
+
+    var addBtn = U.el('button', {
+      type: 'button',
+      class: 'btn btn-sm btn-secondary namelist-add',
+      onclick: function () { addRow().focus(); }
+    }, '＋ Добавить сотрудника');
+
+    container.appendChild(rows);
+    container.appendChild(addBtn);
+    return container;
+  }
+
+  /**
    * Build a form from a field spec and open it in a modal.
    * fields: array of:
-   *   { name, label, type: 'text'|'number'|'textarea'|'checkbox'|'select',
+   *   { name, label, type: 'text'|'number'|'textarea'|'checkbox'|'select'|
+   *     'checkboxgroup'|'namelist',
    *     value, options:[{value,label}], min, required, help }
    * onSubmit(values) -> return false to keep modal open (validation failed).
    */
@@ -163,6 +208,12 @@ App.modals = (function () {
       } else if (field.type === 'checkbox') {
         control = U.el('input', { id: inputId, name: field.name, type: 'checkbox' });
         control.checked = !!field.value;
+      } else if (field.type === 'namelist') {
+        // Dynamic list of single-text rows (e.g. employee ФИО). field.value is
+        // an array of strings or { fullName } objects pre-filling the rows.
+        // The "control" is the container; rows are added/removed at runtime and
+        // collected by reading every text input inside it.
+        control = buildNameList(field);
       } else if (field.type === 'select') {
         control = U.el('select', { id: inputId, name: field.name });
         (field.options || []).forEach(function (opt) {
@@ -225,6 +276,17 @@ App.modals = (function () {
         var control = inputs[field.name];
         if (field.type === 'checkbox') {
           values[field.name] = control.checked;
+        } else if (field.type === 'namelist') {
+          // Each row -> { id, fullName }; keep rows with a non-empty name.
+          var rows = [];
+          U.qsa('.namelist-row', control).forEach(function (row) {
+            var input = U.qs('input[type=text]', row);
+            var name = input ? input.value.trim() : '';
+            if (name) {
+              rows.push({ id: row.dataset.empId || '', fullName: name });
+            }
+          });
+          values[field.name] = rows;
         } else if (field.type === 'checkboxgroup') {
           var picked = [];
           U.qsa('input[type=checkbox]', control).forEach(function (cb) {
