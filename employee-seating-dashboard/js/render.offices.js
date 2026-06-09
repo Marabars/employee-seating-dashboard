@@ -18,6 +18,65 @@ window.App = window.App || {};
 
   // UI-only: whether the AS IS section is collapsed.
   var asisCollapsed = false;
+  var _dragOfficeId = null;
+
+  // ---- Office DnD helpers ------------------------------------------------
+  function bindOfficeDragSource(tr, officeId) {
+    tr.setAttribute('draggable', 'true');
+    tr.addEventListener('dragstart', function (e) {
+      _dragOfficeId = officeId;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', officeId);
+      tr.classList.add('office-dragging');
+    });
+    tr.addEventListener('dragend', function () {
+      _dragOfficeId = null;
+      tr.classList.remove('office-dragging');
+    });
+  }
+
+  function bindOfficeDropRow(tr, officeId, targetPhase) {
+    tr.addEventListener('dragover', function (e) {
+      if (!_dragOfficeId || _dragOfficeId === officeId) { return; }
+      e.preventDefault();
+      e.stopPropagation();
+      var rect = tr.getBoundingClientRect();
+      var above = e.clientY < rect.top + rect.height / 2;
+      tr.classList.toggle('office-drop-above', above);
+      tr.classList.toggle('office-drop-below', !above);
+    });
+    tr.addEventListener('dragleave', function (e) {
+      if (!tr.contains(e.relatedTarget)) {
+        tr.classList.remove('office-drop-above', 'office-drop-below');
+      }
+    });
+    tr.addEventListener('drop', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      tr.classList.remove('office-drop-above', 'office-drop-below');
+      var draggedId = e.dataTransfer.getData('text/plain');
+      if (!draggedId || draggedId === officeId) { return; }
+      var rect = tr.getBoundingClientRect();
+      O.moveOffice(draggedId, officeId, e.clientY < rect.top + rect.height / 2, targetPhase);
+    });
+  }
+
+  function bindOfficeDropSection(panel, phase) {
+    panel.addEventListener('dragover', function (e) {
+      if (!_dragOfficeId) { return; }
+      e.preventDefault();
+      panel.classList.add('drop-hover');
+    });
+    panel.addEventListener('dragleave', function (e) {
+      if (!panel.contains(e.relatedTarget)) { panel.classList.remove('drop-hover'); }
+    });
+    panel.addEventListener('drop', function (e) {
+      e.preventDefault();
+      panel.classList.remove('drop-hover');
+      var draggedId = e.dataTransfer.getData('text/plain');
+      if (draggedId) { O.moveOffice(draggedId, null, false, phase); }
+    });
+  }
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -48,6 +107,7 @@ window.App = window.App || {};
       }, '+ Офис'));
     }
     panel.appendChild(head);
+    if (!ctx.viewOnly) { bindOfficeDropSection(panel, phase); }
 
     if (isAsis && asisCollapsed) {
       return panel;
@@ -63,7 +123,7 @@ window.App = window.App || {};
 
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
-      th('Название'), th('Статус'), th('Площадь, м²'), th('Вместимость, шт. мест'),
+      th(''), th('Название'), th('Статус'), th('Площадь, м²'), th('Вместимость, шт. мест'),
       th('Занято'), th('Баланс'), th('Зоны'), th('Черновик'), th('')
     ])));
     var tbody = U.el('tbody');
@@ -86,7 +146,10 @@ window.App = window.App || {};
 
       var phaseLabel = C.OFFICE_PHASE_LABEL[office.phase] || office.phase;
       var phaseClass = office.phase === C.OFFICE_PHASE.ASIS ? 'phase-tag phase-asis' : 'phase-tag phase-tobe';
-      tbody.appendChild(U.el('tr', {}, [
+      var handleCell = U.el('td', { class: 'cell-drag-handle' });
+      if (!ctx.viewOnly) { handleCell.appendChild(U.el('span', { class: 'office-drag-handle', text: '⢿' })); }
+      var tr = U.el('tr', {}, [
+        handleCell,
         U.el('td', { text: office.name }),
         U.el('td', {}, U.el('span', { class: phaseClass, text: phaseLabel })),
         U.el('td', { text: String(office.area || 0) }),
@@ -96,7 +159,9 @@ window.App = window.App || {};
         U.el('td', { text: (office.zones || []).length + ' зон' }),
         U.el('td', { text: office.isDraft ? 'Да' : '—' }),
         actionsCell
-      ]));
+      ]);
+      if (!ctx.viewOnly) { bindOfficeDragSource(tr, office.id); bindOfficeDropRow(tr, office.id, phase); }
+      tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     panel.appendChild(table);

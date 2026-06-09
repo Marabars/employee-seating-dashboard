@@ -705,3 +705,33 @@ input[type=search]::placeholder { color: var(--text-muted); }
   font-size: 0.8em;
   margin-left: auto;
 }
+
+/* ── Office drag-and-drop reorder ────────────────────────────────────────────────────────────────── */
+.office-drag-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  user-select: none;
+  font-size: 1.1em;
+}
+.office-drag-handle:active { cursor: grabbing; }
+
+td.cell-drag-handle {
+  width: 20px;
+  padding: 0 4px;
+  text-align: center;
+}
+
+tr.office-dragging > td { opacity: 0.35; }
+
+tr.office-drop-above > td {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+tr.office-drop-below > td {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
+}
+
+.phase-section.drop-hover {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  border-radius: 6px;
+}

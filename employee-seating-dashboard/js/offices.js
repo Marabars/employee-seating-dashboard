@@ -137,6 +137,30 @@ App.offices = (function () {
     return true;
   }
 
+  /**
+   * Move a physical office to targetPhase and reorder relative to targetId.
+   * insertBefore=true -> before targetId; false -> after. targetId=null -> append.
+   */
+  function moveOffice(draggedId, targetId, insertBefore, targetPhase) {
+    var dragged = find(draggedId);
+    if (!isPhysical(dragged)) { return; }
+    state.commit('Перемещение офиса', function () {
+      var s = scenario();
+      dragged.phase = (targetPhase === C.OFFICE_PHASE.ASIS) ? C.OFFICE_PHASE.ASIS : C.OFFICE_PHASE.TOBE;
+      var rest = s.offices.filter(function (o) { return o.id !== draggedId; });
+      if (!targetId) {
+        s.offices = rest.concat([dragged]);
+      } else {
+        var idx = -1;
+        for (var i = 0; i < rest.length; i++) {
+          if (rest[i].id === targetId) { idx = i; break; }
+        }
+        rest.splice(idx === -1 ? rest.length : (insertBefore ? idx : idx + 1), 0, dragged);
+        s.offices = rest;
+      }
+    });
+  }
+
   return {
     list: list,
     find: find,
@@ -145,6 +169,7 @@ App.offices = (function () {
     removeOffice: removeOffice,
     addZone: addZone,
     updateZone: updateZone,
-    removeZone: removeZone
+    removeZone: removeZone,
+    moveOffice: moveOffice
   };
 })();
