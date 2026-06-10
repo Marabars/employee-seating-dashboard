@@ -627,27 +627,30 @@ window.App = window.App || {};
           syncMembers(teamId, [], members);
         }
 
-        // Sync AS-IS allocation when office is set or changed.
-        if (newAsisId !== prevAsisOfficeId) {
-          var sA = App.state.getActiveScenario();
-          sA.allocations.filter(function (a) {
-            if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return false; }
-            var o = U.findById(sA.offices, a.targetOfficeId);
-            return o && o.phase === 'asis';
-          }).forEach(function (a) { App.allocations.remove(a.id); });
+        // Sync AS-IS allocation: on office change OR when office is set but no
+        // team allocation exists yet (e.g. after Excel import sets only the profile field).
+        var sA = App.state.getActiveScenario();
+        var existingAsisAllocs = sA.allocations.filter(function (a) {
+          if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return false; }
+          var o = U.findById(sA.offices, a.targetOfficeId);
+          return o && o.phase === 'asis';
+        });
+        if (newAsisId !== prevAsisOfficeId || (newAsisId && existingAsisAllocs.length === 0)) {
+          existingAsisAllocs.forEach(function (a) { App.allocations.remove(a.id); });
           if (newAsisId) {
             App.allocations.addTeamAllocation(teamId, headcount, newAsisId, null);
           }
         }
 
-        // Sync TO-BE allocation when office is set or changed.
-        if (newTobeId !== prevTobeOfficeId) {
-          var sT = App.state.getActiveScenario();
-          sT.allocations.filter(function (a) {
-            if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return false; }
-            var o = U.findById(sT.offices, a.targetOfficeId);
-            return o && (o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE);
-          }).forEach(function (a) { App.allocations.remove(a.id); });
+        // Sync TO-BE allocation: same logic.
+        var sT = App.state.getActiveScenario();
+        var existingTobeAllocs = sT.allocations.filter(function (a) {
+          if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return false; }
+          var o = U.findById(sT.offices, a.targetOfficeId);
+          return o && (o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE);
+        });
+        if (newTobeId !== prevTobeOfficeId || (newTobeId && existingTobeAllocs.length === 0)) {
+          existingTobeAllocs.forEach(function (a) { App.allocations.remove(a.id); });
           if (newTobeId) {
             App.allocations.addTeamAllocation(teamId, headcount, newTobeId, null);
           }
