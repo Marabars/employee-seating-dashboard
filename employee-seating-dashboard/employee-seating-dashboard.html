@@ -6812,6 +6812,10 @@ window.App = window.App || {};
       if (!o.phase || o.phase === 'tobe') { tobeOptions.push({ value: o.id, label: o.name }); }
     });
 
+    // Snapshot of current office IDs for change detection in onSubmit.
+    var prevAsisOfficeId = team ? (team.currentOfficeId || null) : null;
+    var prevTobeOfficeId = team ? (team.toBeOfficeId || null) : null;
+
     // Other teams available to link with (exclude the team being edited).
     var linkOptions = scenario.teams
       .filter(function (t) { return !team || t.id !== team.id; })
@@ -6847,18 +6851,50 @@ window.App = window.App || {};
           return false;
         }
         var members = values.members || [];
-        // Headcount is "total in team" — never less than the named count.
         var namedCount = members.length;
         values.employeesCount = Math.max(U.toNonNegativeInt(values.employeesCount), namedCount);
-        delete values.members; // not a team field
+        delete values.members;
 
+        var newAsisId = values.currentOfficeId || null;
+        var newTobeId = values.toBeOfficeId || null;
+        var headcount = values.employeesCount;
+
+        var teamId;
         if (team) {
           T.update(team.id, values);
+          teamId = team.id;
           syncMembers(team.id, existingMembers, members);
         } else {
-          var teamId = T.add(values);
+          teamId = T.add(values);
           syncMembers(teamId, [], members);
         }
+
+        // Sync AS-IS allocation when office is set or changed.
+        if (newAsisId !== prevAsisOfficeId) {
+          var sA = App.state.getActiveScenario();
+          sA.allocations.filter(function (a) {
+            if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return false; }
+            var o = U.findById(sA.offices, a.targetOfficeId);
+            return o && o.phase === 'asis';
+          }).forEach(function (a) { App.allocations.remove(a.id); });
+          if (newAsisId) {
+            App.allocations.addTeamAllocation(teamId, headcount, newAsisId, null);
+          }
+        }
+
+        // Sync TO-BE allocation when office is set or changed.
+        if (newTobeId !== prevTobeOfficeId) {
+          var sT = App.state.getActiveScenario();
+          sT.allocations.filter(function (a) {
+            if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return false; }
+            var o = U.findById(sT.offices, a.targetOfficeId);
+            return o && (o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE);
+          }).forEach(function (a) { App.allocations.remove(a.id); });
+          if (newTobeId) {
+            App.allocations.addTeamAllocation(teamId, headcount, newTobeId, null);
+          }
+        }
+
         return true;
       }
     });
