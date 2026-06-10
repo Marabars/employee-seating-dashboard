@@ -16,18 +16,19 @@ window.App = window.App || {};
   var state = App.state;
 
   // UI-only view state (survives re-render).
-  var expanded = {};       // office card expanded
-  var expandedZones = {};  // zone expanded within an office card
-  var moneyMode = false;   // money toggle for office cards
-  var hideAsis = false;    // hide AS IS section on dashboard
-  var hideTobe = false;    // hide TO BE section on dashboard
-  var teamSearch = '';     // search in unallocated teams panel
+  var expanded = {};          // office card expanded
+  var expandedZones = {};     // zone expanded within an office card
+  var expandedRemote = false; // remote card expanded
+  var moneyMode = false;      // money toggle for office cards
+  var hideAsis = false;       // hide AS IS section on dashboard
+  var hideTobe = false;       // hide TO BE section on dashboard
+  var teamSearch = '';        // search in unallocated teams panel
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
     var kpis = ctx.kpis;
 
-    container.appendChild(renderKpiBlock(kpis));
+    container.appendChild(renderKpiBlock(kpis, scenario));
 
     // Move-progress is hidden by default (kept behind a setting flag).
     if (state.getSettings().showMoveProgress) {
@@ -41,8 +42,8 @@ window.App = window.App || {};
     container.appendChild(renderWarningsPanel(ctx));
   }
 
-  /** 4 large KPIs + a compact secondary row. */
-  function renderKpiBlock(kpis) {
+  /** 4 large KPIs + a compact secondary row + AS-IS row. */
+  function renderKpiBlock(kpis, scenario) {
     var panel = R.section('Ключевые показатели');
 
     // Main KPIs show bare numbers (units are shown in details, not here).
@@ -67,6 +68,26 @@ window.App = window.App || {};
     sub.appendChild(R.kpiCard('Ошибки', kpis.errorsCount,
       kpis.errorsCount > 0 ? 'red' : null));
     panel.appendChild(sub);
+
+    // AS-IS metrics row (shown only when AS-IS offices exist).
+    var asisOffices = calc.getAsisOffices(scenario);
+    if (asisOffices.length > 0) {
+      var asisCapacity = asisOffices.reduce(function (sum, o) {
+        return sum + calc.calculateOfficeCapacity(o);
+      }, 0);
+      var asisOccupied = asisOffices.reduce(function (sum, o) {
+        return sum + calc.calculateOfficeOccupancy(scenario, o.id);
+      }, 0);
+      var asisBalance = asisCapacity - asisOccupied;
+      var asisRow = U.el('div', { class: 'kpi-grid kpi-grid-asis' });
+      asisRow.appendChild(R.kpiCard('Вместимость (AS IS)', asisCapacity, 'blue'));
+      asisRow.appendChild(R.kpiCard('Занято (AS IS)', asisOccupied, 'blue'));
+      asisRow.appendChild(R.kpiCard('Баланс мест (AS IS)',
+        (asisBalance >= 0 ? '+' : '') + asisBalance,
+        asisBalance >= 0 ? 'blue' : 'red'));
+      panel.appendChild(asisRow);
+    }
+
     return panel;
   }
 
@@ -278,12 +299,14 @@ window.App = window.App || {};
     return wrap;
   }
 
-  /** Teams placed into a specific zone, rendered as small boxes. */
+  /** Teams placed into a specific zone, rendered as draggable small boxes. */
   function renderZoneTeams(scenario, office, zone) {
     var byTeam = {};
+    var firstAllocByTeam = {};
     scenario.allocations.forEach(function (a) {
       if (a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.teamId) {
         byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
+        if (!firstAllocByTeam[a.teamId]) { firstAllocByTeam[a.teamId] = a.id; }
       }
     });
     var keys = Object.keys(byTeam);
@@ -293,7 +316,12 @@ window.App = window.App || {};
     var box = U.el('div', { class: 'zone-teams' });
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      box.appendChild(U.el('div', { class: 'team-box' }, [
+      box.appendChild(U.el('div', {
+        class: 'team-box',
+        draggable: 'true',
+        'data-drag-kind': 'allocation',
+        'data-drag-id': firstAllocByTeam[teamId]
+      }, [
         U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
         U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
       ]));
@@ -308,18 +336,74 @@ window.App = window.App || {};
     }
     var occ = calc.calculateOfficeOccupancy(scenario, remote.id);
     var panel = R.section('Удаленка');
+
+    var toggleBtn = U.el('button', {
+      class: 'zone-toggle',
+      title: expandedRemote ? 'Свернуть' : 'Развернуть'
+    }, expandedRemote ? '▾' : '▸');
+    toggleBtn.addEventListener('click', function () {
+      expandedRemote = !expandedRemote;
+      R.render();
+    });
+
     var card = U.el('div', {
       class: 'office-card remote-card status-border-blue',
       dataset: { dropOffice: remote.id }
     }, [
-      U.el('h3', { text: 'Удаленка' }),
+      U.el('div', { class: 'remote-header' }, [
+        toggleBtn,
+        U.el('h3', { text: 'Удаленка' })
+      ]),
       U.el('div', { class: 'office-card-meta' }, [
         U.el('span', { text: 'Без лимита вместимости' }),
         U.el('span', { text: 'Размещено: ' + occ })
       ])
     ]);
+
+    if (expandedRemote && occ > 0) {
+      card.appendChild(renderRemoteTeams(scenario, remote));
+    }
+
     panel.appendChild(card);
     return panel;
+  }
+
+  /** Teams and employees placed in the remote office, shown when card is expanded. */
+  function renderRemoteTeams(scenario, remote) {
+    var byTeam = {};
+    var empsByTeam = {};
+
+    scenario.allocations.forEach(function (a) {
+      if (a.targetOfficeId !== remote.id || !a.teamId) { return; }
+      byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
+      if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
+        if (!empsByTeam[a.teamId]) { empsByTeam[a.teamId] = []; }
+        empsByTeam[a.teamId].push(a.employeeId);
+      }
+    });
+
+    var keys = Object.keys(byTeam);
+    if (!keys.length) { return U.el('div'); }
+
+    var box = U.el('div', { class: 'remote-teams-breakdown' });
+    keys.forEach(function (teamId) {
+      var team = U.findById(scenario.teams, teamId);
+      var row = U.el('div', { class: 'remote-team-row' }, [
+        U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
+        U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
+      ]);
+      var emps = empsByTeam[teamId];
+      if (emps && emps.length) {
+        var empList = U.el('div', { class: 'remote-emp-list' });
+        emps.forEach(function (empId) {
+          var emp = U.findById(scenario.employees, empId);
+          empList.appendChild(U.el('div', { class: 'remote-emp-item', text: emp ? emp.fullName : empId }));
+        });
+        row.appendChild(empList);
+      }
+      box.appendChild(row);
+    });
+    return box;
   }
 
   function renderTeamList(scenario, ctx) {

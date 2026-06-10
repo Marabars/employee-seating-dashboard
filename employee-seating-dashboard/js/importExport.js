@@ -57,9 +57,9 @@ App.importExport = (function () {
     var wb = XLSX.utils.book_new();
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
     addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Черновик', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Можно делить', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Фаза офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Можно делить', 'Связанные команды', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'AS-IS офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
     addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Количество', 'Офис', 'Зона', 'Комментарий']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
   }
@@ -161,50 +161,96 @@ App.importExport = (function () {
       scenario = state.getActiveScenario();
     }
 
-    var officeByName = {};
-    scenario.offices.forEach(function (o) { officeByName[o.name.toLowerCase()] = o; });
+    // Two-level office registry: exact name+phase lookup + smart plain-name fallback.
+    var officeByName = {};       // name → last office (fallback when no phase ambiguity)
+    var officeByNamePhase = {};  // name|phase → office (preferred)
 
-    // Offices.
+    function registerOffice(o) {
+      officeByName[o.name.toLowerCase()] = o;
+      if (o.phase) { officeByNamePhase[o.name.toLowerCase() + '|' + o.phase] = o; }
+    }
+
+    /**
+     * Strict lookup: exact name+phase only, no fallback.
+     * Used when creating/merging offices so a same-name office in a different
+     * phase is never mistaken for an existing match.
+     */
+    function findOfficeStrict(name, phase) {
+      var n = (name || '').toLowerCase();
+      if (!n) { return null; }
+      if (phase) { return officeByNamePhase[n + '|' + phase] || null; }
+      return officeByName[n] || null;
+    }
+
+    /**
+     * Smart lookup for cross-references (teams, employees, zones).
+     * Prefers the requested phase; falls back to plain name only when there is
+     * no phase ambiguity (i.e. the name does NOT appear in BOTH phases).
+     */
+    function findOffice(name, preferPhase) {
+      var n = (name || '').toLowerCase();
+      if (!n) { return null; }
+      if (preferPhase && officeByNamePhase[n + '|' + preferPhase]) {
+        return officeByNamePhase[n + '|' + preferPhase];
+      }
+      // Fallback to plain name is safe only when there is exactly one phase for this name.
+      var hasAsis = !!officeByNamePhase[n + '|asis'];
+      var hasTobe = !!officeByNamePhase[n + '|tobe'];
+      if (hasAsis && hasTobe) { return null; } // ambiguous — refuse to guess
+      return officeByName[n] || null;
+    }
+
+    scenario.offices.forEach(registerOffice);
+
+    // Offices — strict phase match so same-name AS-IS and TO-BE both get created.
     parsed.offices.forEach(function (data) {
-      var existing = officeByName[data.name.toLowerCase()];
+      var existing = findOfficeStrict(data.name, data.phase);
       var office = existing || makeOffice(data);
       if (!existing) {
         scenario.offices.push(office);
-        officeByName[data.name.toLowerCase()] = office;
       }
+      registerOffice(office);
       // Inline zone capacities (cabinet/open_space/vip columns).
       if (office.type === C.OFFICE_TYPE.PHYSICAL) {
         applyInlineZones(office, data);
       }
     });
 
-    // Zones (explicit sheet rows).
+    // Zones (explicit sheet rows). Deduplicates by name to prevent doubling on re-import.
     parsed.zones.forEach(function (z) {
-      var office = officeByName[z.officeName.toLowerCase()];
+      var office = findOffice(z.officeName, z.officePhase);
       if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) {
         parsed.report.warnings.push('Зона «' + z.name + '»: офис «' + z.officeName + '» не найден');
         return;
       }
       office.zones = office.zones || [];
-      // Remove auto open-space placeholder if it is the only system zone.
       removeAutoOpenSpaceIfEmpty(office);
-      office.zones.push({
-        id: U.genId('zone'),
-        name: z.name,
-        type: z.type,
-        capacity: z.capacity,
-        isVipZone: z.isVipZone,
-        isSystem: false,
-        comment: z.comment
-      });
+      var zNameLower = z.name.toLowerCase();
+      var existing = office.zones.filter(function (ez) { return ez.name.toLowerCase() === zNameLower; })[0];
+      if (existing) {
+        existing.capacity = z.capacity;
+        existing.type = z.type;
+        existing.isVipZone = z.isVipZone;
+        existing.comment = z.comment;
+      } else {
+        office.zones.push({
+          id: U.genId('zone'),
+          name: z.name,
+          type: z.type,
+          capacity: z.capacity,
+          isVipZone: z.isVipZone,
+          isSystem: false,
+          comment: z.comment
+        });
+      }
     });
 
     // Teams.
     var teamByName = {};
     scenario.teams.forEach(function (t) { teamByName[t.name.toLowerCase()] = t; });
     parsed.teams.forEach(function (data) {
-      var currentOfficeLookup = officeByName[(data.currentOfficeName || '').toLowerCase()];
-      var toBeOfficeLookup = officeByName[(data.toBeOfficeName || '').toLowerCase()];
+      var currentOfficeLookup = findOffice(data.currentOfficeName, 'asis');
+      var toBeOfficeLookup = findOffice(data.toBeOfficeName, 'tobe');
       var team = {
         id: U.genId('team'),
         name: data.name,
@@ -218,6 +264,21 @@ App.importExport = (function () {
       };
       scenario.teams.push(team);
       teamByName[team.name.toLowerCase()] = team;
+    });
+
+    // Resolve linked team names to IDs (requires all teams to exist first).
+    parsed.teams.forEach(function (data) {
+      if (!data.linkedTeamNames) { return; }
+      var team = teamByName[data.name.toLowerCase()];
+      if (!team) { return; }
+      data.linkedTeamNames.split(',').forEach(function (raw) {
+        var n = raw.trim().toLowerCase();
+        if (!n) { return; }
+        var linked = teamByName[n];
+        if (linked && linked.id !== team.id && team.linkedTeamIds.indexOf(linked.id) === -1) {
+          team.linkedTeamIds.push(linked.id);
+        }
+      });
     });
 
     // Auto-create teams referenced by employees but missing from the Teams sheet.
@@ -248,7 +309,7 @@ App.importExport = (function () {
     // Employees.
     parsed.employees.forEach(function (data) {
       var team = teamByName[(data.teamName || '').toLowerCase()];
-      var office = officeByName[(data.currentOfficeName || '').toLowerCase()];
+      var office = findOffice(data.currentOfficeName, 'asis');
       var emp = {
         id: U.genId('employee'),
         fullName: data.fullName,
@@ -289,7 +350,7 @@ App.importExport = (function () {
       var empByName = {};
       scenario.employees.forEach(function (e) { empByName[e.fullName.toLowerCase()] = e; });
       parsed.allocations.forEach(function (data) {
-        var office = officeByName[(data.officeName || '').toLowerCase()];
+        var office = findOffice(data.officeName, null);
         if (!office) {
           parsed.report.warnings.push('Размещение «' + data.entity + '»: офис «' + data.officeName + '» не найден — пропущено');
           return;
@@ -368,7 +429,7 @@ App.importExport = (function () {
     }
   }
 
-  /** Convert cabinet/open_space/vip capacity columns into zones. */
+  /** Convert cabinet/open_space/vip capacity columns into zones. Deduplicates by name. */
   function applyInlineZones(office, data) {
     var inline = [];
     if (numeric(data.cabinet_capacity) > 0) {
@@ -386,10 +447,18 @@ App.importExport = (function () {
     removeAutoOpenSpaceIfEmpty(office);
     office.zones = office.zones || [];
     inline.forEach(function (z) {
-      office.zones.push({
-        id: U.genId('zone'), name: z.name, type: z.type, capacity: z.capacity,
-        isVipZone: z.isVipZone, isSystem: false, comment: ''
-      });
+      var nameLower = z.name.toLowerCase();
+      var existing = office.zones.filter(function (ez) { return ez.name.toLowerCase() === nameLower; })[0];
+      if (existing) {
+        existing.capacity = z.capacity;
+        existing.type = z.type;
+        existing.isVipZone = z.isVipZone;
+      } else {
+        office.zones.push({
+          id: U.genId('zone'), name: z.name, type: z.type, capacity: z.capacity,
+          isVipZone: z.isVipZone, isSystem: false, comment: ''
+        });
+      }
     });
   }
 
@@ -491,12 +560,13 @@ App.importExport = (function () {
   }
 
   function buildZones(scenarios, inc) {
-    var aoa = [withScenarioCol(['office_name', 'zone_name', 'zone_type', 'capacity', 'is_vip_zone', 'comment'], inc)];
+    var aoa = [withScenarioCol(['office_name', 'office_phase', 'zone_name', 'zone_type', 'capacity', 'is_vip_zone', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.offices.filter(function (o) { return o.type === C.OFFICE_TYPE.PHYSICAL; }).forEach(function (o) {
+        var phaseOut = o.phase || 'tobe';
         (o.zones || []).forEach(function (z) {
           aoa.push(rowWithScenario(s, [
-            o.name, z.name, z.type, z.capacity || 0,
+            o.name, phaseOut, z.name, z.type, z.capacity || 0,
             z.isVipZone ? 'да' : 'нет', z.comment || ''
           ], inc));
         });
@@ -506,16 +576,21 @@ App.importExport = (function () {
   }
 
   function buildTeams(scenarios, inc) {
-    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'can_split', 'comment'], inc)];
+    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'can_split', 'linked_teams', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
         var currentOffice = U.findById(s.offices, t.currentOfficeId);
         var toBeOffice = U.findById(s.offices, t.toBeOfficeId);
+        var linkedNames = (t.linkedTeamIds || []).map(function (id) {
+          var lt = U.findById(s.teams, id);
+          return lt ? lt.name : '';
+        }).filter(Boolean).join(', ');
         aoa.push(rowWithScenario(s, [
           t.name, t.employeesCount || 0,
           currentOffice ? currentOffice.name : '',
           toBeOffice ? toBeOffice.name : '',
-          t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да', t.comment || ''
+          t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да',
+          linkedNames, t.comment || ''
         ], inc));
       });
     });

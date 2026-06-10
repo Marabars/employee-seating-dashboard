@@ -228,6 +228,10 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .kpi-grid-sub { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 .kpi-grid-sub .kpi-card { padding: 10px; }
 .kpi-grid-sub .kpi-value { font-size: 20px; }
+.kpi-grid-asis { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin-top: 8px; }
+.kpi-grid-asis .kpi-card { border-color: var(--blue); }
+.kpi-grid-asis .kpi-value { font-size: 22px; color: var(--blue); }
+.kpi-grid-asis .kpi-label { color: var(--blue); }
 
 /* Phase accents (AS IS blue, TO BE lime). */
 .phase-head { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -270,6 +274,22 @@ h4 { font-size: 14px; color: var(--text-muted); }
 }
 .team-box-name { font-weight: 600; }
 .team-box-count { color: var(--text-muted); }
+.team-box[draggable] { cursor: grab; }
+.team-box[draggable]:active { cursor: grabbing; opacity: 0.7; }
+
+.remote-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.remote-header h3 { margin: 0; }
+.remote-teams-breakdown { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.remote-team-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  background: var(--surface-2); border-radius: 8px; padding: 8px 10px;
+}
+.remote-emp-list { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.remote-emp-item {
+  font-size: 12px; color: var(--text-muted);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px;
+}
 .zone-toggle { color: var(--text-muted); margin-right: 4px; }
 .zone-row-head { cursor: pointer; }
 
@@ -398,7 +418,11 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .result-count { margin: 8px 0; }
 
 /* ---- Filters ---- */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.filters {
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; margin-bottom: 12px;
+  position: sticky; top: 110px; z-index: 48;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
 .filters input, .filters select {
   padding: 8px 12px;
   border: 1px solid var(--border);
@@ -778,6 +802,7 @@ tr.office-drop-below > td {
 }
 .placement-asis { color: var(--blue); }
 .placement-tobe { color: var(--accent); }
+.placement-detail { font-size: 12px; margin-top: 2px; line-height: 1.3; }
 .placement-unplaced { color: var(--text-muted); }
 
 /* ── Teams tab: TO-BE office column ─────────────────────────────────────── */

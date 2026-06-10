@@ -180,6 +180,7 @@ App.constants = (function () {
     },
     zones: {
       office_name: ['office_name', 'название офиса'],
+      office_phase: ['office_phase', 'фаза офиса', 'фаза'],
       zone_name: ['zone_name', 'название зоны'],
       zone_type: ['zone_type', 'тип зоны'],
       capacity: ['capacity', 'вместимость'],
@@ -193,6 +194,7 @@ App.constants = (function () {
       to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис'],
       is_vip: ['is_vip', 'vip'],
       can_split: ['can_split', 'можно делить'],
+      linked_teams: ['linked_teams', 'связанные команды'],
       comment: ['comment', 'комментарий']
     },
     allocations: {
@@ -207,7 +209,7 @@ App.constants = (function () {
       full_name: ['full_name', 'фио'],
       position: ['position', 'должность'],
       team_name: ['team_name', 'команда'],
-      current_office: ['current_office', 'текущий офис'],
+      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
       cabinet: ['cabinet', 'кабинет'],
       is_vip: ['is_vip', 'vip'],
       work_format: ['work_format', 'формат работы'],

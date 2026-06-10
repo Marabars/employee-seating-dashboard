@@ -41,17 +41,23 @@ window.App = window.App || {};
 
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
-      th('ФИО'), th('Должность'), th('Команда'), th('Текущий офис'),
+      th('ФИО'), th('Должность'), th('Команда'),
       th('VIP'), th('Формат'), th('AS-IS'), th('TO-BE'), th('')
     ])));
     var tbody = U.el('tbody');
 
     rows.forEach(function (emp) {
       var team = U.findById(scenario.teams, emp.teamId);
-      var currentOffice = U.findById(scenario.offices, emp.currentOfficeId);
       var placement = E.placementOf(scenario, emp);
+
       var asisOffice = U.findById(scenario.offices, placement.asIs.officeId);
-      var tobeOff = U.findById(scenario.offices, placement.tobe.officeId);
+      var asisZone = (placement.asIs.zoneId && asisOffice)
+        ? U.findById(asisOffice.zones || [], placement.asIs.zoneId) : null;
+
+      var tobeOffice = U.findById(scenario.offices, placement.tobe.officeId);
+      var tobeZone = (placement.tobe.zoneId && tobeOffice)
+        ? U.findById(tobeOffice.zones || [], placement.tobe.zoneId) : null;
+
       var asisAlloc = (scenario.allocations || []).filter(function (a) {
         if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id)) { return false; }
         var o = U.findById(scenario.offices, a.targetOfficeId);
@@ -87,16 +93,17 @@ window.App = window.App || {};
         U.el('td', { text: emp.fullName }),
         U.el('td', { text: emp.position || '—' }),
         U.el('td', { text: team ? team.name : '—' }),
-        U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
         U.el('td', { text: emp.isVip ? 'Да' : '—' }),
         U.el('td', { text: C.WORK_FORMAT_LABEL[emp.workFormat] || emp.workFormat }),
         U.el('td', { class: 'placement-asis' }, [
           R.badge(C.PLACEMENT_STATUS_LABEL[placement.asIs.status], placementColor(placement.asIs.status)),
-          asisOffice ? U.el('span', { class: 'muted', text: ' ' + asisOffice.name }) : null
+          asisOffice ? U.el('div', { class: 'placement-detail', text: asisOffice.name }) : null,
+          asisZone  ? U.el('div', { class: 'placement-detail muted', text: asisZone.name }) : null
         ]),
         U.el('td', { class: 'placement-tobe' }, [
           R.badge(C.PLACEMENT_STATUS_LABEL[placement.tobe.status], placementColor(placement.tobe.status)),
-          tobeOff ? U.el('span', { class: 'muted', text: ' ' + tobeOff.name }) : null
+          tobeOffice ? U.el('div', { class: 'placement-detail', text: tobeOffice.name }) : null,
+          tobeZone   ? U.el('div', { class: 'placement-detail muted', text: tobeZone.name }) : null
         ]),
         actionsCell
       ]));
@@ -134,7 +141,7 @@ window.App = window.App || {};
 
     wrap.appendChild(selectFilter('teamId', 'Команда',
       scenario.teams.map(function (t) { return { value: t.id, label: t.name }; })));
-    wrap.appendChild(selectFilter('currentOfficeId', 'Текущий офис',
+    wrap.appendChild(selectFilter('currentOfficeId', 'AS-IS офис',
       scenario.offices.filter(notRemote).map(officeOpt)));
     wrap.appendChild(selectFilter('targetOfficeId', 'Новый офис',
       scenario.offices.map(officeOpt)));
@@ -248,7 +255,7 @@ window.App = window.App || {};
         { name: 'fullName', label: 'ФИО', type: 'text', value: emp ? emp.fullName : '' },
         { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
         { name: 'teamId', label: 'Команда', type: 'select', options: teamOptions, value: emp ? emp.teamId : '' },
-        { name: 'currentOfficeId', label: 'Текущий офис', type: 'select', options: officeOptions, value: emp ? emp.currentOfficeId : '' },
+        { name: 'currentOfficeId', label: 'AS-IS офис (текущий)', type: 'select', options: officeOptions, value: emp ? emp.currentOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : false },
         { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions, value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }

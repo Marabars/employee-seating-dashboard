@@ -93,7 +93,7 @@ App.importValidation = (function () {
       return;
     }
     var idx = mapHeaders('offices', data.header);
-    var names = {};
+    var seen = {}; // key: name|phase — same name is allowed in different phases
     data.rows.forEach(function (row, i) {
       if (isEmptyRow(row)) {
         return;
@@ -104,15 +104,16 @@ App.importValidation = (function () {
         result.report.errors.push('Offices, строка ' + rowNo + ': пустое название офиса');
         return;
       }
-      if (names[name.toLowerCase()]) {
-        result.report.errors.push('Offices, строка ' + rowNo + ': дубликат офиса «' + name + '»');
-        return;
-      }
       // office_type column now carries the phase (AS IS / TO BE).
       var phaseRaw = String(cell(row, idx, 'office_type') || 'tobe').trim().toLowerCase();
       var phase = C.OFFICE_PHASE_ALIASES[phaseRaw] || C.OFFICE_PHASE.TOBE;
 
-      names[name.toLowerCase()] = true;
+      var key = name.toLowerCase() + '|' + phase;
+      if (seen[key]) {
+        result.report.errors.push('Offices, строка ' + rowNo + ': дубликат офиса «' + name + '» (фаза ' + phase + ')');
+        return;
+      }
+      seen[key] = true;
       var office = {
         name: name,
         phase: phase,
@@ -154,8 +155,11 @@ App.importValidation = (function () {
       var typeRaw = String(cell(row, idx, 'zone_type') || 'open_space').trim().toLowerCase();
       var type = C.ZONE_TYPE_ALIASES[typeRaw] || C.ZONE_TYPE.OPEN_SPACE;
       var isVip = U.parseBoolean(cell(row, idx, 'is_vip_zone')) || type === C.ZONE_TYPE.VIP;
+      var officePhaseRaw = String(cell(row, idx, 'office_phase') || '').trim().toLowerCase();
+      var officePhase = officePhaseRaw ? (C.OFFICE_PHASE_ALIASES[officePhaseRaw] || null) : null;
       result.zones.push({
         officeName: officeName,
+        officePhase: officePhase, // null when column absent — falls back to plain name lookup
         name: zoneName,
         type: type,
         capacity: U.toNonNegativeInt(cell(row, idx, 'capacity')),
@@ -196,6 +200,7 @@ App.importValidation = (function () {
         cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
         isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
         canSplit: cell(row, idx, 'can_split') === undefined ? true : U.parseBoolean(cell(row, idx, 'can_split')),
+        linkedTeamNames: String(cell(row, idx, 'linked_teams') || '').trim(),
         comment: String(cell(row, idx, 'comment') || '')
       });
       result.report.imported.teams += 1;
