@@ -587,6 +587,9 @@ input[type=search]::placeholder { color: var(--text-muted); }
 .form-field input::placeholder, .form-field textarea::placeholder { color: var(--text-muted); }
 .checkbox-label { display: flex; align-items: center; gap: 8px; }
 .checkbox-label input { width: auto; }
+.checkbox-group-wrap { display: flex; flex-direction: column; gap: 4px; }
+.checkbox-group-search { width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.checkbox-group-search::placeholder { color: var(--text-muted); }
 .checkbox-group { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
 .checkbox-group .checkbox-label { margin: 0; }
 .namelist-rows { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 8px; }

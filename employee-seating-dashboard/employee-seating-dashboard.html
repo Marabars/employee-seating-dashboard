@@ -594,6 +594,9 @@ input[type=search]::placeholder { color: var(--text-muted); }
 .form-field input::placeholder, .form-field textarea::placeholder { color: var(--text-muted); }
 .checkbox-label { display: flex; align-items: center; gap: 8px; }
 .checkbox-label input { width: auto; }
+.checkbox-group-wrap { display: flex; flex-direction: column; gap: 4px; }
+.checkbox-group-search { width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.checkbox-group-search::placeholder { color: var(--text-muted); }
 .checkbox-group { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
 .checkbox-group .checkbox-label { margin: 0; }
 .namelist-rows { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 8px; }
@@ -4613,22 +4616,43 @@ App.modals = (function () {
           control.appendChild(o);
         });
       } else if (field.type === 'checkboxgroup') {
-        // Multi-select rendered as a list of checkboxes. field.value is an
-        // array of pre-selected values. The "control" is the container; its
-        // checkbox children carry value="..." for collection.
-        control = U.el('div', { class: 'checkbox-group' });
+        // Multi-select rendered as a list of checkboxes, with an optional
+        // search input above the scrollable list. field.value is an array of
+        // pre-selected values. collect() still picks up all checked boxes,
+        // including ones hidden by the search filter.
+        control = U.el('div', { class: 'checkbox-group-wrap' });
         var selected = {};
         (field.value || []).forEach(function (v) { selected[String(v)] = true; });
+
+        if ((field.options || []).length > 0) {
+          var cgSearch = U.el('input', {
+            type: 'search',
+            placeholder: 'Поиск...',
+            class: 'checkbox-group-search',
+            'aria-label': 'Поиск'
+          });
+          cgSearch.addEventListener('input', function () {
+            var q = cgSearch.value.toLowerCase().trim();
+            U.qsa('.checkbox-label', control).forEach(function (lbl) {
+              var txt = (lbl.textContent || lbl.innerText || '').toLowerCase();
+              lbl.style.display = (!q || txt.indexOf(q) !== -1) ? '' : 'none';
+            });
+          });
+          control.appendChild(cgSearch);
+        }
+
+        var cbList = U.el('div', { class: 'checkbox-group' });
         if (!(field.options || []).length) {
-          control.appendChild(U.el('div', { class: 'form-help', text: 'Нет доступных вариантов' }));
+          cbList.appendChild(U.el('div', { class: 'form-help', text: 'Нет доступных вариантов' }));
         }
         (field.options || []).forEach(function (opt) {
           var cb = U.el('input', { type: 'checkbox', value: opt.value });
           cb.checked = !!selected[String(opt.value)];
-          control.appendChild(U.el('label', { class: 'checkbox-label' }, [
+          cbList.appendChild(U.el('label', { class: 'checkbox-label' }, [
             cb, U.el('span', { text: opt.label })
           ]));
         });
+        control.appendChild(cbList);
       } else {
         control = U.el('input', {
           id: inputId,
