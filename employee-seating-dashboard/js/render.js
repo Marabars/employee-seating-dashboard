@@ -54,6 +54,8 @@ App.render = (function () {
 
   /** Full re-render of sidebar, top bar, active tab, and view-only banner. */
   function render() {
+    var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+
     var ctx = buildContext();
     renderSidebar(ctx);
     renderTopbar(ctx);
@@ -68,6 +70,10 @@ App.render = (function () {
     updateNavActive();
     if (App.dragDrop) {
       App.dragDrop.refresh();
+    }
+
+    if (scrollY > 0) {
+      window.scrollTo(0, scrollY);
     }
   }
 
