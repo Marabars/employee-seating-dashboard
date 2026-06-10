@@ -194,15 +194,18 @@ App.calc = (function () {
   }
 
   /**
-   * How many seats a team has already been allocated (team + employee).
-   * For EMPLOYEE-type allocations, each named employee is counted at most once
-   * regardless of how many phase allocations (AS-IS + TO-BE) they hold,
-   * so dual-placed employees don't inflate the allocated count.
+   * How many seats a team has already been allocated in the TO-BE plan.
+   * Only TO-BE and remote allocations count — AS-IS placements represent
+   * the current state, not the planning target, and must not inflate the
+   * "distributed" metric. For EMPLOYEE-type allocations each named employee
+   * is counted at most once even if they hold multiple tobe allocations.
    */
   function calculateTeamAllocated(scenario, teamId) {
     var countedEmployees = {};
     return (scenario.allocations || []).reduce(function (acc, a) {
       if (a.teamId !== teamId) { return acc; }
+      var office = U.findById(scenario.offices, a.targetOfficeId);
+      if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return acc; }
       if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
         if (countedEmployees[a.employeeId]) { return acc; }
         countedEmployees[a.employeeId] = true;
