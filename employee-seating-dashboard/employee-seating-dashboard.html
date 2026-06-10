@@ -3325,18 +3325,20 @@ App.calc = (function () {
     if (scenario.employees && scenario.employees.length > 0) {
       var placedIds = {};
       (scenario.allocations || []).forEach(function (a) {
-        if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
-          placedIds[a.employeeId] = true;
-        }
+        if (a.type !== C.ALLOCATION_TYPE.EMPLOYEE || !a.employeeId) { return; }
+        var office = U.findById(scenario.offices, a.targetOfficeId);
+        if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return; }
+        placedIds[a.employeeId] = true;
       });
       // Team allocations cover headcount of their team; approximate which
-      // employees are covered by counting team-allocated seats per team and
-      // marking that many still-unplaced members of the team as placed.
+      // employees are covered by counting team-allocated TO-BE seats per team
+      // and marking that many still-unplaced members of the team as placed.
       var teamSeats = {};
       (scenario.allocations || []).forEach(function (a) {
-        if (a.type === C.ALLOCATION_TYPE.TEAM && a.teamId) {
-          teamSeats[a.teamId] = (teamSeats[a.teamId] || 0) + (a.employeesCount || 0);
-        }
+        if (a.type !== C.ALLOCATION_TYPE.TEAM || !a.teamId) { return; }
+        var office = U.findById(scenario.offices, a.targetOfficeId);
+        if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return; }
+        teamSeats[a.teamId] = (teamSeats[a.teamId] || 0) + (a.employeesCount || 0);
       });
       var placedCount = 0;
       scenario.teams.forEach(function (team) {
@@ -3361,8 +3363,10 @@ App.calc = (function () {
       });
       return Math.max(0, total - placedCount);
     }
-    // Aggregated mode: total minus everything allocated anywhere.
+    // Aggregated mode: total minus TO-BE/remote allocated seats.
     var allocatedTotal = (scenario.allocations || []).reduce(function (acc, a) {
+      var office = U.findById(scenario.offices, a.targetOfficeId);
+      if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return acc; }
       return acc + (a.employeesCount || 0);
     }, 0);
     return Math.max(0, total - allocatedTotal);
