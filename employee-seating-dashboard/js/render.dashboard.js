@@ -371,11 +371,13 @@ window.App = window.App || {};
   /** Teams and employees placed in the remote office, shown when card is expanded. */
   function renderRemoteTeams(scenario, remote) {
     var byTeam = {};
+    var firstAllocByTeam = {};
     var empsByTeam = {};
 
     scenario.allocations.forEach(function (a) {
       if (a.targetOfficeId !== remote.id || !a.teamId) { return; }
       byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
+      if (!firstAllocByTeam[a.teamId]) { firstAllocByTeam[a.teamId] = a.id; }
       if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
         if (!empsByTeam[a.teamId]) { empsByTeam[a.teamId] = []; }
         empsByTeam[a.teamId].push(a.employeeId);
@@ -388,7 +390,12 @@ window.App = window.App || {};
     var box = U.el('div', { class: 'remote-teams-breakdown' });
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      var row = U.el('div', { class: 'remote-team-row' }, [
+      var row = U.el('div', {
+        class: 'remote-team-row',
+        draggable: 'true',
+        'data-drag-kind': 'allocation',
+        'data-drag-id': firstAllocByTeam[teamId]
+      }, [
         U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
         U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
       ]);

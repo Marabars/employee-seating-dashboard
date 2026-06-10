@@ -242,12 +242,33 @@ window.App = window.App || {};
     var scenario = App.state.getActiveScenario();
     var teamOptions = [{ value: '', label: '—' }].concat(
       scenario.teams.map(function (t) { return { value: t.id, label: t.name }; }));
-    var officeOptions = [{ value: '', label: '—' }].concat(
-      scenario.offices.filter(notRemote).map(officeOpt));
+    var asisOptions = [{ value: '', label: '— Не размещен' }].concat(
+      scenario.offices.filter(function (o) {
+        return o.phase === C.OFFICE_PHASE.ASIS;
+      }).map(officeOpt));
+    var tobeOptions = [{ value: '', label: '— Не размещен' }].concat(
+      scenario.offices.filter(function (o) {
+        return o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE;
+      }).map(function (o) {
+        var suffix = o.type === C.OFFICE_TYPE.REMOTE ? ' (удаленка)' : '';
+        return { value: o.id, label: o.name + suffix };
+      }));
     var formatOptions = Object.keys(C.WORK_FORMAT).map(function (k) {
       var v = C.WORK_FORMAT[k];
       return { value: v, label: C.WORK_FORMAT_LABEL[v] };
     });
+
+    var placement = emp ? E.placementOf(scenario, emp) : null;
+    var prevAsisAlloc = emp ? (scenario.allocations || []).filter(function (a) {
+      if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id)) { return false; }
+      var o = U.findById(scenario.offices, a.targetOfficeId);
+      return o && o.phase === 'asis';
+    })[0] : null;
+    var prevTobeAlloc = emp ? (scenario.allocations || []).filter(function (a) {
+      if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id)) { return false; }
+      var o = U.findById(scenario.offices, a.targetOfficeId);
+      return !o || o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE;
+    })[0] : null;
 
     App.modals.form({
       title: (emp ? 'Редактирование' : 'Добавление') + ' сотрудника',
@@ -255,7 +276,10 @@ window.App = window.App || {};
         { name: 'fullName', label: 'ФИО', type: 'text', value: emp ? emp.fullName : '' },
         { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
         { name: 'teamId', label: 'Команда', type: 'select', options: teamOptions, value: emp ? emp.teamId : '' },
-        { name: 'currentOfficeId', label: 'AS-IS офис (текущий)', type: 'select', options: officeOptions, value: emp ? emp.currentOfficeId : '' },
+        { name: 'asisOfficeId', label: 'AS-IS офис (текущее размещение)', type: 'select', options: asisOptions,
+          value: placement && placement.asIs.officeId ? placement.asIs.officeId : (emp ? emp.currentOfficeId || '' : '') },
+        { name: 'tobeOfficeId', label: 'TO-BE офис (целевое размещение)', type: 'select', options: tobeOptions,
+          value: placement && placement.tobe.officeId ? placement.tobe.officeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : false },
         { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions, value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }
@@ -265,10 +289,29 @@ window.App = window.App || {};
           App.modals.alert('Укажите ФИО сотрудника');
           return false;
         }
+        var asisId = values.asisOfficeId || null;
+        var tobeId = values.tobeOfficeId || null;
+        // Sync profile field for filter compatibility
+        values.currentOfficeId = asisId;
+        delete values.asisOfficeId;
+        delete values.tobeOfficeId;
+
+        var empId;
         if (emp) {
           E.update(emp.id, values);
+          empId = emp.id;
         } else {
-          E.add(values);
+          empId = E.add(values);
+        }
+        if (asisId) {
+          App.allocations.setEmployeeAllocation(empId, asisId, null);
+        } else if (prevAsisAlloc) {
+          App.allocations.remove(prevAsisAlloc.id);
+        }
+        if (tobeId) {
+          App.allocations.setEmployeeAllocation(empId, tobeId, null);
+        } else if (prevTobeAlloc) {
+          App.allocations.remove(prevTobeAlloc.id);
         }
         return true;
       }
