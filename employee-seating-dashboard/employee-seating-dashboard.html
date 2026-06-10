@@ -110,6 +110,9 @@ h4 { font-size: 14px; color: var(--text-muted); }
   border-bottom: 1px solid var(--border);
   padding: 0 16px;
   overflow-x: auto;
+  position: sticky;
+  top: 70px;
+  z-index: 49;
 }
 .nav-tab {
   border: none;
@@ -753,6 +756,48 @@ tr.office-drop-below > td {
   font-size: 0.8em;
   padding: 3px 10px;
 }
+
+/* ── Unallocated teams panel (dashboard) ──────────────────────────────────── */
+.unalloc-search-wrap {
+  margin-bottom: 10px;
+}
+.unalloc-search-wrap input[type=search] {
+  width: 100%;
+}
+.unalloc-drop-zone {
+  min-height: 48px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.unalloc-drop-zone.drop-hover {
+  border-color: var(--accent);
+  background: rgba(186, 247, 120, 0.08);
+}
+
+/* ── Dual placement status (AS-IS / TO-BE) ───────────────────────────────── */
+.placement-dual {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.placement-asis { color: var(--blue); }
+.placement-tobe { color: var(--accent); }
+.placement-unplaced { color: var(--text-muted); }
+
+/* ── Teams tab: TO-BE office column ─────────────────────────────────────── */
+.cell-tobe { color: var(--accent); font-size: 13px; }
+
+/* ── Import modal: scenario name input ───────────────────────────────────── */
+.import-name-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.import-scenario-name { flex: 1; }
 
 </style>
 </head>
@@ -2626,6 +2671,7 @@ App.teams = (function () {
       name: data.name || 'Команда',
       employeesCount: U.toNonNegativeInt(data.employeesCount),
       currentOfficeId: data.currentOfficeId || null,
+      toBeOfficeId: data.toBeOfficeId || null,
       isVip: !!data.isVip,
       canSplit: data.canSplit !== false, // default: splittable
       linkedTeamIds: [],
@@ -2654,6 +2700,9 @@ App.teams = (function () {
       }
       if (data.currentOfficeId !== undefined) {
         team.currentOfficeId = data.currentOfficeId || null;
+      }
+      if (data.toBeOfficeId !== undefined) {
+        team.toBeOfficeId = data.toBeOfficeId || null;
       }
       if (data.isVip !== undefined) {
         team.isVip = !!data.isVip;
@@ -2864,22 +2913,40 @@ App.employees = (function () {
 
   /**
    * Derive an employee's placement status in the active scenario.
-   * Returns one of C.PLACEMENT_STATUS.* and the target office id (if any).
+   * Returns { status, officeId, zoneId, asIs, tobe } where asIs/tobe are
+   * each { status, officeId, zoneId } for their respective office phases.
+   * Top-level status/officeId/zoneId reflect the TO-BE placement for
+   * backward compatibility with existing callers.
    */
   function placementOf(scenarioObj, employee) {
-    var indiv = (scenarioObj.allocations || []).filter(function (a) {
+    var allocs = (scenarioObj.allocations || []).filter(function (a) {
       return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === employee.id;
-    })[0];
-    if (indiv) {
-      var office = U.findById(scenarioObj.offices, indiv.targetOfficeId);
-      if (office && office.type === C.OFFICE_TYPE.REMOTE) {
-        return { status: C.PLACEMENT_STATUS.PLACED_REMOTE, officeId: indiv.targetOfficeId, zoneId: indiv.targetZoneId };
+    });
+
+    function resolvePhase(phase) {
+      var alloc = null;
+      for (var i = 0; i < allocs.length; i++) {
+        var office = U.findById(scenarioObj.offices, allocs[i].targetOfficeId);
+        if (!office) { continue; }
+        if (office.type === C.OFFICE_TYPE.REMOTE) {
+          // Remote has no phase — counts for both views
+          if (!alloc) { alloc = allocs[i]; }
+          continue;
+        }
+        if (office.phase === phase) { alloc = allocs[i]; break; }
       }
-      return { status: C.PLACEMENT_STATUS.PLACED_OFFICE, officeId: indiv.targetOfficeId, zoneId: indiv.targetZoneId };
+      if (!alloc) { return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null }; }
+      var tgtOffice = U.findById(scenarioObj.offices, alloc.targetOfficeId);
+      var st = (tgtOffice && tgtOffice.type === C.OFFICE_TYPE.REMOTE)
+        ? C.PLACEMENT_STATUS.PLACED_REMOTE
+        : C.PLACEMENT_STATUS.PLACED_OFFICE;
+      return { status: st, officeId: alloc.targetOfficeId, zoneId: alloc.targetZoneId };
     }
-    // No individual allocation: treat as unplaced for the personal view.
-    // (Team allocations cover headcount but not specific named members.)
-    return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null };
+
+    var asIs = resolvePhase('asis');
+    var tobe = resolvePhase('tobe');
+    // top-level fields mirror TO-BE for backward compat
+    return { status: tobe.status, officeId: tobe.officeId, zoneId: tobe.zoneId, asIs: asIs, tobe: tobe };
   }
 
   /**
@@ -4910,6 +4977,7 @@ window.App = window.App || {};
   var moneyMode = false;   // money toggle for office cards
   var hideAsis = false;    // hide AS IS section on dashboard
   var hideTobe = false;    // hide TO BE section on dashboard
+  var teamSearch = '';     // search in unallocated teams panel
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -4935,10 +5003,10 @@ window.App = window.App || {};
 
     // Main KPIs show bare numbers (units are shown in details, not here).
     var main = U.el('div', { class: 'kpi-grid kpi-grid-main' });
-    main.appendChild(R.kpiCard('Всего мест', kpis.totalPlaces));
+    main.appendChild(R.kpiCard('Всего мест (TO BE)', kpis.totalPlaces));
     main.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
     main.appendChild(R.kpiCard('Потребность мест', kpis.requiredSeats));
-    main.appendChild(R.kpiCard('Баланс мест',
+    main.appendChild(R.kpiCard('Баланс мест (TO BE)',
       (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance,
       kpis.placesBalance >= 0 ? 'green' : 'red'));
     panel.appendChild(main);
@@ -5117,9 +5185,14 @@ window.App = window.App || {};
     wrap.appendChild(rowMoney('Аренда, ₽/м² с НДС', office.rentPerSqm != null ? office.rentPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Эксплуатация, ₽/м² с НДС', office.opexPerSqm != null ? office.opexPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Индексация, %/год', office.indexationPct != null ? office.indexationPct : '—'));
-    wrap.appendChild(rowMoney('Итого аренда, ₽/год', U.fmtMoney(annual), true));
-    wrap.appendChild(rowMoney('Аренда за 5 лет, ₽', U.fmtMoney(fiveY), true));
+    wrap.appendChild(rowMoney('Итого аренда, млн. руб./год', fmtMln(annual), true));
+    wrap.appendChild(rowMoney('Аренда за 5 лет, млн. руб.', fmtMln(fiveY), true));
     return wrap;
+  }
+
+  function fmtMln(value) {
+    if (value == null) { return '—'; }
+    return (value / 1000000).toFixed(2).replace('.', ',') + ' млн.';
   }
 
   function rowMoney(label, value, strong) {
@@ -5206,14 +5279,57 @@ window.App = window.App || {};
   }
 
   function renderTeamList(scenario, ctx) {
-    var panel = R.section('Команды');
+    var panel = R.section('Нераспределенные команды');
+
+    // Search input — persists across re-renders via module-level teamSearch.
+    var searchWrap = U.el('div', { class: 'unalloc-search-wrap' });
+    var searchInput = U.el('input', {
+      type: 'search',
+      placeholder: 'Поиск по команде или сотрудникам',
+      value: teamSearch,
+      'aria-label': 'Поиск нераспределённых команд'
+    });
+    searchInput.addEventListener('input', function () {
+      teamSearch = searchInput.value;
+      R.render();
+      var fresh = U.qs('.unalloc-search-wrap input[type=search]');
+      if (fresh) { fresh.focus(); fresh.setSelectionRange(fresh.value.length, fresh.value.length); }
+    });
+    searchWrap.appendChild(searchInput);
+    panel.appendChild(searchWrap);
+
+    // Filter teams: only those with remainder > 0 AND matching search query.
+    var q = teamSearch.trim().toLowerCase();
+    var unallocated = scenario.teams.filter(function (team) {
+      if (calc.calculateTeamRemainder(scenario, team) <= 0) { return false; }
+      if (!q) { return true; }
+      if (team.name.toLowerCase().indexOf(q) > -1) { return true; }
+      // Also search by employee names within the team.
+      return scenario.employees.some(function (e) {
+        return e.teamId === team.id && e.fullName.toLowerCase().indexOf(q) > -1;
+      });
+    });
+
     if (scenario.teams.length === 0) {
       panel.appendChild(R.emptyState(C.EMPTY_STATES.teams, 'Перейти к командам',
         function () { R.setActiveTab('teams'); }));
       return panel;
     }
-    var listEl = U.el('div', { class: 'team-chips' });
-    scenario.teams.forEach(function (team) {
+
+    if (unallocated.length === 0) {
+      panel.appendChild(U.el('p', { class: 'muted', text: q ? 'Нет совпадений' : 'Все команды распределены' }));
+      return panel;
+    }
+
+    // Container is a drop target: dropping an allocation chip here removes it.
+    var listEl = U.el('div', {
+      class: 'team-chips unalloc-drop-zone',
+      dataset: { dropPanel: 'unallocated' }
+    });
+    listEl.setAttribute('aria-dropeffect', 'move');
+    listEl.setAttribute('title', 'Перетащите сюда размещение из офиса, чтобы вернуть команду');
+
+    unallocated.forEach(function (team) {
       var remainder = calc.calculateTeamRemainder(scenario, team);
       listEl.appendChild(U.el('div', {
         class: 'team-chip' + (team.isVip ? ' vip' : ''),
@@ -6090,7 +6206,7 @@ window.App = window.App || {};
 
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
-      th(''), th('Команда'), th('Численность'), th('Текущий офис'),
+      th(''), th('Команда'), th('Численность'), th('AS-IS офис'), th('TO-BE офис'),
       th('VIP'), th('Делимая'), th('Распределено'), th('Остаток'), th('')
     ])));
     var tbody = U.el('tbody');
@@ -6099,6 +6215,7 @@ window.App = window.App || {};
       var allocated = calc.calculateTeamAllocated(scenario, team.id);
       var remainder = calc.calculateTeamRemainder(scenario, team);
       var currentOffice = U.findById(scenario.offices, team.currentOfficeId);
+      var toBeOffice = U.findById(scenario.offices, team.toBeOfficeId);
       var isExpanded = !!expanded[team.id];
 
       var actionsCell = U.el('td', { class: 'cell-actions' });
@@ -6136,6 +6253,7 @@ window.App = window.App || {};
         nameCell,
         U.el('td', { text: String(team.employeesCount || 0) }),
         U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
+        U.el('td', { class: 'cell-tobe', text: toBeOffice ? toBeOffice.name : '—' }),
         U.el('td', { text: team.isVip ? 'Да' : '—' }),
         U.el('td', { text: team.canSplit === false ? 'Нет' : 'Да' }),
         U.el('td', { text: String(allocated) }),
@@ -6144,7 +6262,7 @@ window.App = window.App || {};
       ]));
 
       if (isExpanded) {
-        tbody.appendChild(U.el('tr', { class: 'expand-row' }, U.el('td', { colspan: '9' }, [
+        tbody.appendChild(U.el('tr', { class: 'expand-row' }, U.el('td', { colspan: '10' }, [
           renderTeamDetail(scenario, team)
         ])));
       }
@@ -6228,11 +6346,17 @@ window.App = window.App || {};
     if (namedCount > 0) {
       members.forEach(function (emp) {
         var placement = App.employees.placementOf(scenario, emp);
+        var asisLabel = C.PLACEMENT_STATUS_LABEL[placement.asIs.status];
+        var tobeLabel = C.PLACEMENT_STATUS_LABEL[placement.tobe.status];
+        var placementEl = U.el('span', { class: 'placement-dual' }, [
+          U.el('span', { class: 'placement-asis', text: 'AS-IS: ' + asisLabel }),
+          U.el('span', { class: 'placement-tobe', text: 'TO-BE: ' + tobeLabel })
+        ]);
         var row = U.el('div', { class: 'composition-row member-row' }, [
           U.el('span', { class: 'member-drag-handle', text: '⠿' }),
           U.el('span', { class: 'member-name', text: emp.fullName }),
           emp.position ? U.el('span', { class: 'muted member-pos', text: emp.position }) : null,
-          U.el('span', { class: 'muted', text: C.PLACEMENT_STATUS_LABEL[placement.status] })
+          placementEl
         ]);
         if (!viewOnly) {
           row.appendChild(R.iconBtn('✎', 'Редактировать ФИО', function () { openMemberForm(scenario, team, emp); }));
@@ -6443,11 +6567,12 @@ window.App = window.App || {};
 
   function openTeamForm(team) {
     var scenario = App.state.getActiveScenario();
-    var officeOptions = [{ value: '', label: '—' }];
+    var asisOptions = [{ value: '', label: '—' }];
+    var tobeOptions = [{ value: '', label: '—' }];
     scenario.offices.forEach(function (o) {
-      if (o.type !== C.OFFICE_TYPE.REMOTE) {
-        officeOptions.push({ value: o.id, label: o.name });
-      }
+      if (o.type === C.OFFICE_TYPE.REMOTE) { return; }
+      if (!o.phase || o.phase === 'asis') { asisOptions.push({ value: o.id, label: o.name }); }
+      if (!o.phase || o.phase === 'tobe') { tobeOptions.push({ value: o.id, label: o.name }); }
     });
 
     // Other teams available to link with (exclude the team being edited).
@@ -6470,7 +6595,8 @@ window.App = window.App || {};
           help: 'Общая численность команды. Если ФИО указано больше — значение поднимется автоматически.' },
         { name: 'members', label: 'Сотрудники с ФИО', type: 'namelist', value: existingMembers,
           help: 'Именованные сотрудники команды. Остальные до численности считаются без ФИО.' },
-        { name: 'currentOfficeId', label: 'Текущий офис', type: 'select', options: officeOptions, value: team ? team.currentOfficeId : '' },
+        { name: 'currentOfficeId', label: 'AS-IS офис (сейчас)', type: 'select', options: asisOptions, value: team ? team.currentOfficeId : '' },
+        { name: 'toBeOfficeId', label: 'TO-BE офис (план)', type: 'select', options: tobeOptions, value: team ? team.toBeOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: team ? team.isVip : false },
         { name: 'canSplit', label: 'Можно делить', type: 'checkbox', value: team ? team.canSplit !== false : true },
         { name: 'linkedTeamIds', label: 'Связанные команды (переезжают вместе, в одном офисе)',
@@ -6993,6 +7119,7 @@ App.dragDrop = (function () {
     }
     bindSources();
     bindDropZones();
+    bindUnallocatedPanel();
   }
 
   function bindSources() {
@@ -7300,16 +7427,57 @@ App.dragDrop = (function () {
     });
   }
 
+  // ---- Drop on unallocated panel: remove the allocation ------------------
+
+  function bindUnallocatedPanel() {
+    U.qsa('[data-drop-panel="unallocated"]').forEach(function (panel) {
+      if (panel._dndBound) { return; }
+      panel._dndBound = true;
+      panel.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        panel.classList.add('drop-hover');
+        handleAutoScroll({ x: e.clientX, y: e.clientY });
+      });
+      panel.addEventListener('dragenter', function (e) {
+        e.preventDefault();
+        panel.classList.add('drop-hover');
+      });
+      panel.addEventListener('dragleave', function () {
+        panel.classList.remove('drop-hover');
+      });
+      panel.addEventListener('drop', function (e) {
+        e.preventDefault();
+        panel.classList.remove('drop-hover');
+        stopAutoScroll();
+        var payload = readPayload(e.dataTransfer);
+        if (!payload) { return; }
+        if (payload.kind === 'allocation') {
+          App.allocations.remove(payload.id);
+          announce('Размещение отменено — команда возвращена в нераспределённые');
+        }
+      });
+      panel.setAttribute('tabindex', '0');
+      panel.addEventListener('keydown', function (e) {
+        if ((e.key === 'Enter' || e.key === ' ') && grabbed && grabbed.kind === 'allocation') {
+          e.preventDefault();
+          App.allocations.remove(grabbed.id);
+          grabbed = null;
+          announce('Размещение отменено');
+        }
+      });
+    });
+  }
+
   // ---- Auto-scroll during drag ------------------------------------------
 
   function handleAutoScroll(cursor) {
     var scrollers = U.qsa('.dnd-scroll');
-    if (!scrollers.length) {
-      return;
-    }
     stopAutoScroll();
     var active = null;
     var speed = null;
+
+    // Check .dnd-scroll containers first.
     scrollers.forEach(function (sc) {
       var r = sc.getBoundingClientRect();
       if (cursor.x >= r.left && cursor.x <= r.right && cursor.y >= r.top && cursor.y <= r.bottom) {
@@ -7320,10 +7488,34 @@ App.dragDrop = (function () {
         }
       }
     });
+
+    // Fall back to window scroll when cursor near the viewport edge.
+    if (!active) {
+      var wh = window.innerHeight;
+      var threshold = 80;
+      var maxSpeed = 14;
+      var winSpeed = 0;
+      if (cursor.y < threshold) {
+        winSpeed = -Math.min(((threshold - cursor.y) / threshold) * maxSpeed, maxSpeed);
+      } else if (cursor.y > wh - threshold) {
+        winSpeed = Math.min(((cursor.y - (wh - threshold)) / threshold) * maxSpeed, maxSpeed);
+      }
+      if (winSpeed !== 0) {
+        active = 'window';
+        speed = { y: winSpeed };
+      }
+    }
+
     if (active && speed) {
-      autoScrollTimer = setInterval(function () {
-        active.scrollTop += speed.y;
-      }, 16);
+      if (active === 'window') {
+        autoScrollTimer = setInterval(function () {
+          window.scrollBy(0, speed.y);
+        }, 16);
+      } else {
+        autoScrollTimer = setInterval(function () {
+          active.scrollTop += speed.y;
+        }, 16);
+      }
     }
   }
 
@@ -7456,10 +7648,20 @@ App.importExport = (function () {
 
   /** Ask whether to create a new scenario or update the current one. */
   function chooseImportMode(parsed) {
+    var nameInput = U.el('input', {
+      type: 'text',
+      placeholder: 'Название нового сценария',
+      class: 'import-scenario-name',
+      value: 'Импорт ' + new Date().toLocaleDateString('ru-RU')
+    });
     App.modals.open({
       title: 'Импорт Excel',
       body: U.el('div', {}, [
         U.el('p', { text: 'Куда импортировать данные?' }),
+        U.el('label', { class: 'import-name-label' }, [
+          U.el('span', { text: 'Название сценария: ' }),
+          nameInput
+        ]),
         U.el('ul', { class: 'import-summary' }, [
           U.el('li', { text: 'Офисов: ' + parsed.report.imported.offices }),
           U.el('li', { text: 'Зон: ' + parsed.report.imported.zones }),
@@ -7471,7 +7673,10 @@ App.importExport = (function () {
       ]),
       buttons: [
         { label: 'Отмена', kind: 'secondary' },
-        { label: 'Новый сценарий', kind: 'primary', onClick: function () { applyImport(parsed, 'new'); return true; } },
+        { label: 'Новый сценарий', kind: 'primary', onClick: function () {
+          applyImport(parsed, 'new', nameInput.value.trim() || nameInput.placeholder);
+          return true;
+        } },
         { label: 'Обновить текущий', kind: 'primary', onClick: function () { applyImport(parsed, 'update'); return true; } }
       ]
     });
@@ -7482,13 +7687,13 @@ App.importExport = (function () {
    * coarse undo action. Cross-references (zone office, team/employee links)
    * are resolved by name.
    */
-  function applyImport(parsed, mode) {
+  function applyImport(parsed, mode, scenarioName) {
     App.undoRedo.checkpoint();
 
     var project = state.getProject();
     var scenario;
     if (mode === 'new') {
-      scenario = state.createScenario('Импорт ' + new Date().toLocaleDateString('ru-RU'), '');
+      scenario = state.createScenario(scenarioName || ('Импорт ' + new Date().toLocaleDateString('ru-RU')), '');
       project.scenarios.push(scenario);
       project.settings.lastSelectedScenarioId = scenario.id;
     } else {

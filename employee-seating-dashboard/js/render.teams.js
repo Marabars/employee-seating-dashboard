@@ -59,7 +59,7 @@ window.App = window.App || {};
 
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
-      th(''), th('Команда'), th('Численность'), th('Текущий офис'),
+      th(''), th('Команда'), th('Численность'), th('AS-IS офис'), th('TO-BE офис'),
       th('VIP'), th('Делимая'), th('Распределено'), th('Остаток'), th('')
     ])));
     var tbody = U.el('tbody');
@@ -68,6 +68,7 @@ window.App = window.App || {};
       var allocated = calc.calculateTeamAllocated(scenario, team.id);
       var remainder = calc.calculateTeamRemainder(scenario, team);
       var currentOffice = U.findById(scenario.offices, team.currentOfficeId);
+      var toBeOffice = U.findById(scenario.offices, team.toBeOfficeId);
       var isExpanded = !!expanded[team.id];
 
       var actionsCell = U.el('td', { class: 'cell-actions' });
@@ -105,6 +106,7 @@ window.App = window.App || {};
         nameCell,
         U.el('td', { text: String(team.employeesCount || 0) }),
         U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
+        U.el('td', { class: 'cell-tobe', text: toBeOffice ? toBeOffice.name : '—' }),
         U.el('td', { text: team.isVip ? 'Да' : '—' }),
         U.el('td', { text: team.canSplit === false ? 'Нет' : 'Да' }),
         U.el('td', { text: String(allocated) }),
@@ -113,7 +115,7 @@ window.App = window.App || {};
       ]));
 
       if (isExpanded) {
-        tbody.appendChild(U.el('tr', { class: 'expand-row' }, U.el('td', { colspan: '9' }, [
+        tbody.appendChild(U.el('tr', { class: 'expand-row' }, U.el('td', { colspan: '10' }, [
           renderTeamDetail(scenario, team)
         ])));
       }
@@ -197,11 +199,17 @@ window.App = window.App || {};
     if (namedCount > 0) {
       members.forEach(function (emp) {
         var placement = App.employees.placementOf(scenario, emp);
+        var asisLabel = C.PLACEMENT_STATUS_LABEL[placement.asIs.status];
+        var tobeLabel = C.PLACEMENT_STATUS_LABEL[placement.tobe.status];
+        var placementEl = U.el('span', { class: 'placement-dual' }, [
+          U.el('span', { class: 'placement-asis', text: 'AS-IS: ' + asisLabel }),
+          U.el('span', { class: 'placement-tobe', text: 'TO-BE: ' + tobeLabel })
+        ]);
         var row = U.el('div', { class: 'composition-row member-row' }, [
           U.el('span', { class: 'member-drag-handle', text: '⠿' }),
           U.el('span', { class: 'member-name', text: emp.fullName }),
           emp.position ? U.el('span', { class: 'muted member-pos', text: emp.position }) : null,
-          U.el('span', { class: 'muted', text: C.PLACEMENT_STATUS_LABEL[placement.status] })
+          placementEl
         ]);
         if (!viewOnly) {
           row.appendChild(R.iconBtn('✎', 'Редактировать ФИО', function () { openMemberForm(scenario, team, emp); }));
@@ -412,11 +420,12 @@ window.App = window.App || {};
 
   function openTeamForm(team) {
     var scenario = App.state.getActiveScenario();
-    var officeOptions = [{ value: '', label: '—' }];
+    var asisOptions = [{ value: '', label: '—' }];
+    var tobeOptions = [{ value: '', label: '—' }];
     scenario.offices.forEach(function (o) {
-      if (o.type !== C.OFFICE_TYPE.REMOTE) {
-        officeOptions.push({ value: o.id, label: o.name });
-      }
+      if (o.type === C.OFFICE_TYPE.REMOTE) { return; }
+      if (!o.phase || o.phase === 'asis') { asisOptions.push({ value: o.id, label: o.name }); }
+      if (!o.phase || o.phase === 'tobe') { tobeOptions.push({ value: o.id, label: o.name }); }
     });
 
     // Other teams available to link with (exclude the team being edited).
@@ -439,7 +448,8 @@ window.App = window.App || {};
           help: 'Общая численность команды. Если ФИО указано больше — значение поднимется автоматически.' },
         { name: 'members', label: 'Сотрудники с ФИО', type: 'namelist', value: existingMembers,
           help: 'Именованные сотрудники команды. Остальные до численности считаются без ФИО.' },
-        { name: 'currentOfficeId', label: 'Текущий офис', type: 'select', options: officeOptions, value: team ? team.currentOfficeId : '' },
+        { name: 'currentOfficeId', label: 'AS-IS офис (сейчас)', type: 'select', options: asisOptions, value: team ? team.currentOfficeId : '' },
+        { name: 'toBeOfficeId', label: 'TO-BE офис (план)', type: 'select', options: tobeOptions, value: team ? team.toBeOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: team ? team.isVip : false },
         { name: 'canSplit', label: 'Можно делить', type: 'checkbox', value: team ? team.canSplit !== false : true },
         { name: 'linkedTeamIds', label: 'Связанные команды (переезжают вместе, в одном офисе)',

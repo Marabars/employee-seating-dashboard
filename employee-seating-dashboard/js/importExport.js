@@ -109,10 +109,20 @@ App.importExport = (function () {
 
   /** Ask whether to create a new scenario or update the current one. */
   function chooseImportMode(parsed) {
+    var nameInput = U.el('input', {
+      type: 'text',
+      placeholder: 'Название нового сценария',
+      class: 'import-scenario-name',
+      value: 'Импорт ' + new Date().toLocaleDateString('ru-RU')
+    });
     App.modals.open({
       title: 'Импорт Excel',
       body: U.el('div', {}, [
         U.el('p', { text: 'Куда импортировать данные?' }),
+        U.el('label', { class: 'import-name-label' }, [
+          U.el('span', { text: 'Название сценария: ' }),
+          nameInput
+        ]),
         U.el('ul', { class: 'import-summary' }, [
           U.el('li', { text: 'Офисов: ' + parsed.report.imported.offices }),
           U.el('li', { text: 'Зон: ' + parsed.report.imported.zones }),
@@ -124,7 +134,10 @@ App.importExport = (function () {
       ]),
       buttons: [
         { label: 'Отмена', kind: 'secondary' },
-        { label: 'Новый сценарий', kind: 'primary', onClick: function () { applyImport(parsed, 'new'); return true; } },
+        { label: 'Новый сценарий', kind: 'primary', onClick: function () {
+          applyImport(parsed, 'new', nameInput.value.trim() || nameInput.placeholder);
+          return true;
+        } },
         { label: 'Обновить текущий', kind: 'primary', onClick: function () { applyImport(parsed, 'update'); return true; } }
       ]
     });
@@ -135,13 +148,13 @@ App.importExport = (function () {
    * coarse undo action. Cross-references (zone office, team/employee links)
    * are resolved by name.
    */
-  function applyImport(parsed, mode) {
+  function applyImport(parsed, mode, scenarioName) {
     App.undoRedo.checkpoint();
 
     var project = state.getProject();
     var scenario;
     if (mode === 'new') {
-      scenario = state.createScenario('Импорт ' + new Date().toLocaleDateString('ru-RU'), '');
+      scenario = state.createScenario(scenarioName || ('Импорт ' + new Date().toLocaleDateString('ru-RU')), '');
       project.scenarios.push(scenario);
       project.settings.lastSelectedScenarioId = scenario.id;
     } else {

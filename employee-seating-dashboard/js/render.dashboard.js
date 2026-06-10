@@ -21,6 +21,7 @@ window.App = window.App || {};
   var moneyMode = false;   // money toggle for office cards
   var hideAsis = false;    // hide AS IS section on dashboard
   var hideTobe = false;    // hide TO BE section on dashboard
+  var teamSearch = '';     // search in unallocated teams panel
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -46,10 +47,10 @@ window.App = window.App || {};
 
     // Main KPIs show bare numbers (units are shown in details, not here).
     var main = U.el('div', { class: 'kpi-grid kpi-grid-main' });
-    main.appendChild(R.kpiCard('Всего мест', kpis.totalPlaces));
+    main.appendChild(R.kpiCard('Всего мест (TO BE)', kpis.totalPlaces));
     main.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
     main.appendChild(R.kpiCard('Потребность мест', kpis.requiredSeats));
-    main.appendChild(R.kpiCard('Баланс мест',
+    main.appendChild(R.kpiCard('Баланс мест (TO BE)',
       (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance,
       kpis.placesBalance >= 0 ? 'green' : 'red'));
     panel.appendChild(main);
@@ -228,9 +229,14 @@ window.App = window.App || {};
     wrap.appendChild(rowMoney('Аренда, ₽/м² с НДС', office.rentPerSqm != null ? office.rentPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Эксплуатация, ₽/м² с НДС', office.opexPerSqm != null ? office.opexPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Индексация, %/год', office.indexationPct != null ? office.indexationPct : '—'));
-    wrap.appendChild(rowMoney('Итого аренда, ₽/год', U.fmtMoney(annual), true));
-    wrap.appendChild(rowMoney('Аренда за 5 лет, ₽', U.fmtMoney(fiveY), true));
+    wrap.appendChild(rowMoney('Итого аренда, млн. руб./год', fmtMln(annual), true));
+    wrap.appendChild(rowMoney('Аренда за 5 лет, млн. руб.', fmtMln(fiveY), true));
     return wrap;
+  }
+
+  function fmtMln(value) {
+    if (value == null) { return '—'; }
+    return (value / 1000000).toFixed(2).replace('.', ',') + ' млн.';
   }
 
   function rowMoney(label, value, strong) {
@@ -317,14 +323,57 @@ window.App = window.App || {};
   }
 
   function renderTeamList(scenario, ctx) {
-    var panel = R.section('Команды');
+    var panel = R.section('Нераспределенные команды');
+
+    // Search input — persists across re-renders via module-level teamSearch.
+    var searchWrap = U.el('div', { class: 'unalloc-search-wrap' });
+    var searchInput = U.el('input', {
+      type: 'search',
+      placeholder: 'Поиск по команде или сотрудникам',
+      value: teamSearch,
+      'aria-label': 'Поиск нераспределённых команд'
+    });
+    searchInput.addEventListener('input', function () {
+      teamSearch = searchInput.value;
+      R.render();
+      var fresh = U.qs('.unalloc-search-wrap input[type=search]');
+      if (fresh) { fresh.focus(); fresh.setSelectionRange(fresh.value.length, fresh.value.length); }
+    });
+    searchWrap.appendChild(searchInput);
+    panel.appendChild(searchWrap);
+
+    // Filter teams: only those with remainder > 0 AND matching search query.
+    var q = teamSearch.trim().toLowerCase();
+    var unallocated = scenario.teams.filter(function (team) {
+      if (calc.calculateTeamRemainder(scenario, team) <= 0) { return false; }
+      if (!q) { return true; }
+      if (team.name.toLowerCase().indexOf(q) > -1) { return true; }
+      // Also search by employee names within the team.
+      return scenario.employees.some(function (e) {
+        return e.teamId === team.id && e.fullName.toLowerCase().indexOf(q) > -1;
+      });
+    });
+
     if (scenario.teams.length === 0) {
       panel.appendChild(R.emptyState(C.EMPTY_STATES.teams, 'Перейти к командам',
         function () { R.setActiveTab('teams'); }));
       return panel;
     }
-    var listEl = U.el('div', { class: 'team-chips' });
-    scenario.teams.forEach(function (team) {
+
+    if (unallocated.length === 0) {
+      panel.appendChild(U.el('p', { class: 'muted', text: q ? 'Нет совпадений' : 'Все команды распределены' }));
+      return panel;
+    }
+
+    // Container is a drop target: dropping an allocation chip here removes it.
+    var listEl = U.el('div', {
+      class: 'team-chips unalloc-drop-zone',
+      dataset: { dropPanel: 'unallocated' }
+    });
+    listEl.setAttribute('aria-dropeffect', 'move');
+    listEl.setAttribute('title', 'Перетащите сюда размещение из офиса, чтобы вернуть команду');
+
+    unallocated.forEach(function (team) {
       var remainder = calc.calculateTeamRemainder(scenario, team);
       listEl.appendChild(U.el('div', {
         class: 'team-chip' + (team.isVip ? ' vip' : ''),

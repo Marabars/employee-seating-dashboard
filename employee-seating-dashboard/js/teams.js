@@ -32,6 +32,7 @@ App.teams = (function () {
       name: data.name || 'Команда',
       employeesCount: U.toNonNegativeInt(data.employeesCount),
       currentOfficeId: data.currentOfficeId || null,
+      toBeOfficeId: data.toBeOfficeId || null,
       isVip: !!data.isVip,
       canSplit: data.canSplit !== false, // default: splittable
       linkedTeamIds: [],
@@ -60,6 +61,9 @@ App.teams = (function () {
       }
       if (data.currentOfficeId !== undefined) {
         team.currentOfficeId = data.currentOfficeId || null;
+      }
+      if (data.toBeOfficeId !== undefined) {
+        team.toBeOfficeId = data.toBeOfficeId || null;
       }
       if (data.isVip !== undefined) {
         team.isVip = !!data.isVip;

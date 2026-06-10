@@ -103,6 +103,9 @@ h4 { font-size: 14px; color: var(--text-muted); }
   border-bottom: 1px solid var(--border);
   padding: 0 16px;
   overflow-x: auto;
+  position: sticky;
+  top: 70px;
+  z-index: 49;
 }
 .nav-tab {
   border: none;
@@ -746,3 +749,45 @@ tr.office-drop-below > td {
   font-size: 0.8em;
   padding: 3px 10px;
 }
+
+/* ── Unallocated teams panel (dashboard) ──────────────────────────────────── */
+.unalloc-search-wrap {
+  margin-bottom: 10px;
+}
+.unalloc-search-wrap input[type=search] {
+  width: 100%;
+}
+.unalloc-drop-zone {
+  min-height: 48px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.unalloc-drop-zone.drop-hover {
+  border-color: var(--accent);
+  background: rgba(186, 247, 120, 0.08);
+}
+
+/* ── Dual placement status (AS-IS / TO-BE) ───────────────────────────────── */
+.placement-dual {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.placement-asis { color: var(--blue); }
+.placement-tobe { color: var(--accent); }
+.placement-unplaced { color: var(--text-muted); }
+
+/* ── Teams tab: TO-BE office column ─────────────────────────────────────── */
+.cell-tobe { color: var(--accent); font-size: 13px; }
+
+/* ── Import modal: scenario name input ───────────────────────────────────── */
+.import-name-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.import-scenario-name { flex: 1; }

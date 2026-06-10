@@ -108,22 +108,40 @@ App.employees = (function () {
 
   /**
    * Derive an employee's placement status in the active scenario.
-   * Returns one of C.PLACEMENT_STATUS.* and the target office id (if any).
+   * Returns { status, officeId, zoneId, asIs, tobe } where asIs/tobe are
+   * each { status, officeId, zoneId } for their respective office phases.
+   * Top-level status/officeId/zoneId reflect the TO-BE placement for
+   * backward compatibility with existing callers.
    */
   function placementOf(scenarioObj, employee) {
-    var indiv = (scenarioObj.allocations || []).filter(function (a) {
+    var allocs = (scenarioObj.allocations || []).filter(function (a) {
       return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === employee.id;
-    })[0];
-    if (indiv) {
-      var office = U.findById(scenarioObj.offices, indiv.targetOfficeId);
-      if (office && office.type === C.OFFICE_TYPE.REMOTE) {
-        return { status: C.PLACEMENT_STATUS.PLACED_REMOTE, officeId: indiv.targetOfficeId, zoneId: indiv.targetZoneId };
+    });
+
+    function resolvePhase(phase) {
+      var alloc = null;
+      for (var i = 0; i < allocs.length; i++) {
+        var office = U.findById(scenarioObj.offices, allocs[i].targetOfficeId);
+        if (!office) { continue; }
+        if (office.type === C.OFFICE_TYPE.REMOTE) {
+          // Remote has no phase — counts for both views
+          if (!alloc) { alloc = allocs[i]; }
+          continue;
+        }
+        if (office.phase === phase) { alloc = allocs[i]; break; }
       }
-      return { status: C.PLACEMENT_STATUS.PLACED_OFFICE, officeId: indiv.targetOfficeId, zoneId: indiv.targetZoneId };
+      if (!alloc) { return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null }; }
+      var tgtOffice = U.findById(scenarioObj.offices, alloc.targetOfficeId);
+      var st = (tgtOffice && tgtOffice.type === C.OFFICE_TYPE.REMOTE)
+        ? C.PLACEMENT_STATUS.PLACED_REMOTE
+        : C.PLACEMENT_STATUS.PLACED_OFFICE;
+      return { status: st, officeId: alloc.targetOfficeId, zoneId: alloc.targetZoneId };
     }
-    // No individual allocation: treat as unplaced for the personal view.
-    // (Team allocations cover headcount but not specific named members.)
-    return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null };
+
+    var asIs = resolvePhase('asis');
+    var tobe = resolvePhase('tobe');
+    // top-level fields mirror TO-BE for backward compat
+    return { status: tobe.status, officeId: tobe.officeId, zoneId: tobe.zoneId, asIs: asIs, tobe: tobe };
   }
 
   /**

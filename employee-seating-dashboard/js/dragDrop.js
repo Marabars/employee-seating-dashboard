@@ -101,6 +101,7 @@ App.dragDrop = (function () {
     }
     bindSources();
     bindDropZones();
+    bindUnallocatedPanel();
   }
 
   function bindSources() {
@@ -408,16 +409,57 @@ App.dragDrop = (function () {
     });
   }
 
+  // ---- Drop on unallocated panel: remove the allocation ------------------
+
+  function bindUnallocatedPanel() {
+    U.qsa('[data-drop-panel="unallocated"]').forEach(function (panel) {
+      if (panel._dndBound) { return; }
+      panel._dndBound = true;
+      panel.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        panel.classList.add('drop-hover');
+        handleAutoScroll({ x: e.clientX, y: e.clientY });
+      });
+      panel.addEventListener('dragenter', function (e) {
+        e.preventDefault();
+        panel.classList.add('drop-hover');
+      });
+      panel.addEventListener('dragleave', function () {
+        panel.classList.remove('drop-hover');
+      });
+      panel.addEventListener('drop', function (e) {
+        e.preventDefault();
+        panel.classList.remove('drop-hover');
+        stopAutoScroll();
+        var payload = readPayload(e.dataTransfer);
+        if (!payload) { return; }
+        if (payload.kind === 'allocation') {
+          App.allocations.remove(payload.id);
+          announce('Размещение отменено — команда возвращена в нераспределённые');
+        }
+      });
+      panel.setAttribute('tabindex', '0');
+      panel.addEventListener('keydown', function (e) {
+        if ((e.key === 'Enter' || e.key === ' ') && grabbed && grabbed.kind === 'allocation') {
+          e.preventDefault();
+          App.allocations.remove(grabbed.id);
+          grabbed = null;
+          announce('Размещение отменено');
+        }
+      });
+    });
+  }
+
   // ---- Auto-scroll during drag ------------------------------------------
 
   function handleAutoScroll(cursor) {
     var scrollers = U.qsa('.dnd-scroll');
-    if (!scrollers.length) {
-      return;
-    }
     stopAutoScroll();
     var active = null;
     var speed = null;
+
+    // Check .dnd-scroll containers first.
     scrollers.forEach(function (sc) {
       var r = sc.getBoundingClientRect();
       if (cursor.x >= r.left && cursor.x <= r.right && cursor.y >= r.top && cursor.y <= r.bottom) {
@@ -428,10 +470,34 @@ App.dragDrop = (function () {
         }
       }
     });
+
+    // Fall back to window scroll when cursor near the viewport edge.
+    if (!active) {
+      var wh = window.innerHeight;
+      var threshold = 80;
+      var maxSpeed = 14;
+      var winSpeed = 0;
+      if (cursor.y < threshold) {
+        winSpeed = -Math.min(((threshold - cursor.y) / threshold) * maxSpeed, maxSpeed);
+      } else if (cursor.y > wh - threshold) {
+        winSpeed = Math.min(((cursor.y - (wh - threshold)) / threshold) * maxSpeed, maxSpeed);
+      }
+      if (winSpeed !== 0) {
+        active = 'window';
+        speed = { y: winSpeed };
+      }
+    }
+
     if (active && speed) {
-      autoScrollTimer = setInterval(function () {
-        active.scrollTop += speed.y;
-      }, 16);
+      if (active === 'window') {
+        autoScrollTimer = setInterval(function () {
+          window.scrollBy(0, speed.y);
+        }, 16);
+      } else {
+        autoScrollTimer = setInterval(function () {
+          active.scrollTop += speed.y;
+        }, 16);
+      }
     }
   }
 
