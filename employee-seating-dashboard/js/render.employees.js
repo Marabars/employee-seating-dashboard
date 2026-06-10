@@ -52,18 +52,30 @@ window.App = window.App || {};
       var placement = E.placementOf(scenario, emp);
       var asisOffice = U.findById(scenario.offices, placement.asIs.officeId);
       var tobeOff = U.findById(scenario.offices, placement.tobe.officeId);
-      var indivAlloc = (scenario.allocations || []).filter(function (a) {
-        return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id;
+      var asisAlloc = (scenario.allocations || []).filter(function (a) {
+        if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id)) { return false; }
+        var o = U.findById(scenario.offices, a.targetOfficeId);
+        return o && o.phase === 'asis';
+      })[0];
+      var tobeAlloc = (scenario.allocations || []).filter(function (a) {
+        if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id)) { return false; }
+        var o = U.findById(scenario.offices, a.targetOfficeId);
+        return !o || o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE;
       })[0];
 
       var actionsCell = U.el('td', { class: 'cell-actions' });
       if (!ctx.viewOnly) {
         actionsCell.appendChild(R.iconBtn('✎', 'Редактировать', function () { openEmployeeForm(emp); }));
         actionsCell.appendChild(R.iconBtn('📍', 'Разместить', (function (e) { return function () { openEmpPlaceModal(scenario, e); }; })(emp)));
-        if (indivAlloc) {
-          actionsCell.appendChild(R.iconBtn('✕', 'Снять размещение', (function (id) { return function () {
+        if (asisAlloc) {
+          actionsCell.appendChild(R.iconBtn('✕ AS', 'Снять AS-IS размещение', (function (id) { return function () {
             App.allocations.remove(id);
-          }; })(indivAlloc.id)));
+          }; })(asisAlloc.id)));
+        }
+        if (tobeAlloc) {
+          actionsCell.appendChild(R.iconBtn('✕ TO', 'Снять TO-BE размещение', (function (id) { return function () {
+            App.allocations.remove(id);
+          }; })(tobeAlloc.id)));
         }
         actionsCell.appendChild(R.iconBtn('🗑', 'Удалить', function () {
           App.modals.confirm('Удалить сотрудника «' + emp.fullName + '»?',

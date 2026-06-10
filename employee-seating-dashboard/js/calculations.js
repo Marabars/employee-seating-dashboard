@@ -193,10 +193,21 @@ App.calc = (function () {
     }, 0);
   }
 
-  /** How many seats a team has already been allocated (team + employee). */
+  /**
+   * How many seats a team has already been allocated (team + employee).
+   * For EMPLOYEE-type allocations, each named employee is counted at most once
+   * regardless of how many phase allocations (AS-IS + TO-BE) they hold,
+   * so dual-placed employees don't inflate the allocated count.
+   */
   function calculateTeamAllocated(scenario, teamId) {
+    var countedEmployees = {};
     return (scenario.allocations || []).reduce(function (acc, a) {
-      return acc + (a.teamId === teamId ? (a.employeesCount || 0) : 0);
+      if (a.teamId !== teamId) { return acc; }
+      if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+        if (countedEmployees[a.employeeId]) { return acc; }
+        countedEmployees[a.employeeId] = true;
+      }
+      return acc + (a.employeesCount || 0);
     }, 0);
   }
 

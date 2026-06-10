@@ -130,15 +130,24 @@ App.allocations = (function () {
 
   /**
    * Create or move an individual employee allocation (count is always 1).
-   * If the employee already has an allocation, it is replaced (move).
+   * Phase-aware: replaces only the allocation in the SAME office phase as the
+   * target (asis / tobe / remote), leaving allocations in other phases intact.
+   * This allows an employee to hold both an AS-IS and a TO-BE seat simultaneously.
    */
   function setEmployeeAllocation(employeeId, targetOfficeId, targetZoneId, comment) {
     var emp = U.findById(scenario().employees, employeeId);
     var teamId = emp ? emp.teamId : null;
     state.commit('Размещение сотрудника', function () {
       var s = scenario();
+      var targetOffice = U.findById(s.offices, targetOfficeId);
+      var targetPhase = targetOffice ? (targetOffice.phase || null) : null;
       s.allocations = s.allocations.filter(function (a) {
-        return !(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === employeeId);
+        if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === employeeId)) {
+          return true;
+        }
+        var existingOffice = U.findById(s.offices, a.targetOfficeId);
+        var existingPhase = existingOffice ? (existingOffice.phase || null) : null;
+        return existingPhase !== targetPhase; // keep allocations in different phases
       });
       s.allocations.push({
         id: U.genId('allocation'),
