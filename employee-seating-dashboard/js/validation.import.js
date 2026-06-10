@@ -192,6 +192,7 @@ App.importValidation = (function () {
         name: name,
         employeesCount: U.toNonNegativeInt(cell(row, idx, 'employees_count')),
         currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
+        toBeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim(),
         cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
         isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
         canSplit: cell(row, idx, 'can_split') === undefined ? true : U.parseBoolean(cell(row, idx, 'can_split')),

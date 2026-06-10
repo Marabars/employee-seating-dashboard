@@ -799,6 +799,17 @@ tr.office-drop-below > td {
 }
 .import-scenario-name { flex: 1; }
 
+/* ── Placement modal (Teams + Employees tabs) ────────────────────────────── */
+.place-modal-body { display: flex; flex-direction: column; gap: 12px; }
+.place-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.place-modal-row span { min-width: 90px; flex-shrink: 0; }
+.place-select { flex: 1; }
+.place-count { width: 80px; }
+
 </style>
 </head>
 <body>
@@ -1513,7 +1524,8 @@ App.constants = (function () {
     teams: {
       team_name: ['team_name', 'название команды'],
       employees_count: ['employees_count', 'количество сотрудников'],
-      current_office: ['current_office', 'текущий офис'],
+      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
+      to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис'],
       is_vip: ['is_vip', 'vip'],
       can_split: ['can_split', 'можно делить'],
       comment: ['comment', 'комментарий']
@@ -4249,6 +4261,7 @@ App.importValidation = (function () {
         name: name,
         employeesCount: U.toNonNegativeInt(cell(row, idx, 'employees_count')),
         currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
+        toBeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim(),
         cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
         isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
         canSplit: cell(row, idx, 'can_split') === undefined ? true : U.parseBoolean(cell(row, idx, 'can_split')),
@@ -6223,6 +6236,7 @@ window.App = window.App || {};
         actionsCell.appendChild(R.iconBtn('✎', 'Редактировать', function () { openTeamForm(team); }));
         actionsCell.appendChild(R.iconBtn('⊞', 'Копировать', function () { copyTeam(team); }));
         if (remainder > 0) {
+          actionsCell.appendChild(R.iconBtn('📍', 'Разместить', (function (t) { return function () { openTeamPlaceModal(scenario, t); }; })(team)));
           actionsCell.appendChild(R.iconBtn('→💻', 'Остаток на удаленку', function () {
             App.allocations.sendTeamRemainderToRemote(team.id);
           }));
@@ -6565,6 +6579,53 @@ window.App = window.App || {};
     });
   }
 
+  function openTeamPlaceModal(scenario, team) {
+    var officeSelect = U.el('select', { class: 'place-select' });
+    officeSelect.appendChild(U.el('option', { value: '' }, '— Выберите офис'));
+    scenario.offices.forEach(function (o) {
+      var suffix = o.type === C.OFFICE_TYPE.REMOTE ? ' (удаленка)'
+        : (o.phase ? ' (' + C.OFFICE_PHASE_LABEL[o.phase] + ')' : '');
+      officeSelect.appendChild(U.el('option', { value: o.id }, o.name + suffix));
+    });
+
+    var zoneSelect = U.el('select', { class: 'place-select' });
+    function updateZones() {
+      U.clear(zoneSelect);
+      zoneSelect.appendChild(U.el('option', { value: '' }, '— Вся площадь'));
+      var office = U.findById(scenario.offices, officeSelect.value);
+      if (!office || !office.zones || !office.zones.length) { return; }
+      office.zones.forEach(function (z) {
+        zoneSelect.appendChild(U.el('option', { value: z.id }, z.name + ' (' + (z.capacity || 0) + ' мест)'));
+      });
+    }
+    updateZones();
+    officeSelect.addEventListener('change', updateZones);
+
+    var remainder = calc.calculateTeamRemainder(scenario, team);
+    var countInput = U.el('input', { type: 'number', min: '1', class: 'place-count',
+      value: String(Math.max(1, remainder)) });
+
+    App.modals.open({
+      title: 'Разместить команду «' + team.name + '»',
+      body: U.el('div', { class: 'place-modal-body' }, [
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Офис' }), officeSelect]),
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Зона' }), zoneSelect]),
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Количество' }), countInput])
+      ]),
+      buttons: [
+        { label: 'Отмена', kind: 'secondary' },
+        { label: 'Разместить', kind: 'primary', onClick: function () {
+          var officeId = officeSelect.value;
+          if (!officeId) { App.modals.alert('Выберите офис'); return false; }
+          var count = parseInt(countInput.value, 10);
+          if (!count || count <= 0) { App.modals.alert('Укажите количество больше нуля'); return false; }
+          App.allocations.addTeamAllocation(team.id, count, officeId, zoneSelect.value || null);
+          return true;
+        }}
+      ]
+    });
+  }
+
   function openTeamForm(team) {
     var scenario = App.state.getActiveScenario();
     var asisOptions = [{ value: '', label: '—' }];
@@ -6700,7 +6761,7 @@ window.App = window.App || {};
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
       th('ФИО'), th('Должность'), th('Команда'), th('Текущий офис'),
-      th('VIP'), th('Формат'), th('Размещение'), th('')
+      th('VIP'), th('Формат'), th('AS-IS'), th('TO-BE'), th('')
     ])));
     var tbody = U.el('tbody');
 
@@ -6708,11 +6769,21 @@ window.App = window.App || {};
       var team = U.findById(scenario.teams, emp.teamId);
       var currentOffice = U.findById(scenario.offices, emp.currentOfficeId);
       var placement = E.placementOf(scenario, emp);
-      var placeOffice = U.findById(scenario.offices, placement.officeId);
+      var asisOffice = U.findById(scenario.offices, placement.asIs.officeId);
+      var tobeOff = U.findById(scenario.offices, placement.tobe.officeId);
+      var indivAlloc = (scenario.allocations || []).filter(function (a) {
+        return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id;
+      })[0];
 
       var actionsCell = U.el('td', { class: 'cell-actions' });
       if (!ctx.viewOnly) {
         actionsCell.appendChild(R.iconBtn('✎', 'Редактировать', function () { openEmployeeForm(emp); }));
+        actionsCell.appendChild(R.iconBtn('📍', 'Разместить', (function (e) { return function () { openEmpPlaceModal(scenario, e); }; })(emp)));
+        if (indivAlloc) {
+          actionsCell.appendChild(R.iconBtn('✕', 'Снять размещение', (function (id) { return function () {
+            App.allocations.remove(id);
+          }; })(indivAlloc.id)));
+        }
         actionsCell.appendChild(R.iconBtn('🗑', 'Удалить', function () {
           App.modals.confirm('Удалить сотрудника «' + emp.fullName + '»?',
             function () { E.remove(emp.id); }, { danger: true, confirmLabel: 'Удалить' });
@@ -6726,9 +6797,13 @@ window.App = window.App || {};
         U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
         U.el('td', { text: emp.isVip ? 'Да' : '—' }),
         U.el('td', { text: C.WORK_FORMAT_LABEL[emp.workFormat] || emp.workFormat }),
-        U.el('td', {}, [
-          R.badge(C.PLACEMENT_STATUS_LABEL[placement.status], placementColor(placement.status)),
-          placeOffice ? U.el('span', { class: 'muted', text: ' ' + placeOffice.name }) : null
+        U.el('td', { class: 'placement-asis' }, [
+          R.badge(C.PLACEMENT_STATUS_LABEL[placement.asIs.status], placementColor(placement.asIs.status)),
+          asisOffice ? U.el('span', { class: 'muted', text: ' ' + asisOffice.name }) : null
+        ]),
+        U.el('td', { class: 'placement-tobe' }, [
+          R.badge(C.PLACEMENT_STATUS_LABEL[placement.tobe.status], placementColor(placement.tobe.status)),
+          tobeOff ? U.el('span', { class: 'muted', text: ' ' + tobeOff.name }) : null
         ]),
         actionsCell
       ]));
@@ -6817,6 +6892,50 @@ window.App = window.App || {};
       R.render();
     });
     return sel;
+  }
+
+  function openEmpPlaceModal(scenario, emp) {
+    var officeSelect = U.el('select', { class: 'place-select' });
+    officeSelect.appendChild(U.el('option', { value: '' }, '— Выберите офис'));
+    scenario.offices.forEach(function (o) {
+      var suffix = o.type === C.OFFICE_TYPE.REMOTE ? ' (удаленка)'
+        : (o.phase ? ' (' + C.OFFICE_PHASE_LABEL[o.phase] + ')' : '');
+      officeSelect.appendChild(U.el('option', { value: o.id }, o.name + suffix));
+    });
+
+    var zoneSelect = U.el('select', { class: 'place-select' });
+    function updateZones() {
+      U.clear(zoneSelect);
+      zoneSelect.appendChild(U.el('option', { value: '' }, '— Без зоны'));
+      var office = U.findById(scenario.offices, officeSelect.value);
+      if (!office || !office.zones || !office.zones.length) { return; }
+      office.zones.forEach(function (z) {
+        zoneSelect.appendChild(U.el('option', { value: z.id }, z.name + ' (' + (z.capacity || 0) + ' мест)'));
+      });
+    }
+
+    var current = App.employees.placementOf(scenario, emp);
+    if (current.tobe.officeId) { officeSelect.value = current.tobe.officeId; }
+    updateZones();
+    if (current.tobe.zoneId) { zoneSelect.value = current.tobe.zoneId; }
+    officeSelect.addEventListener('change', updateZones);
+
+    App.modals.open({
+      title: 'Разместить «' + emp.fullName + '»',
+      body: U.el('div', { class: 'place-modal-body' }, [
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Офис' }), officeSelect]),
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Зона' }), zoneSelect])
+      ]),
+      buttons: [
+        { label: 'Отмена', kind: 'secondary' },
+        { label: 'Разместить', kind: 'primary', onClick: function () {
+          var officeId = officeSelect.value;
+          if (!officeId) { App.modals.alert('Выберите офис'); return false; }
+          App.allocations.setEmployeeAllocation(emp.id, officeId, zoneSelect.value || null);
+          return true;
+        }}
+      ]
+    });
   }
 
   function openEmployeeForm(emp) {
@@ -7597,7 +7716,7 @@ App.importExport = (function () {
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
     addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'Текущий офис', 'VIP', 'Можно делить', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Можно делить', 'Комментарий']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
     addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Количество', 'Офис', 'Зона', 'Комментарий']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
@@ -7742,14 +7861,17 @@ App.importExport = (function () {
     var teamByName = {};
     scenario.teams.forEach(function (t) { teamByName[t.name.toLowerCase()] = t; });
     parsed.teams.forEach(function (data) {
+      var currentOfficeLookup = officeByName[(data.currentOfficeName || '').toLowerCase()];
+      var toBeOfficeLookup = officeByName[(data.toBeOfficeName || '').toLowerCase()];
       var team = {
         id: U.genId('team'),
         name: data.name,
         employeesCount: data.employeesCount,
-        currentOfficeId: officeByName[(data.currentOfficeName || '').toLowerCase()] ?
-          officeByName[(data.currentOfficeName || '').toLowerCase()].id : null,
+        currentOfficeId: currentOfficeLookup ? currentOfficeLookup.id : null,
+        toBeOfficeId: toBeOfficeLookup ? toBeOfficeLookup.id : null,
         isVip: data.isVip,
         canSplit: data.canSplit,
+        linkedTeamIds: [],
         comment: data.comment
       };
       scenario.teams.push(team);
@@ -8042,13 +8164,15 @@ App.importExport = (function () {
   }
 
   function buildTeams(scenarios, inc) {
-    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'is_vip', 'can_split', 'comment'], inc)];
+    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'can_split', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
         var currentOffice = U.findById(s.offices, t.currentOfficeId);
+        var toBeOffice = U.findById(s.offices, t.toBeOfficeId);
         aoa.push(rowWithScenario(s, [
           t.name, t.employeesCount || 0,
           currentOffice ? currentOffice.name : '',
+          toBeOffice ? toBeOffice.name : '',
           t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да', t.comment || ''
         ], inc));
       });

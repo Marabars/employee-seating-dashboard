@@ -189,7 +189,8 @@ App.constants = (function () {
     teams: {
       team_name: ['team_name', 'название команды'],
       employees_count: ['employees_count', 'количество сотрудников'],
-      current_office: ['current_office', 'текущий офис'],
+      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
+      to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис'],
       is_vip: ['is_vip', 'vip'],
       can_split: ['can_split', 'можно делить'],
       comment: ['comment', 'комментарий']

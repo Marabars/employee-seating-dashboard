@@ -791,3 +791,14 @@ tr.office-drop-below > td {
   margin-bottom: 12px;
 }
 .import-scenario-name { flex: 1; }
+
+/* ── Placement modal (Teams + Employees tabs) ────────────────────────────── */
+.place-modal-body { display: flex; flex-direction: column; gap: 12px; }
+.place-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.place-modal-row span { min-width: 90px; flex-shrink: 0; }
+.place-select { flex: 1; }
+.place-count { width: 80px; }

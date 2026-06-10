@@ -76,6 +76,7 @@ window.App = window.App || {};
         actionsCell.appendChild(R.iconBtn('✎', 'Редактировать', function () { openTeamForm(team); }));
         actionsCell.appendChild(R.iconBtn('⊞', 'Копировать', function () { copyTeam(team); }));
         if (remainder > 0) {
+          actionsCell.appendChild(R.iconBtn('📍', 'Разместить', (function (t) { return function () { openTeamPlaceModal(scenario, t); }; })(team)));
           actionsCell.appendChild(R.iconBtn('→💻', 'Остаток на удаленку', function () {
             App.allocations.sendTeamRemainderToRemote(team.id);
           }));
@@ -415,6 +416,53 @@ window.App = window.App || {};
       canSplit: team.canSplit !== false,
       linkedTeamIds: [],
       comment: team.comment || ''
+    });
+  }
+
+  function openTeamPlaceModal(scenario, team) {
+    var officeSelect = U.el('select', { class: 'place-select' });
+    officeSelect.appendChild(U.el('option', { value: '' }, '— Выберите офис'));
+    scenario.offices.forEach(function (o) {
+      var suffix = o.type === C.OFFICE_TYPE.REMOTE ? ' (удаленка)'
+        : (o.phase ? ' (' + C.OFFICE_PHASE_LABEL[o.phase] + ')' : '');
+      officeSelect.appendChild(U.el('option', { value: o.id }, o.name + suffix));
+    });
+
+    var zoneSelect = U.el('select', { class: 'place-select' });
+    function updateZones() {
+      U.clear(zoneSelect);
+      zoneSelect.appendChild(U.el('option', { value: '' }, '— Вся площадь'));
+      var office = U.findById(scenario.offices, officeSelect.value);
+      if (!office || !office.zones || !office.zones.length) { return; }
+      office.zones.forEach(function (z) {
+        zoneSelect.appendChild(U.el('option', { value: z.id }, z.name + ' (' + (z.capacity || 0) + ' мест)'));
+      });
+    }
+    updateZones();
+    officeSelect.addEventListener('change', updateZones);
+
+    var remainder = calc.calculateTeamRemainder(scenario, team);
+    var countInput = U.el('input', { type: 'number', min: '1', class: 'place-count',
+      value: String(Math.max(1, remainder)) });
+
+    App.modals.open({
+      title: 'Разместить команду «' + team.name + '»',
+      body: U.el('div', { class: 'place-modal-body' }, [
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Офис' }), officeSelect]),
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Зона' }), zoneSelect]),
+        U.el('label', { class: 'place-modal-row' }, [U.el('span', { text: 'Количество' }), countInput])
+      ]),
+      buttons: [
+        { label: 'Отмена', kind: 'secondary' },
+        { label: 'Разместить', kind: 'primary', onClick: function () {
+          var officeId = officeSelect.value;
+          if (!officeId) { App.modals.alert('Выберите офис'); return false; }
+          var count = parseInt(countInput.value, 10);
+          if (!count || count <= 0) { App.modals.alert('Укажите количество больше нуля'); return false; }
+          App.allocations.addTeamAllocation(team.id, count, officeId, zoneSelect.value || null);
+          return true;
+        }}
+      ]
     });
   }
 

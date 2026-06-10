@@ -58,7 +58,7 @@ App.importExport = (function () {
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
     addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'Текущий офис', 'VIP', 'Можно делить', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Можно делить', 'Комментарий']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'Текущий офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
     addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Количество', 'Офис', 'Зона', 'Комментарий']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
@@ -203,14 +203,17 @@ App.importExport = (function () {
     var teamByName = {};
     scenario.teams.forEach(function (t) { teamByName[t.name.toLowerCase()] = t; });
     parsed.teams.forEach(function (data) {
+      var currentOfficeLookup = officeByName[(data.currentOfficeName || '').toLowerCase()];
+      var toBeOfficeLookup = officeByName[(data.toBeOfficeName || '').toLowerCase()];
       var team = {
         id: U.genId('team'),
         name: data.name,
         employeesCount: data.employeesCount,
-        currentOfficeId: officeByName[(data.currentOfficeName || '').toLowerCase()] ?
-          officeByName[(data.currentOfficeName || '').toLowerCase()].id : null,
+        currentOfficeId: currentOfficeLookup ? currentOfficeLookup.id : null,
+        toBeOfficeId: toBeOfficeLookup ? toBeOfficeLookup.id : null,
         isVip: data.isVip,
         canSplit: data.canSplit,
+        linkedTeamIds: [],
         comment: data.comment
       };
       scenario.teams.push(team);
@@ -503,13 +506,15 @@ App.importExport = (function () {
   }
 
   function buildTeams(scenarios, inc) {
-    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'is_vip', 'can_split', 'comment'], inc)];
+    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'can_split', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
         var currentOffice = U.findById(s.offices, t.currentOfficeId);
+        var toBeOffice = U.findById(s.offices, t.toBeOfficeId);
         aoa.push(rowWithScenario(s, [
           t.name, t.employeesCount || 0,
           currentOffice ? currentOffice.name : '',
+          toBeOffice ? toBeOffice.name : '',
           t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да', t.comment || ''
         ], inc));
       });
