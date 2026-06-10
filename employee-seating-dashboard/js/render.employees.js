@@ -26,6 +26,7 @@ window.App = window.App || {};
       label: '+ Сотрудник',
       onClick: function () { openEmployeeForm(); }
     });
+    panel.classList.add('panel-has-filters');
 
     panel.appendChild(renderFilters(scenario));
 

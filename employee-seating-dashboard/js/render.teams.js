@@ -16,6 +16,11 @@ window.App = window.App || {};
 
   var expanded = {};
 
+  // Filter criteria persist across re-renders within a session.
+  var criteria = {
+    query: '', currentOfficeId: '', toBeOfficeId: '', isVip: '', placementStatus: ''
+  };
+
   // ---- Drag helpers for member assignment --------------------------------
   function bindDragSource(el, empId) {
     el.setAttribute('draggable', 'true');
@@ -49,6 +54,7 @@ window.App = window.App || {};
       label: '+ Команда',
       onClick: function () { openTeamForm(); }
     });
+    panel.classList.add('panel-has-filters');
 
     if (scenario.teams.length === 0) {
       panel.appendChild(R.emptyState(C.EMPTY_STATES.teams, '+ Команда',
@@ -57,6 +63,11 @@ window.App = window.App || {};
       return;
     }
 
+    panel.appendChild(renderFilters(scenario));
+
+    var teams = filterTeams(scenario);
+    panel.appendChild(U.el('div', { class: 'muted result-count', text: 'Найдено: ' + teams.length }));
+
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
       th(''), th('Команда'), th('Численность'), th('AS-IS офис'), th('TO-BE офис'),
@@ -64,7 +75,7 @@ window.App = window.App || {};
     ])));
     var tbody = U.el('tbody');
 
-    scenario.teams.forEach(function (team) {
+    teams.forEach(function (team) {
       var allocated = calc.calculateTeamAllocated(scenario, team.id);
       var remainder = calc.calculateTeamRemainder(scenario, team);
       var currentOffice = U.findById(scenario.offices, team.currentOfficeId);
@@ -128,6 +139,89 @@ window.App = window.App || {};
 
   function th(text) {
     return U.el('th', { text: text });
+  }
+
+  function filterTeams(scenario) {
+    var q = criteria.query.trim().toLowerCase();
+    return scenario.teams.filter(function (team) {
+      if (q && team.name.toLowerCase().indexOf(q) === -1) { return false; }
+      if (criteria.currentOfficeId && team.currentOfficeId !== criteria.currentOfficeId) { return false; }
+      if (criteria.toBeOfficeId && team.toBeOfficeId !== criteria.toBeOfficeId) { return false; }
+      if (criteria.isVip === 'yes' && !team.isVip) { return false; }
+      if (criteria.isVip === 'no' && team.isVip) { return false; }
+      if (criteria.placementStatus) {
+        var allocated = calc.calculateTeamAllocated(scenario, team.id);
+        var remainder = calc.calculateTeamRemainder(scenario, team);
+        if (criteria.placementStatus === 'full' && remainder !== 0) { return false; }
+        if (criteria.placementStatus === 'partial' && !(allocated > 0 && remainder > 0)) { return false; }
+        if (criteria.placementStatus === 'unallocated' && allocated > 0) { return false; }
+      }
+      return true;
+    });
+  }
+
+  function renderFilters(scenario) {
+    var wrap = U.el('div', { class: 'filters' });
+
+    var search = U.el('input', {
+      type: 'search', placeholder: 'Поиск по команде', value: criteria.query,
+      'aria-label': 'Поиск по команде'
+    });
+    search.addEventListener('input', function () {
+      criteria.query = search.value;
+      R.render();
+      var fresh = U.qs('.filters input[type=search]');
+      if (fresh) { fresh.focus(); fresh.setSelectionRange(fresh.value.length, fresh.value.length); }
+    });
+    wrap.appendChild(search);
+
+    wrap.appendChild(selectFilter('currentOfficeId', 'AS-IS офис',
+      scenario.offices
+        .filter(function (o) { return o.phase === C.OFFICE_PHASE.ASIS; })
+        .map(function (o) { return { value: o.id, label: o.name }; })));
+
+    wrap.appendChild(selectFilter('toBeOfficeId', 'TO-BE офис',
+      scenario.offices
+        .filter(function (o) { return o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE; })
+        .map(function (o) {
+          var suffix = o.type === C.OFFICE_TYPE.REMOTE ? ' (удаленка)' : '';
+          return { value: o.id, label: o.name + suffix };
+        })));
+
+    wrap.appendChild(selectFilter('isVip', 'VIP',
+      [{ value: 'yes', label: 'VIP' }, { value: 'no', label: 'Не VIP' }]));
+
+    wrap.appendChild(selectFilter('placementStatus', 'Распределение',
+      [
+        { value: 'full', label: 'Полностью' },
+        { value: 'partial', label: 'Частично' },
+        { value: 'unallocated', label: 'Не распределены' }
+      ]));
+
+    wrap.appendChild(U.el('button', {
+      class: 'btn btn-sm btn-secondary',
+      onclick: function () {
+        criteria = { query: '', currentOfficeId: '', toBeOfficeId: '', isVip: '', placementStatus: '' };
+        R.render();
+      }
+    }, 'Сбросить'));
+
+    return wrap;
+  }
+
+  function selectFilter(key, label, options) {
+    var sel = U.el('select', { 'aria-label': label });
+    sel.appendChild(U.el('option', { value: '' }, label + ': все'));
+    options.forEach(function (opt) {
+      var o = U.el('option', { value: opt.value }, opt.label);
+      if (criteria[key] === opt.value) { o.selected = true; }
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      criteria[key] = sel.value;
+      R.render();
+    });
+    return sel;
   }
 
   function renderTeamDetail(scenario, team) {
