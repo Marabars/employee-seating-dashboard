@@ -112,30 +112,57 @@ App.employees = (function () {
    * each { status, officeId, zoneId } for their respective office phases.
    * Top-level status/officeId/zoneId reflect the TO-BE placement for
    * backward compatibility with existing callers.
+   *
+   * Priority: individual EMPLOYEE allocation first; if absent, fall back to a
+   * TEAM allocation for the employee's team (so placing a team on the dashboard
+   * immediately reflects in each member's status row).
    */
   function placementOf(scenarioObj, employee) {
     var allocs = (scenarioObj.allocations || []).filter(function (a) {
       return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === employee.id;
     });
 
+    // Team-level allocations used as fallback when no individual alloc exists.
+    var teamAllocs = employee.teamId ? (scenarioObj.allocations || []).filter(function (a) {
+      return a.type === C.ALLOCATION_TYPE.TEAM && a.teamId === employee.teamId;
+    }) : [];
+
     function resolvePhase(phase) {
+      // 1. Individual EMPLOYEE allocation (highest priority).
       var alloc = null;
       for (var i = 0; i < allocs.length; i++) {
         var office = U.findById(scenarioObj.offices, allocs[i].targetOfficeId);
         if (!office) { continue; }
         if (office.type === C.OFFICE_TYPE.REMOTE) {
-          // Remote has no phase — counts for both views
           if (!alloc) { alloc = allocs[i]; }
           continue;
         }
         if (office.phase === phase) { alloc = allocs[i]; break; }
       }
-      if (!alloc) { return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null }; }
-      var tgtOffice = U.findById(scenarioObj.offices, alloc.targetOfficeId);
-      var st = (tgtOffice && tgtOffice.type === C.OFFICE_TYPE.REMOTE)
+      if (alloc) {
+        var tgtOffice = U.findById(scenarioObj.offices, alloc.targetOfficeId);
+        var st = (tgtOffice && tgtOffice.type === C.OFFICE_TYPE.REMOTE)
+          ? C.PLACEMENT_STATUS.PLACED_REMOTE
+          : C.PLACEMENT_STATUS.PLACED_OFFICE;
+        return { status: st, officeId: alloc.targetOfficeId, zoneId: alloc.targetZoneId };
+      }
+      // 2. Fallback: TEAM allocation for this employee's team.
+      var teamAlloc = null;
+      for (var j = 0; j < teamAllocs.length; j++) {
+        var tOffice = U.findById(scenarioObj.offices, teamAllocs[j].targetOfficeId);
+        if (!tOffice) { continue; }
+        if (tOffice.type === C.OFFICE_TYPE.REMOTE) {
+          if (!teamAlloc) { teamAlloc = teamAllocs[j]; }
+          continue;
+        }
+        if (tOffice.phase === phase) { teamAlloc = teamAllocs[j]; break; }
+      }
+      if (!teamAlloc) { return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null }; }
+      var teamOffice = U.findById(scenarioObj.offices, teamAlloc.targetOfficeId);
+      var teamSt = (teamOffice && teamOffice.type === C.OFFICE_TYPE.REMOTE)
         ? C.PLACEMENT_STATUS.PLACED_REMOTE
         : C.PLACEMENT_STATUS.PLACED_OFFICE;
-      return { status: st, officeId: alloc.targetOfficeId, zoneId: alloc.targetZoneId };
+      return { status: teamSt, officeId: teamAlloc.targetOfficeId, zoneId: teamAlloc.targetZoneId };
     }
 
     var asIs = resolvePhase('asis');

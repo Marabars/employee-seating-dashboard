@@ -2964,30 +2964,57 @@ App.employees = (function () {
    * each { status, officeId, zoneId } for their respective office phases.
    * Top-level status/officeId/zoneId reflect the TO-BE placement for
    * backward compatibility with existing callers.
+   *
+   * Priority: individual EMPLOYEE allocation first; if absent, fall back to a
+   * TEAM allocation for the employee's team (so placing a team on the dashboard
+   * immediately reflects in each member's status row).
    */
   function placementOf(scenarioObj, employee) {
     var allocs = (scenarioObj.allocations || []).filter(function (a) {
       return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === employee.id;
     });
 
+    // Team-level allocations used as fallback when no individual alloc exists.
+    var teamAllocs = employee.teamId ? (scenarioObj.allocations || []).filter(function (a) {
+      return a.type === C.ALLOCATION_TYPE.TEAM && a.teamId === employee.teamId;
+    }) : [];
+
     function resolvePhase(phase) {
+      // 1. Individual EMPLOYEE allocation (highest priority).
       var alloc = null;
       for (var i = 0; i < allocs.length; i++) {
         var office = U.findById(scenarioObj.offices, allocs[i].targetOfficeId);
         if (!office) { continue; }
         if (office.type === C.OFFICE_TYPE.REMOTE) {
-          // Remote has no phase — counts for both views
           if (!alloc) { alloc = allocs[i]; }
           continue;
         }
         if (office.phase === phase) { alloc = allocs[i]; break; }
       }
-      if (!alloc) { return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null }; }
-      var tgtOffice = U.findById(scenarioObj.offices, alloc.targetOfficeId);
-      var st = (tgtOffice && tgtOffice.type === C.OFFICE_TYPE.REMOTE)
+      if (alloc) {
+        var tgtOffice = U.findById(scenarioObj.offices, alloc.targetOfficeId);
+        var st = (tgtOffice && tgtOffice.type === C.OFFICE_TYPE.REMOTE)
+          ? C.PLACEMENT_STATUS.PLACED_REMOTE
+          : C.PLACEMENT_STATUS.PLACED_OFFICE;
+        return { status: st, officeId: alloc.targetOfficeId, zoneId: alloc.targetZoneId };
+      }
+      // 2. Fallback: TEAM allocation for this employee's team.
+      var teamAlloc = null;
+      for (var j = 0; j < teamAllocs.length; j++) {
+        var tOffice = U.findById(scenarioObj.offices, teamAllocs[j].targetOfficeId);
+        if (!tOffice) { continue; }
+        if (tOffice.type === C.OFFICE_TYPE.REMOTE) {
+          if (!teamAlloc) { teamAlloc = teamAllocs[j]; }
+          continue;
+        }
+        if (tOffice.phase === phase) { teamAlloc = teamAllocs[j]; break; }
+      }
+      if (!teamAlloc) { return { status: C.PLACEMENT_STATUS.UNPLACED, officeId: null, zoneId: null }; }
+      var teamOffice = U.findById(scenarioObj.offices, teamAlloc.targetOfficeId);
+      var teamSt = (teamOffice && teamOffice.type === C.OFFICE_TYPE.REMOTE)
         ? C.PLACEMENT_STATUS.PLACED_REMOTE
         : C.PLACEMENT_STATUS.PLACED_OFFICE;
-      return { status: st, officeId: alloc.targetOfficeId, zoneId: alloc.targetZoneId };
+      return { status: teamSt, officeId: teamAlloc.targetOfficeId, zoneId: teamAlloc.targetZoneId };
     }
 
     var asIs = resolvePhase('asis');
@@ -3248,21 +3275,38 @@ App.calc = (function () {
    * How many seats a team has already been allocated in the TO-BE plan.
    * Only TO-BE and remote allocations count — AS-IS placements represent
    * the current state, not the planning target, and must not inflate the
-   * "distributed" metric. For EMPLOYEE-type allocations each named employee
-   * is counted at most once even if they hold multiple tobe allocations.
+   * "distributed" metric.
+   *
+   * Double-counting prevention: when a team is placed via a TEAM allocation
+   * AND individual members later get EMPLOYEE allocations (e.g. by saving the
+   * employee form), the same person would otherwise be counted twice — once in
+   * the TEAM seats total and once as an individual. We resolve this as:
+   *   total = namedCount + max(0, teamTotal − namedCount)
+   *         = max(teamTotal, namedCount)
+   * Named employees with individual TO-BE placements are always counted once;
+   * the TEAM allocation's anonymous seats are reduced by the named overlap.
    */
   function calculateTeamAllocated(scenario, teamId) {
-    var countedEmployees = {};
-    return (scenario.allocations || []).reduce(function (acc, a) {
-      if (a.teamId !== teamId) { return acc; }
+    // Unique named employees with individual TO-BE/remote placements.
+    var namedEmployeeIds = {};
+    (scenario.allocations || []).forEach(function (a) {
+      if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.EMPLOYEE || !a.employeeId) { return; }
+      var office = U.findById(scenario.offices, a.targetOfficeId);
+      if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return; }
+      namedEmployeeIds[a.employeeId] = true;
+    });
+    var namedCount = Object.keys(namedEmployeeIds).length;
+
+    // Sum of TEAM-type allocations in TO-BE/remote.
+    var teamTotal = (scenario.allocations || []).reduce(function (acc, a) {
+      if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return acc; }
       var office = U.findById(scenario.offices, a.targetOfficeId);
       if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return acc; }
-      if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
-        if (countedEmployees[a.employeeId]) { return acc; }
-        countedEmployees[a.employeeId] = true;
-      }
       return acc + (a.employeesCount || 0);
     }, 0);
+
+    // namedCount individual seats + anonymous remainder from team allocations.
+    return namedCount + Math.max(0, teamTotal - namedCount);
   }
 
   /** Remaining unallocated headcount of a team (never below 0 for display). */
@@ -7620,6 +7664,22 @@ App.dragDrop = (function () {
     bindSources();
     bindDropZones();
     bindUnallocatedPanel();
+    bindGlobalScroll();
+  }
+
+  /**
+   * Global dragover on document ensures window auto-scroll fires even when
+   * the cursor is not over any registered drop zone (e.g., empty page areas
+   * or areas above/below the dashboard grid).
+   * Bound once per page load; does NOT call preventDefault so it doesn't
+   * interfere with the native "forbidden" cursor over non-droppable areas.
+   */
+  function bindGlobalScroll() {
+    if (document._dndScrollBound) { return; }
+    document._dndScrollBound = true;
+    document.addEventListener('dragover', function (e) {
+      handleAutoScroll({ x: e.clientX, y: e.clientY });
+    });
   }
 
   function bindSources() {

@@ -197,21 +197,38 @@ App.calc = (function () {
    * How many seats a team has already been allocated in the TO-BE plan.
    * Only TO-BE and remote allocations count — AS-IS placements represent
    * the current state, not the planning target, and must not inflate the
-   * "distributed" metric. For EMPLOYEE-type allocations each named employee
-   * is counted at most once even if they hold multiple tobe allocations.
+   * "distributed" metric.
+   *
+   * Double-counting prevention: when a team is placed via a TEAM allocation
+   * AND individual members later get EMPLOYEE allocations (e.g. by saving the
+   * employee form), the same person would otherwise be counted twice — once in
+   * the TEAM seats total and once as an individual. We resolve this as:
+   *   total = namedCount + max(0, teamTotal − namedCount)
+   *         = max(teamTotal, namedCount)
+   * Named employees with individual TO-BE placements are always counted once;
+   * the TEAM allocation's anonymous seats are reduced by the named overlap.
    */
   function calculateTeamAllocated(scenario, teamId) {
-    var countedEmployees = {};
-    return (scenario.allocations || []).reduce(function (acc, a) {
-      if (a.teamId !== teamId) { return acc; }
+    // Unique named employees with individual TO-BE/remote placements.
+    var namedEmployeeIds = {};
+    (scenario.allocations || []).forEach(function (a) {
+      if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.EMPLOYEE || !a.employeeId) { return; }
+      var office = U.findById(scenario.offices, a.targetOfficeId);
+      if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return; }
+      namedEmployeeIds[a.employeeId] = true;
+    });
+    var namedCount = Object.keys(namedEmployeeIds).length;
+
+    // Sum of TEAM-type allocations in TO-BE/remote.
+    var teamTotal = (scenario.allocations || []).reduce(function (acc, a) {
+      if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return acc; }
       var office = U.findById(scenario.offices, a.targetOfficeId);
       if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return acc; }
-      if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
-        if (countedEmployees[a.employeeId]) { return acc; }
-        countedEmployees[a.employeeId] = true;
-      }
       return acc + (a.employeesCount || 0);
     }, 0);
+
+    // namedCount individual seats + anonymous remainder from team allocations.
+    return namedCount + Math.max(0, teamTotal - namedCount);
   }
 
   /** Remaining unallocated headcount of a team (never below 0 for display). */

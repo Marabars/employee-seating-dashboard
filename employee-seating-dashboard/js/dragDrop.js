@@ -102,6 +102,22 @@ App.dragDrop = (function () {
     bindSources();
     bindDropZones();
     bindUnallocatedPanel();
+    bindGlobalScroll();
+  }
+
+  /**
+   * Global dragover on document ensures window auto-scroll fires even when
+   * the cursor is not over any registered drop zone (e.g., empty page areas
+   * or areas above/below the dashboard grid).
+   * Bound once per page load; does NOT call preventDefault so it doesn't
+   * interfere with the native "forbidden" cursor over non-droppable areas.
+   */
+  function bindGlobalScroll() {
+    if (document._dndScrollBound) { return; }
+    document._dndScrollBound = true;
+    document.addEventListener('dragover', function (e) {
+      handleAutoScroll({ x: e.clientX, y: e.clientY });
+    });
   }
 
   function bindSources() {
