@@ -271,6 +271,20 @@ window.App = window.App || {};
       return !o || o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE;
     })[0] : null;
 
+    // Build help notes for office fields when placement comes from a team allocation.
+    var teamAsisNote = '';
+    var teamTobeNote = '';
+    if (emp && placement) {
+      if (!prevAsisAlloc && placement.asIs.officeId) {
+        var asIsOfficeForNote = U.findById(scenario.offices, placement.asIs.officeId);
+        if (asIsOfficeForNote) { teamAsisNote = 'Размещение через команду: ' + asIsOfficeForNote.name; }
+      }
+      if (!prevTobeAlloc && placement.tobe.officeId) {
+        var tobeOfficeForNote = U.findById(scenario.offices, placement.tobe.officeId);
+        if (tobeOfficeForNote) { teamTobeNote = 'Размещение через команду: ' + tobeOfficeForNote.name; }
+      }
+    }
+
     App.modals.form({
       title: (emp ? 'Редактирование' : 'Добавление') + ' сотрудника',
       fields: [
@@ -278,9 +292,11 @@ window.App = window.App || {};
         { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
         { name: 'teamId', label: 'Команда', type: 'select', options: teamOptions, value: emp ? emp.teamId : '' },
         { name: 'asisOfficeId', label: 'AS-IS офис (текущее размещение)', type: 'select', options: asisOptions,
-          value: prevAsisAlloc ? prevAsisAlloc.targetOfficeId : (emp ? emp.currentOfficeId || '' : '') },
+          value: prevAsisAlloc ? prevAsisAlloc.targetOfficeId : (emp ? emp.currentOfficeId || '' : ''),
+          help: teamAsisNote || undefined },
         { name: 'tobeOfficeId', label: 'TO-BE офис (целевое размещение)', type: 'select', options: tobeOptions,
-          value: prevTobeAlloc ? prevTobeAlloc.targetOfficeId : '' },
+          value: prevTobeAlloc ? prevTobeAlloc.targetOfficeId : '',
+          help: teamTobeNote || undefined },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : false },
         { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions, value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }

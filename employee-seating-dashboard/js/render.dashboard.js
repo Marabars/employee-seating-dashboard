@@ -322,7 +322,12 @@ window.App = window.App || {};
     var box = U.el('div', { class: 'zone-teams' });
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      var members = scenario.employees.filter(function (e) { return e.teamId === teamId; });
+      // Only employees with individual EMPLOYEE allocations in this specific zone.
+      var namedInZone = (scenario.allocations || []).filter(function (a) {
+        return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.teamId === teamId &&
+               a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.employeeId;
+      }).map(function (a) { return U.findById(scenario.employees, a.employeeId); }).filter(Boolean);
+
       var zKey = office.id + ':' + zone.id + ':' + teamId;
       var isTeamExpanded = !!expandedZoneTeams[zKey];
 
@@ -336,7 +341,7 @@ window.App = window.App || {};
         U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
       ]);
 
-      if (members.length > 0) {
+      if (namedInZone.length > 0) {
         teamBox.appendChild(R.iconBtn(
           isTeamExpanded ? '▾' : '▸',
           isTeamExpanded ? 'Свернуть' : 'Показать сотрудников',
@@ -351,18 +356,14 @@ window.App = window.App || {};
       }
       box.appendChild(teamBox);
 
-      if (isTeamExpanded) {
+      if (isTeamExpanded && namedInZone.length > 0) {
         var memberList = U.el('div', { class: 'zone-team-members' });
-        members.forEach(function (emp) {
-          var pl = App.employees.placementOf(scenario, emp);
-          memberList.appendChild(U.el('div', { class: 'zone-member-row' }, [
-            U.el('span', { class: 'member-name', text: emp.fullName }),
-            emp.position ? U.el('span', { class: 'muted', text: ' · ' + emp.position }) : null,
-            U.el('span', { class: 'drag-sub', text: 'TO-BE: ' + C.PLACEMENT_STATUS_LABEL[pl.tobe.status] })
-          ]));
+        namedInZone.forEach(function (emp) {
+          memberList.appendChild(U.el('div', { class: 'zone-member-row' },
+            U.el('span', { class: 'member-name', text: emp.fullName })
+          ));
         });
-        var headcount = team ? (team.employeesCount || 0) : 0;
-        var anon = headcount - members.length;
+        var anon = byTeam[teamId] - namedInZone.length;
         if (anon > 0) {
           memberList.appendChild(U.el('div', { class: 'zone-member-anon muted',
             text: '+ ещё ' + anon + ' без ФИО' }));

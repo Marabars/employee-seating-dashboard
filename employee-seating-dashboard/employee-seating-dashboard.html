@@ -5490,7 +5490,12 @@ window.App = window.App || {};
     var box = U.el('div', { class: 'zone-teams' });
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      var members = scenario.employees.filter(function (e) { return e.teamId === teamId; });
+      // Only employees with individual EMPLOYEE allocations in this specific zone.
+      var namedInZone = (scenario.allocations || []).filter(function (a) {
+        return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.teamId === teamId &&
+               a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.employeeId;
+      }).map(function (a) { return U.findById(scenario.employees, a.employeeId); }).filter(Boolean);
+
       var zKey = office.id + ':' + zone.id + ':' + teamId;
       var isTeamExpanded = !!expandedZoneTeams[zKey];
 
@@ -5504,7 +5509,7 @@ window.App = window.App || {};
         U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
       ]);
 
-      if (members.length > 0) {
+      if (namedInZone.length > 0) {
         teamBox.appendChild(R.iconBtn(
           isTeamExpanded ? '▾' : '▸',
           isTeamExpanded ? 'Свернуть' : 'Показать сотрудников',
@@ -5519,18 +5524,14 @@ window.App = window.App || {};
       }
       box.appendChild(teamBox);
 
-      if (isTeamExpanded) {
+      if (isTeamExpanded && namedInZone.length > 0) {
         var memberList = U.el('div', { class: 'zone-team-members' });
-        members.forEach(function (emp) {
-          var pl = App.employees.placementOf(scenario, emp);
-          memberList.appendChild(U.el('div', { class: 'zone-member-row' }, [
-            U.el('span', { class: 'member-name', text: emp.fullName }),
-            emp.position ? U.el('span', { class: 'muted', text: ' · ' + emp.position }) : null,
-            U.el('span', { class: 'drag-sub', text: 'TO-BE: ' + C.PLACEMENT_STATUS_LABEL[pl.tobe.status] })
-          ]));
+        namedInZone.forEach(function (emp) {
+          memberList.appendChild(U.el('div', { class: 'zone-member-row' },
+            U.el('span', { class: 'member-name', text: emp.fullName })
+          ));
         });
-        var headcount = team ? (team.employeesCount || 0) : 0;
-        var anon = headcount - members.length;
+        var anon = byTeam[teamId] - namedInZone.length;
         if (anon > 0) {
           memberList.appendChild(U.el('div', { class: 'zone-member-anon muted',
             text: '+ ещё ' + anon + ' без ФИО' }));
@@ -7500,6 +7501,20 @@ window.App = window.App || {};
       return !o || o.phase === 'tobe' || o.type === C.OFFICE_TYPE.REMOTE;
     })[0] : null;
 
+    // Build help notes for office fields when placement comes from a team allocation.
+    var teamAsisNote = '';
+    var teamTobeNote = '';
+    if (emp && placement) {
+      if (!prevAsisAlloc && placement.asIs.officeId) {
+        var asIsOfficeForNote = U.findById(scenario.offices, placement.asIs.officeId);
+        if (asIsOfficeForNote) { teamAsisNote = 'Размещение через команду: ' + asIsOfficeForNote.name; }
+      }
+      if (!prevTobeAlloc && placement.tobe.officeId) {
+        var tobeOfficeForNote = U.findById(scenario.offices, placement.tobe.officeId);
+        if (tobeOfficeForNote) { teamTobeNote = 'Размещение через команду: ' + tobeOfficeForNote.name; }
+      }
+    }
+
     App.modals.form({
       title: (emp ? 'Редактирование' : 'Добавление') + ' сотрудника',
       fields: [
@@ -7507,9 +7522,11 @@ window.App = window.App || {};
         { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
         { name: 'teamId', label: 'Команда', type: 'select', options: teamOptions, value: emp ? emp.teamId : '' },
         { name: 'asisOfficeId', label: 'AS-IS офис (текущее размещение)', type: 'select', options: asisOptions,
-          value: prevAsisAlloc ? prevAsisAlloc.targetOfficeId : (emp ? emp.currentOfficeId || '' : '') },
+          value: prevAsisAlloc ? prevAsisAlloc.targetOfficeId : (emp ? emp.currentOfficeId || '' : ''),
+          help: teamAsisNote || undefined },
         { name: 'tobeOfficeId', label: 'TO-BE офис (целевое размещение)', type: 'select', options: tobeOptions,
-          value: prevTobeAlloc ? prevTobeAlloc.targetOfficeId : '' },
+          value: prevTobeAlloc ? prevTobeAlloc.targetOfficeId : '',
+          help: teamTobeNote || undefined },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : false },
         { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions, value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }
