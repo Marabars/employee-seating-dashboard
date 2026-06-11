@@ -843,6 +843,10 @@ tr.office-drop-below > td {
 .place-select { flex: 1; }
 .place-count { width: 80px; }
 
+/* ── Distribution tab: expanded team member rows ────────────────────────── */
+.dist-team-members { margin: 2px 0 6px 16px; }
+.dist-member-row { font-size: 0.875em; }
+
 </style>
 </head>
 <body>
@@ -3102,11 +3106,50 @@ App.calc = (function () {
     return U.sumBy(office.zones, 'capacity');
   }
 
-  /** Occupancy of an office = sum of allocations into that office. */
+  /**
+   * Occupancy of an office = sum of seats allocated to it, with deduplication
+   * of overlapping TEAM and EMPLOYEE allocations from the same team.
+   *
+   * When a team is placed via a TEAM allocation AND one or more of its named
+   * members also get individual EMPLOYEE allocations in the same office, the
+   * person would otherwise be counted twice (once in the team pool, once
+   * individually). We resolve this the same way as calculateTeamAllocated:
+   *   team contribution = max(team_seats, named_count)
+   * so named employees are counted exactly once regardless of how many team
+   * seats exist.
+   */
   function calculateOfficeOccupancy(scenario, officeId) {
-    return (scenario.allocations || []).reduce(function (acc, a) {
-      return acc + (a.targetOfficeId === officeId ? (a.employeesCount || 0) : 0);
-    }, 0);
+    var teamSeats = {};  // teamId -> total TEAM-type seats in this office
+    var namedIds  = {};  // teamId -> { employeeId: true }
+    var noTeam    = 0;   // EMPLOYEE-type seats with no associated team
+
+    (scenario.allocations || []).forEach(function (a) {
+      if (a.targetOfficeId !== officeId) { return; }
+      if (a.type === C.ALLOCATION_TYPE.TEAM && a.teamId) {
+        teamSeats[a.teamId] = (teamSeats[a.teamId] || 0) + (a.employeesCount || 0);
+      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+        if (a.teamId && a.employeeId) {
+          if (!namedIds[a.teamId]) { namedIds[a.teamId] = {}; }
+          namedIds[a.teamId][a.employeeId] = true;
+        } else {
+          noTeam += 1;
+        }
+      }
+    });
+
+    var total = noTeam;
+    // Teams with TEAM allocs: dedup against named employees in the same office.
+    Object.keys(teamSeats).forEach(function (tid) {
+      var named = namedIds[tid] ? Object.keys(namedIds[tid]).length : 0;
+      total += Math.max(teamSeats[tid], named);
+    });
+    // Teams with ONLY individual EMPLOYEE allocs (no TEAM alloc): count them directly.
+    Object.keys(namedIds).forEach(function (tid) {
+      if (!teamSeats[tid]) {
+        total += Object.keys(namedIds[tid]).length;
+      }
+    });
+    return total;
   }
 
   /** Occupancy of a zone = sum of allocations into that zone. */
@@ -4882,12 +4925,17 @@ App.render = (function () {
   function render() {
     var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
 
+    // Save scroll positions of scrollable sub-containers (e.g. dnd-scroll columns on the distribution tab).
+    var container = U.qs('#tab-content');
+    var savedScrolls = container ? U.qsa('.dnd-scroll', container).map(function (el) {
+      return el.scrollTop;
+    }) : [];
+
     var ctx = buildContext();
     renderSidebar(ctx);
     renderTopbar(ctx);
     renderViewOnlyBanner(ctx);
 
-    var container = U.qs('#tab-content');
     U.clear(container);
     var renderer = tabs[activeTab] || tabs.dashboard;
     if (renderer && renderer.render) {
@@ -4900,6 +4948,12 @@ App.render = (function () {
 
     if (scrollY > 0) {
       window.scrollTo(0, scrollY);
+    }
+    // Restore inner-container scrolls by index (same tab template = same element order).
+    if (savedScrolls.length > 0 && container) {
+      U.qsa('.dnd-scroll', container).forEach(function (el, i) {
+        if (savedScrolls[i] > 0) { el.scrollTop = savedScrolls[i]; }
+      });
     }
   }
 
@@ -5660,6 +5714,7 @@ window.App = window.App || {};
   var calc = App.calc;
 
   var search = '';
+  var expandedTeams = {};
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -5702,6 +5757,9 @@ window.App = window.App || {};
     }
     teams.forEach(function (team) {
       var remainder = calc.calculateTeamRemainder(scenario, team);
+      var members = scenario.employees.filter(function (e) { return e.teamId === team.id; });
+      var isExpanded = !!expandedTeams[team.id];
+
       var chip = U.el('div', {
         class: 'drag-source team-source' + (team.isVip ? ' vip' : ''),
         draggable: ctx.viewOnly ? 'false' : 'true',
@@ -5717,7 +5775,34 @@ window.App = window.App || {};
           App.allocations.sendTeamRemainderToRemote(team.id);
         }));
       }
+      if (members.length > 0) {
+        chip.appendChild(R.iconBtn(isExpanded ? '▾' : '▸', isExpanded ? 'Свернуть' : 'Раскрыть сотрудников', (function (tid, exp) {
+          return function (e) {
+            e.stopPropagation();
+            expandedTeams[tid] = !exp;
+            R.render();
+          };
+        })(team.id, isExpanded)));
+      }
       scroll.appendChild(chip);
+
+      if (isExpanded) {
+        var memberList = U.el('div', { class: 'dist-team-members' });
+        members.forEach(function (emp) {
+          var pl = App.employees.placementOf(scenario, emp);
+          memberList.appendChild(U.el('div', {
+            class: 'drag-source dist-member-row' + (emp.isVip ? ' vip' : ''),
+            draggable: ctx.viewOnly ? 'false' : 'true',
+            dataset: { dragKind: 'employee', dragId: emp.id }
+          }, [
+            U.el('span', { class: 'drag-handle', text: '⋮⋮', 'aria-hidden': 'true' }),
+            U.el('span', { class: 'drag-label', text: emp.fullName }),
+            emp.position ? U.el('span', { class: 'muted', text: emp.position }) : null,
+            U.el('span', { class: 'drag-sub', text: 'TO-BE: ' + C.PLACEMENT_STATUS_LABEL[pl.tobe.status] })
+          ]));
+        });
+        scroll.appendChild(memberList);
+      }
     });
 
     // Employees.
@@ -7359,9 +7444,9 @@ window.App = window.App || {};
         { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
         { name: 'teamId', label: 'Команда', type: 'select', options: teamOptions, value: emp ? emp.teamId : '' },
         { name: 'asisOfficeId', label: 'AS-IS офис (текущее размещение)', type: 'select', options: asisOptions,
-          value: placement && placement.asIs.officeId ? placement.asIs.officeId : (emp ? emp.currentOfficeId || '' : '') },
+          value: prevAsisAlloc ? prevAsisAlloc.targetOfficeId : (emp ? emp.currentOfficeId || '' : '') },
         { name: 'tobeOfficeId', label: 'TO-BE офис (целевое размещение)', type: 'select', options: tobeOptions,
-          value: placement && placement.tobe.officeId ? placement.tobe.officeId : '' },
+          value: prevTobeAlloc ? prevTobeAlloc.targetOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : false },
         { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions, value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }

@@ -56,12 +56,17 @@ App.render = (function () {
   function render() {
     var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
 
+    // Save scroll positions of scrollable sub-containers (e.g. dnd-scroll columns on the distribution tab).
+    var container = U.qs('#tab-content');
+    var savedScrolls = container ? U.qsa('.dnd-scroll', container).map(function (el) {
+      return el.scrollTop;
+    }) : [];
+
     var ctx = buildContext();
     renderSidebar(ctx);
     renderTopbar(ctx);
     renderViewOnlyBanner(ctx);
 
-    var container = U.qs('#tab-content');
     U.clear(container);
     var renderer = tabs[activeTab] || tabs.dashboard;
     if (renderer && renderer.render) {
@@ -74,6 +79,12 @@ App.render = (function () {
 
     if (scrollY > 0) {
       window.scrollTo(0, scrollY);
+    }
+    // Restore inner-container scrolls by index (same tab template = same element order).
+    if (savedScrolls.length > 0 && container) {
+      U.qsa('.dnd-scroll', container).forEach(function (el, i) {
+        if (savedScrolls[i] > 0) { el.scrollTop = savedScrolls[i]; }
+      });
     }
   }
 

@@ -24,11 +24,50 @@ App.calc = (function () {
     return U.sumBy(office.zones, 'capacity');
   }
 
-  /** Occupancy of an office = sum of allocations into that office. */
+  /**
+   * Occupancy of an office = sum of seats allocated to it, with deduplication
+   * of overlapping TEAM and EMPLOYEE allocations from the same team.
+   *
+   * When a team is placed via a TEAM allocation AND one or more of its named
+   * members also get individual EMPLOYEE allocations in the same office, the
+   * person would otherwise be counted twice (once in the team pool, once
+   * individually). We resolve this the same way as calculateTeamAllocated:
+   *   team contribution = max(team_seats, named_count)
+   * so named employees are counted exactly once regardless of how many team
+   * seats exist.
+   */
   function calculateOfficeOccupancy(scenario, officeId) {
-    return (scenario.allocations || []).reduce(function (acc, a) {
-      return acc + (a.targetOfficeId === officeId ? (a.employeesCount || 0) : 0);
-    }, 0);
+    var teamSeats = {};  // teamId -> total TEAM-type seats in this office
+    var namedIds  = {};  // teamId -> { employeeId: true }
+    var noTeam    = 0;   // EMPLOYEE-type seats with no associated team
+
+    (scenario.allocations || []).forEach(function (a) {
+      if (a.targetOfficeId !== officeId) { return; }
+      if (a.type === C.ALLOCATION_TYPE.TEAM && a.teamId) {
+        teamSeats[a.teamId] = (teamSeats[a.teamId] || 0) + (a.employeesCount || 0);
+      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+        if (a.teamId && a.employeeId) {
+          if (!namedIds[a.teamId]) { namedIds[a.teamId] = {}; }
+          namedIds[a.teamId][a.employeeId] = true;
+        } else {
+          noTeam += 1;
+        }
+      }
+    });
+
+    var total = noTeam;
+    // Teams with TEAM allocs: dedup against named employees in the same office.
+    Object.keys(teamSeats).forEach(function (tid) {
+      var named = namedIds[tid] ? Object.keys(namedIds[tid]).length : 0;
+      total += Math.max(teamSeats[tid], named);
+    });
+    // Teams with ONLY individual EMPLOYEE allocs (no TEAM alloc): count them directly.
+    Object.keys(namedIds).forEach(function (tid) {
+      if (!teamSeats[tid]) {
+        total += Object.keys(namedIds[tid]).length;
+      }
+    });
+    return total;
   }
 
   /** Occupancy of a zone = sum of allocations into that zone. */

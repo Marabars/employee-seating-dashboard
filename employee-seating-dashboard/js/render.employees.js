@@ -278,9 +278,9 @@ window.App = window.App || {};
         { name: 'position', label: 'Должность', type: 'text', value: emp ? emp.position : '' },
         { name: 'teamId', label: 'Команда', type: 'select', options: teamOptions, value: emp ? emp.teamId : '' },
         { name: 'asisOfficeId', label: 'AS-IS офис (текущее размещение)', type: 'select', options: asisOptions,
-          value: placement && placement.asIs.officeId ? placement.asIs.officeId : (emp ? emp.currentOfficeId || '' : '') },
+          value: prevAsisAlloc ? prevAsisAlloc.targetOfficeId : (emp ? emp.currentOfficeId || '' : '') },
         { name: 'tobeOfficeId', label: 'TO-BE офис (целевое размещение)', type: 'select', options: tobeOptions,
-          value: placement && placement.tobe.officeId ? placement.tobe.officeId : '' },
+          value: prevTobeAlloc ? prevTobeAlloc.targetOfficeId : '' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: emp ? emp.isVip : false },
         { name: 'workFormat', label: 'Формат работы', type: 'select', options: formatOptions, value: emp ? emp.workFormat : C.WORK_FORMAT.OFFICE },
         { name: 'comment', label: 'Комментарий', type: 'textarea', value: emp ? emp.comment : '' }

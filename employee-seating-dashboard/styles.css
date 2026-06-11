@@ -835,3 +835,7 @@ tr.office-drop-below > td {
 .place-modal-row span { min-width: 90px; flex-shrink: 0; }
 .place-select { flex: 1; }
 .place-count { width: 80px; }
+
+/* ── Distribution tab: expanded team member rows ────────────────────────── */
+.dist-team-members { margin: 2px 0 6px 16px; }
+.dist-member-row { font-size: 0.875em; }

@@ -16,6 +16,7 @@ window.App = window.App || {};
   var calc = App.calc;
 
   var search = '';
+  var expandedTeams = {};
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -58,6 +59,9 @@ window.App = window.App || {};
     }
     teams.forEach(function (team) {
       var remainder = calc.calculateTeamRemainder(scenario, team);
+      var members = scenario.employees.filter(function (e) { return e.teamId === team.id; });
+      var isExpanded = !!expandedTeams[team.id];
+
       var chip = U.el('div', {
         class: 'drag-source team-source' + (team.isVip ? ' vip' : ''),
         draggable: ctx.viewOnly ? 'false' : 'true',
@@ -73,7 +77,34 @@ window.App = window.App || {};
           App.allocations.sendTeamRemainderToRemote(team.id);
         }));
       }
+      if (members.length > 0) {
+        chip.appendChild(R.iconBtn(isExpanded ? '▾' : '▸', isExpanded ? 'Свернуть' : 'Раскрыть сотрудников', (function (tid, exp) {
+          return function (e) {
+            e.stopPropagation();
+            expandedTeams[tid] = !exp;
+            R.render();
+          };
+        })(team.id, isExpanded)));
+      }
       scroll.appendChild(chip);
+
+      if (isExpanded) {
+        var memberList = U.el('div', { class: 'dist-team-members' });
+        members.forEach(function (emp) {
+          var pl = App.employees.placementOf(scenario, emp);
+          memberList.appendChild(U.el('div', {
+            class: 'drag-source dist-member-row' + (emp.isVip ? ' vip' : ''),
+            draggable: ctx.viewOnly ? 'false' : 'true',
+            dataset: { dragKind: 'employee', dragId: emp.id }
+          }, [
+            U.el('span', { class: 'drag-handle', text: '⋮⋮', 'aria-hidden': 'true' }),
+            U.el('span', { class: 'drag-label', text: emp.fullName }),
+            emp.position ? U.el('span', { class: 'muted', text: emp.position }) : null,
+            U.el('span', { class: 'drag-sub', text: 'TO-BE: ' + C.PLACEMENT_STATUS_LABEL[pl.tobe.status] })
+          ]));
+        });
+        scroll.appendChild(memberList);
+      }
     });
 
     // Employees.
