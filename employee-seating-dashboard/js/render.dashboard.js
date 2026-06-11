@@ -18,6 +18,7 @@ window.App = window.App || {};
   // UI-only view state (survives re-render).
   var expanded = {};          // office card expanded
   var expandedZones = {};     // zone expanded within an office card
+  var expandedZoneTeams = {}; // team expanded within a zone/office card (key: officeId:zoneId:teamId)
   var expandedRemote = false; // remote card expanded
   var moneyMode = false;      // money toggle for office cards
   var hideAsis = false;       // hide AS IS section on dashboard
@@ -221,6 +222,8 @@ window.App = window.App || {};
 
     if (isExpanded) {
       card.appendChild(renderZones(scenario, office, ctx));
+      var directTeams = renderOfficeDirectTeams(scenario, office);
+      if (directTeams) { card.appendChild(directTeams); }
       if (!ctx.viewOnly) {
         card.appendChild(U.el('div', { class: 'office-card-actions' }, [
           U.el('button', { class: 'btn btn-sm btn-secondary', onclick: function () { R.setActiveTab('offices'); } }, 'Редактировать')
@@ -299,7 +302,10 @@ window.App = window.App || {};
     return wrap;
   }
 
-  /** Teams placed into a specific zone, rendered as draggable small boxes. */
+  /**
+   * Teams placed into a specific zone (or whole office when zone.id is null),
+   * rendered as draggable boxes with optional expand to show member ФИО.
+   */
   function renderZoneTeams(scenario, office, zone) {
     var byTeam = {};
     var firstAllocByTeam = {};
@@ -316,7 +322,11 @@ window.App = window.App || {};
     var box = U.el('div', { class: 'zone-teams' });
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      box.appendChild(U.el('div', {
+      var members = scenario.employees.filter(function (e) { return e.teamId === teamId; });
+      var zKey = office.id + ':' + zone.id + ':' + teamId;
+      var isTeamExpanded = !!expandedZoneTeams[zKey];
+
+      var teamBox = U.el('div', {
         class: 'team-box',
         draggable: 'true',
         'data-drag-kind': 'allocation',
@@ -324,9 +334,55 @@ window.App = window.App || {};
       }, [
         U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
         U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
-      ]));
+      ]);
+
+      if (members.length > 0) {
+        teamBox.appendChild(R.iconBtn(
+          isTeamExpanded ? '▾' : '▸',
+          isTeamExpanded ? 'Свернуть' : 'Показать сотрудников',
+          (function (k, exp) {
+            return function (e) {
+              e.stopPropagation();
+              expandedZoneTeams[k] = !exp;
+              R.render();
+            };
+          })(zKey, isTeamExpanded)
+        ));
+      }
+      box.appendChild(teamBox);
+
+      if (isTeamExpanded) {
+        var memberList = U.el('div', { class: 'zone-team-members' });
+        members.forEach(function (emp) {
+          var pl = App.employees.placementOf(scenario, emp);
+          memberList.appendChild(U.el('div', { class: 'zone-member-row' }, [
+            U.el('span', { class: 'member-name', text: emp.fullName }),
+            emp.position ? U.el('span', { class: 'muted', text: ' · ' + emp.position }) : null,
+            U.el('span', { class: 'drag-sub', text: 'TO-BE: ' + C.PLACEMENT_STATUS_LABEL[pl.tobe.status] })
+          ]));
+        });
+        var headcount = team ? (team.employeesCount || 0) : 0;
+        var anon = headcount - members.length;
+        if (anon > 0) {
+          memberList.appendChild(U.el('div', { class: 'zone-member-anon muted',
+            text: '+ ещё ' + anon + ' без ФИО' }));
+        }
+        box.appendChild(memberList);
+      }
     });
     return box;
+  }
+
+  /** Teams placed into the office without a specific zone. */
+  function renderOfficeDirectTeams(scenario, office) {
+    var hasAny = scenario.allocations.some(function (a) {
+      return a.targetOfficeId === office.id && !a.targetZoneId && a.teamId;
+    });
+    if (!hasAny) { return null; }
+    var wrap = U.el('div', { class: 'office-direct-teams' });
+    wrap.appendChild(U.el('div', { class: 'zone-direct-label muted', text: 'Без зоны' }));
+    wrap.appendChild(renderZoneTeams(scenario, office, { id: null }));
+    return wrap;
   }
 
   function renderRemoteCard(scenario, ctx) {
