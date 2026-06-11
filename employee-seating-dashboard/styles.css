@@ -846,3 +846,4 @@ tr.office-drop-below > td {
 .zone-member-anon { font-size: 0.85em; padding: 2px 0; }
 .office-direct-teams { margin-top: 8px; }
 .zone-direct-label { font-size: 0.8em; margin-bottom: 4px; }
+.team-box-individual { opacity: 0.85; border-style: dashed; cursor: default; }

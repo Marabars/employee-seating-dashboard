@@ -307,12 +307,25 @@ window.App = window.App || {};
    * rendered as draggable boxes with optional expand to show member ФИО.
    */
   function renderZoneTeams(scenario, office, zone) {
+    // TEAM alloc seats per team in this zone only.
     var byTeam = {};
     var firstAllocByTeam = {};
+    // Individual EMPLOYEE allocs from each team that land in OTHER zones/offices.
+    // Used to subtract from the anonymous seat count shown for this zone's team box.
+    var namedElsewhere = {};
+
     scenario.allocations.forEach(function (a) {
-      if (a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.teamId) {
-        byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
+      if (!a.teamId) { return; }
+      var inThisZone = a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id;
+      if (inThisZone) {
         if (!firstAllocByTeam[a.teamId]) { firstAllocByTeam[a.teamId] = a.id; }
+        if (a.type === C.ALLOCATION_TYPE.TEAM) {
+          byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
+        } else if (byTeam[a.teamId] === undefined) {
+          byTeam[a.teamId] = 0; // mark team present via individual alloc
+        }
+      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
+        namedElsewhere[a.teamId] = (namedElsewhere[a.teamId] || 0) + 1;
       }
     });
     var keys = Object.keys(byTeam);
@@ -328,17 +341,25 @@ window.App = window.App || {};
                a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.employeeId;
       }).map(function (a) { return U.findById(scenario.employees, a.employeeId); }).filter(Boolean);
 
+      // Effective anonymous seats = TEAM alloc minus members placed elsewhere minus named here.
+      var rawSeats = byTeam[teamId] || 0;
+      var elsewhere = namedElsewhere[teamId] || 0;
+      var anonSeats = Math.max(0, rawSeats - namedInZone.length - elsewhere);
+      var displayCount = anonSeats + namedInZone.length;
+
       var zKey = office.id + ':' + zone.id + ':' + teamId;
       var isTeamExpanded = !!expandedZoneTeams[zKey];
+      var hasTeamAlloc = rawSeats > 0;
 
-      var teamBox = U.el('div', {
-        class: 'team-box',
-        draggable: 'true',
-        'data-drag-kind': 'allocation',
-        'data-drag-id': firstAllocByTeam[teamId]
-      }, [
+      var teamBoxAttrs = { class: 'team-box' + (hasTeamAlloc ? '' : ' team-box-individual') };
+      if (hasTeamAlloc) {
+        teamBoxAttrs.draggable = 'true';
+        teamBoxAttrs['data-drag-kind'] = 'allocation';
+        teamBoxAttrs['data-drag-id'] = firstAllocByTeam[teamId];
+      }
+      var teamBox = U.el('div', teamBoxAttrs, [
         U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
-        U.el('span', { class: 'team-box-count', text: byTeam[teamId] + ' чел.' })
+        U.el('span', { class: 'team-box-count', text: displayCount + ' чел.' })
       ]);
 
       if (namedInZone.length > 0) {
@@ -363,10 +384,9 @@ window.App = window.App || {};
             U.el('span', { class: 'member-name', text: emp.fullName })
           ));
         });
-        var anon = byTeam[teamId] - namedInZone.length;
-        if (anon > 0) {
+        if (anonSeats > 0) {
           memberList.appendChild(U.el('div', { class: 'zone-member-anon muted',
-            text: '+ ещё ' + anon + ' без ФИО' }));
+            text: '+ ещё ' + anonSeats + ' без ФИО' }));
         }
         box.appendChild(memberList);
       }

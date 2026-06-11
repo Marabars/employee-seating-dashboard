@@ -251,7 +251,13 @@ window.App = window.App || {};
         var office = U.findById(scenario.offices, a.targetOfficeId);
         var zone = office && office.zones ? U.findById(office.zones, a.targetZoneId) : null;
         var place = (office ? office.name : '—') + (zone ? ' / ' + zone.name : '');
-        var label = a.type === C.ALLOCATION_TYPE.EMPLOYEE ? 'Сотрудник' : (a.employeesCount + ' чел.');
+        var label;
+        if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+          var allocEmp = U.findById(scenario.employees, a.employeeId);
+          label = allocEmp ? allocEmp.fullName : 'Сотрудник';
+        } else {
+          label = a.employeesCount + ' чел.';
+        }
         var row = U.el('div', { class: 'composition-row alloc-row' }, [
           U.el('span', { class: 'alloc-row-label', text: label + ' → ' + place })
         ]);
@@ -294,11 +300,13 @@ window.App = window.App || {};
     if (namedCount > 0) {
       members.forEach(function (emp) {
         var placement = App.employees.placementOf(scenario, emp);
-        var asisLabel = C.PLACEMENT_STATUS_LABEL[placement.asIs.status];
-        var tobeLabel = C.PLACEMENT_STATUS_LABEL[placement.tobe.status];
+        var asIsOffice = U.findById(scenario.offices, placement.asIs.officeId);
+        var tobeOffice = U.findById(scenario.offices, placement.tobe.officeId);
+        var asisText = asIsOffice ? asIsOffice.name : C.PLACEMENT_STATUS_LABEL[placement.asIs.status];
+        var tobeText = tobeOffice ? tobeOffice.name : C.PLACEMENT_STATUS_LABEL[placement.tobe.status];
         var placementEl = U.el('span', { class: 'placement-dual' }, [
-          U.el('span', { class: 'placement-asis', text: 'AS-IS: ' + asisLabel }),
-          U.el('span', { class: 'placement-tobe', text: 'TO-BE: ' + tobeLabel })
+          U.el('span', { class: 'placement-asis', text: 'AS-IS: ' + asisText }),
+          U.el('span', { class: 'placement-tobe', text: 'TO-BE: ' + tobeText })
         ]);
         var row = U.el('div', { class: 'composition-row member-row' }, [
           U.el('span', { class: 'member-drag-handle', text: '⠿' }),
