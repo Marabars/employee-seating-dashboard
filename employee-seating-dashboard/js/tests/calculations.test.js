@@ -166,6 +166,169 @@
     });
   });
 
+  // ── Fixture: two TOBE offices with named employees ────────────────────────
+  function twoOfficeFixture() {
+    return {
+      id: 's2',
+      offices: [
+        { id: 'offA', type: 'physical', phase: 'tobe', name: 'Офис A',
+          zones: [{ id: 'zA', name: 'Зона A', capacity: 50, isVipZone: false }] },
+        { id: 'offB', type: 'physical', phase: 'tobe', name: 'Офис B',
+          zones: [{ id: 'zB', name: 'Зона B', capacity: 50, isVipZone: false }] },
+        { id: 'remote', type: 'remote', name: 'Удаленка' }
+      ],
+      teams: [{ id: 't1', name: 'Alpha', employeesCount: 10, canSplit: true }],
+      employees: [
+        { id: 'e1', fullName: 'Иван Иванов', teamId: 't1' },
+        { id: 'e2', fullName: 'Мария Петрова', teamId: 't1' }
+      ],
+      allocations: []
+    };
+  }
+
+  // ── No double-counting: zone level ────────────────────────────────────────
+
+  describe('zone occupancy — no double-counting', function () {
+    it('TEAM + EMPLOYEE alloc in same zone counts employee once', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        { id: 'a1', type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      // e1 is one of the 5 team seats — max(5,1)=5, not 6
+      expect(calc.calculateZoneOccupancy(s, 'zA')).toBe(5);
+    });
+
+    it('named count > team seats — uses named count', function () {
+      var s = twoOfficeFixture();
+      s.employees.push({ id: 'e3', fullName: 'Э3', teamId: 't1' });
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae2', type: 'employee', teamId: 't1', employeeId: 'e2', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae3', type: 'employee', teamId: 't1', employeeId: 'e3', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      // 3 named > 1 team seat → max(1,3)=3
+      expect(calc.calculateZoneOccupancy(s, 'zA')).toBe(3);
+    });
+
+    it('only EMPLOYEE allocs (no TEAM) counts correctly', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae2', type: 'employee', teamId: 't1', employeeId: 'e2', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      expect(calc.calculateZoneOccupancy(s, 'zA')).toBe(2);
+    });
+
+    it('zone counter correct after drag: source zone loses employee, target gains', function () {
+      var s = twoOfficeFixture();
+      // After drag: team still in zA, e1 moved to zB
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      expect(calc.calculateZoneOccupancy(s, 'zA')).toBe(5); // team stays at 5
+      expect(calc.calculateZoneOccupancy(s, 'zB')).toBe(1); // e1 individually
+    });
+  });
+
+  // ── No double-counting: cross-office (drag-and-drop / Employees tab) ──────
+
+  describe('placedInOffices — no double-counting across offices', function () {
+    it('before drag: employee+team in same office counted once', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      expect(calc.calculatePlacedInOffices(s)).toBe(5);
+    });
+
+    it('after drag A→B: total stays 5, not inflated to 6', function () {
+      var s = twoOfficeFixture();
+      // TEAM stays in offA, e1 individually moved to offB
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      // e1 is one of team's 5 → max(5,1)=5 across all TOBE offices
+      expect(calc.calculatePlacedInOffices(s)).toBe(5);
+    });
+
+    it('employee placed via form (no TEAM alloc) moves cleanly A→B', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      expect(calc.calculatePlacedInOffices(s)).toBe(1);
+
+      // Simulate placement in offB via form/drag
+      s.allocations = [
+        { id: 'ae2', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      expect(calc.calculatePlacedInOffices(s)).toBe(1); // still 1, not 2
+    });
+
+    it('named count > team seats: extra individuals are counted', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        // Team has 1 TEAM seat in offA
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        // 2 named employees across different offices
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae2', type: 'employee', teamId: 't1', employeeId: 'e2', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      // 2 named > 1 team seat → max(1,2)=2
+      expect(calc.calculatePlacedInOffices(s)).toBe(2);
+    });
+
+    it('two employees dragged to different offices: both counted once each', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae2', type: 'employee', teamId: 't1', employeeId: 'e2', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      // 2 named in team (1 in A, 1 in B), team has 5 seats in A → max(5,2)=5
+      expect(calc.calculatePlacedInOffices(s)).toBe(5);
+    });
+
+    it('teamAllocated stays correct after drag (no phantom seats)', function () {
+      var s = twoOfficeFixture();
+      // Before drag: e1 in same zone as team
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      expect(calc.calculateTeamAllocated(s, 't1')).toBe(5);
+
+      // After drag: e1 moved to offB
+      s.allocations = [
+        { id: 'a1',  type: 'team',     teamId: 't1', employeeId: null, employeesCount: 5, targetOfficeId: 'offA', targetZoneId: 'zA' },
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      // Still 5: e1 counts as 1 individual + max(0, 5-1)=4 anonymous = 5
+      expect(calc.calculateTeamAllocated(s, 't1')).toBe(5);
+    });
+
+    it('unplacedCount stable before and after drag', function () {
+      var s = twoOfficeFixture();
+      s.allocations = [
+        { id: 'ae1', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offA', targetZoneId: 'zA' }
+      ];
+      var before = calc.calculateUnplacedCount(s);
+
+      s.allocations = [
+        { id: 'ae2', type: 'employee', teamId: 't1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'offB', targetZoneId: 'zB' }
+      ];
+      var after = calc.calculateUnplacedCount(s);
+
+      expect(before).toBe(after); // drag must not affect unplaced count
+      expect(before).toBe(1);     // only e2 is unplaced
+    });
+  });
+
   describe('unplaced (aggregated mode)', function () {
     it('total minus everything allocated', function () {
       var s = fixture();

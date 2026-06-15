@@ -238,11 +238,46 @@ App.calc = (function () {
     return calculateOfficeOccupancy(scenario, remote.id);
   }
 
-  /** Seats allocated into physical (new) office zones. */
+  /**
+   * Seats allocated into physical (TO-BE) office zones, with cross-office
+   * TEAM/EMPLOYEE deduplication: when a named employee has an individual
+   * allocation in a different TOBE office than their team's TEAM allocation,
+   * they are counted once across all offices (not twice).
+   */
   function calculatePlacedInOffices(scenario) {
-    return getNewOffices(scenario).reduce(function (acc, o) {
-      return acc + calculateOfficeOccupancy(scenario, o.id);
-    }, 0);
+    var newOffices = getNewOffices(scenario);
+    var newOfficeIds = {};
+    newOffices.forEach(function (o) { newOfficeIds[o.id] = true; });
+
+    var teamSeats = {};
+    var namedIds  = {};
+    var noTeam    = 0;
+
+    (scenario.allocations || []).forEach(function (a) {
+      if (!newOfficeIds[a.targetOfficeId]) { return; }
+      if (a.type === C.ALLOCATION_TYPE.TEAM && a.teamId) {
+        teamSeats[a.teamId] = (teamSeats[a.teamId] || 0) + (a.employeesCount || 0);
+      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
+        if (a.teamId && a.employeeId) {
+          if (!namedIds[a.teamId]) { namedIds[a.teamId] = {}; }
+          namedIds[a.teamId][a.employeeId] = true;
+        } else {
+          noTeam += 1;
+        }
+      }
+    });
+
+    var total = noTeam;
+    Object.keys(teamSeats).forEach(function (tid) {
+      var named = namedIds[tid] ? Object.keys(namedIds[tid]).length : 0;
+      total += Math.max(teamSeats[tid], named);
+    });
+    Object.keys(namedIds).forEach(function (tid) {
+      if (!teamSeats[tid]) {
+        total += Object.keys(namedIds[tid]).length;
+      }
+    });
+    return total;
   }
 
   /**
