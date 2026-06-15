@@ -304,16 +304,13 @@ window.App = window.App || {};
 
   /**
    * Teams placed into a specific zone (or whole office when zone.id is null),
-   * rendered as draggable boxes with optional expand to show member ФИО.
-   * Named employees (EMPLOYEE-type allocations) are also draggable so they
-   * can be moved to another office/zone directly from the dashboard.
+   * rendered as draggable boxes with optional expand to show ALL team members.
+   * Expand is phase-aware: shows AS-IS or TO-BE placement matching office.phase.
+   * Employees with individual allocs in this office appear first, highlighted green.
    */
   function renderZoneTeams(scenario, office, zone, ctx) {
-    // TEAM alloc seats per team in this zone only.
     var byTeam = {};
     var firstAllocByTeam = {};
-    // Individual EMPLOYEE allocs from each team that land in OTHER zones/offices.
-    // Used to subtract from the anonymous seat count shown for this zone's team box.
     var namedElsewhere = {};
 
     scenario.allocations.forEach(function (a) {
@@ -324,30 +321,38 @@ window.App = window.App || {};
         if (a.type === C.ALLOCATION_TYPE.TEAM) {
           byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
         } else if (byTeam[a.teamId] === undefined) {
-          byTeam[a.teamId] = 0; // mark team present via individual alloc
+          byTeam[a.teamId] = 0;
         }
       } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
         namedElsewhere[a.teamId] = (namedElsewhere[a.teamId] || 0) + 1;
       }
     });
+
     var keys = Object.keys(byTeam);
     if (keys.length === 0) {
       return U.el('div', { class: 'zone-teams muted', text: 'Нет команд' });
     }
+
     var box = U.el('div', { class: 'zone-teams' });
+    var officePhase = office.phase; // 'asis' or 'tobe'
+
     keys.forEach(function (teamId) {
       var team = U.findById(scenario.teams, teamId);
-      // Only employees with individual EMPLOYEE allocations in this specific zone.
-      var namedInZone = (scenario.allocations || []).filter(function (a) {
-        return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.teamId === teamId &&
-               a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.employeeId;
-      }).map(function (a) { return U.findById(scenario.employees, a.employeeId); }).filter(Boolean);
 
-      // Effective anonymous seats = TEAM alloc minus members placed elsewhere minus named here.
+      // IDs of employees individually allocated in THIS zone (for DnD).
+      var namedInZoneIds = {};
+      (scenario.allocations || []).forEach(function (a) {
+        if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.teamId === teamId &&
+            a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id && a.employeeId) {
+          namedInZoneIds[a.employeeId] = true;
+        }
+      });
+      var namedInZoneCount = Object.keys(namedInZoneIds).length;
+
       var rawSeats = byTeam[teamId] || 0;
       var elsewhere = namedElsewhere[teamId] || 0;
-      var anonSeats = Math.max(0, rawSeats - namedInZone.length - elsewhere);
-      var displayCount = anonSeats + namedInZone.length;
+      var anonSeats = Math.max(0, rawSeats - namedInZoneCount - elsewhere);
+      var displayCount = anonSeats + namedInZoneCount;
 
       var zKey = office.id + ':' + zone.id + ':' + teamId;
       var isTeamExpanded = !!expandedZoneTeams[zKey];
@@ -364,7 +369,11 @@ window.App = window.App || {};
         U.el('span', { class: 'team-box-count', text: displayCount + ' чел.' })
       ]);
 
-      if (namedInZone.length > 0) {
+      var allTeamEmployees = (scenario.employees || []).filter(function (e) {
+        return e.teamId === teamId;
+      });
+
+      if (allTeamEmployees.length > 0) {
         teamBox.appendChild(R.iconBtn(
           isTeamExpanded ? '▾' : '▸',
           isTeamExpanded ? 'Свернуть' : 'Показать сотрудников',
@@ -379,24 +388,67 @@ window.App = window.App || {};
       }
       box.appendChild(teamBox);
 
-      if (isTeamExpanded && namedInZone.length > 0) {
+      if (isTeamExpanded && allTeamEmployees.length > 0) {
+        // Employees with individual EMPLOYEE alloc in THIS office (any zone).
+        var placedHereIds = {};
+        (scenario.allocations || []).forEach(function (a) {
+          if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.targetOfficeId === office.id && a.employeeId) {
+            placedHereIds[a.employeeId] = true;
+          }
+        });
+
+        var placedFirst = allTeamEmployees.filter(function (e) { return !!placedHereIds[e.id]; });
+        var notHere = allTeamEmployees.filter(function (e) { return !placedHereIds[e.id]; });
+        var sortedEmployees = placedFirst.concat(notHere);
+
         var memberList = U.el('div', { class: 'zone-team-members' });
-        namedInZone.forEach(function (emp) {
-          var rowAttrs = { class: 'zone-member-row' };
-          if (!ctx || !ctx.viewOnly) {
+
+        sortedEmployees.forEach(function (emp) {
+          var isHere = !!placedHereIds[emp.id];
+          var isDraggable = !!namedInZoneIds[emp.id] && (!ctx || !ctx.viewOnly);
+
+          var rowClass = 'zone-member-row' + (isHere ? ' zone-member-placed-here' : '');
+          var rowAttrs = { class: rowClass };
+          if (isDraggable) {
             rowAttrs.draggable = 'true';
             rowAttrs['data-drag-kind'] = 'employee';
             rowAttrs['data-drag-id'] = emp.id;
             rowAttrs.title = 'Перетащите сотрудника в другой офис или зону';
           }
-          memberList.appendChild(U.el('div', rowAttrs,
-            U.el('span', { class: 'member-name', text: emp.fullName })
-          ));
+
+          // Phase-aware placement: AS-IS or TO-BE depending on which office card was expanded.
+          var pl = App.employees.placementOf(scenario, emp);
+          var phaseData = (officePhase === C.OFFICE_PHASE.ASIS) ? pl.asIs : pl.tobe;
+          var placementText, placementCls;
+          if (!phaseData || phaseData.status === C.PLACEMENT_STATUS.UNPLACED) {
+            placementText = 'Не размещён';
+            placementCls = 'zone-member-placement-unplaced';
+          } else {
+            var tgtOff = U.findById(scenario.offices, phaseData.officeId);
+            var offName = tgtOff ? tgtOff.name : '?';
+            if (phaseData.zoneId) {
+              var tgtZone = tgtOff
+                ? (tgtOff.zones || []).filter(function (z) { return z.id === phaseData.zoneId; })[0]
+                : null;
+              placementText = offName + ' / ' + (tgtZone ? tgtZone.name : '?');
+            } else {
+              placementText = offName;
+            }
+            placementCls = isHere ? 'zone-member-placement-here' : 'zone-member-placement-other';
+          }
+
+          var rowEl = U.el('div', rowAttrs, [
+            U.el('div', { class: 'zone-member-primary' }, [
+              U.el('span', { class: 'member-name', text: emp.fullName }),
+              U.el('span', { class: 'member-placement ' + placementCls, text: placementText })
+            ])
+          ]);
+          if (emp.position) {
+            rowEl.appendChild(U.el('div', { class: 'zone-member-secondary', text: emp.position }));
+          }
+          memberList.appendChild(rowEl);
         });
-        if (anonSeats > 0) {
-          memberList.appendChild(U.el('div', { class: 'zone-member-anon muted',
-            text: '+ ещё ' + anonSeats + ' без ФИО' }));
-        }
+
         box.appendChild(memberList);
       }
     });

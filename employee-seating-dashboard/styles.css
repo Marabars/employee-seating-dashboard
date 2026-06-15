@@ -842,12 +842,19 @@ tr.office-drop-below > td {
 
 /* ── Dashboard: expanded team members inside zone / office-direct blocks ── */
 .zone-team-members { margin: 4px 0 6px 8px; border-left: 2px solid var(--border); padding-left: 8px; }
-.zone-member-row { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; font-size: 0.85em; }
-.zone-member-anon { font-size: 0.85em; padding: 2px 0; }
+.zone-member-row { display: flex; flex-direction: column; padding: 3px 4px; font-size: 0.85em; border-radius: 4px; }
+.zone-member-primary { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.zone-member-secondary { font-size: 0.82em; color: var(--text-muted); }
+.zone-member-placed-here { background: var(--green-bg); }
+.zone-member-placed-here .member-name { color: var(--green); font-weight: 600; }
+.member-placement { font-size: 0.82em; flex-shrink: 0; max-width: 48%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zone-member-placement-here { color: var(--green); }
+.zone-member-placement-other { color: var(--text-muted); }
+.zone-member-placement-unplaced { color: var(--text-muted); font-style: italic; }
 .office-direct-teams { margin-top: 8px; }
 .zone-direct-label { font-size: 0.8em; margin-bottom: 4px; }
 .team-box-individual { opacity: 0.85; border-style: dashed; cursor: default; }
 
 /* ── Dashboard: draggable employee rows in expanded team ─────────────────── */
-.zone-member-row[data-drag-kind]:hover { background: var(--surface-2); border-radius: 4px; }
+.zone-member-row[data-drag-kind]:hover { background: var(--surface-2); }
 .zone-member-row.dragging { opacity: 0.5; }
