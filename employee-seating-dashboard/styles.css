@@ -847,3 +847,7 @@ tr.office-drop-below > td {
 .office-direct-teams { margin-top: 8px; }
 .zone-direct-label { font-size: 0.8em; margin-bottom: 4px; }
 .team-box-individual { opacity: 0.85; border-style: dashed; cursor: default; }
+
+/* ── Dashboard: draggable employee rows in expanded team ─────────────────── */
+.zone-member-row[data-drag-kind]:hover { background: var(--surface-2); border-radius: 4px; }
+.zone-member-row.dragging { opacity: 0.5; }

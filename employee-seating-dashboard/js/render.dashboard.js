@@ -222,7 +222,7 @@ window.App = window.App || {};
 
     if (isExpanded) {
       card.appendChild(renderZones(scenario, office, ctx));
-      var directTeams = renderOfficeDirectTeams(scenario, office);
+      var directTeams = renderOfficeDirectTeams(scenario, office, ctx);
       if (directTeams) { card.appendChild(directTeams); }
       if (!ctx.viewOnly) {
         card.appendChild(U.el('div', { class: 'office-card-actions' }, [
@@ -295,7 +295,7 @@ window.App = window.App || {};
       if (zOpen) {
         zoneEl.appendChild(R.progressBar(occ, zone.capacity || 0, ctx.thresholds));
         zoneEl.appendChild(U.el('div', { class: 'zone-free', text: R.freeOrOverflowText(zone.capacity || 0, occ) }));
-        zoneEl.appendChild(renderZoneTeams(scenario, office, zone));
+        zoneEl.appendChild(renderZoneTeams(scenario, office, zone, ctx));
       }
       wrap.appendChild(zoneEl);
     });
@@ -305,8 +305,10 @@ window.App = window.App || {};
   /**
    * Teams placed into a specific zone (or whole office when zone.id is null),
    * rendered as draggable boxes with optional expand to show member ФИО.
+   * Named employees (EMPLOYEE-type allocations) are also draggable so they
+   * can be moved to another office/zone directly from the dashboard.
    */
-  function renderZoneTeams(scenario, office, zone) {
+  function renderZoneTeams(scenario, office, zone, ctx) {
     // TEAM alloc seats per team in this zone only.
     var byTeam = {};
     var firstAllocByTeam = {};
@@ -380,7 +382,14 @@ window.App = window.App || {};
       if (isTeamExpanded && namedInZone.length > 0) {
         var memberList = U.el('div', { class: 'zone-team-members' });
         namedInZone.forEach(function (emp) {
-          memberList.appendChild(U.el('div', { class: 'zone-member-row' },
+          var rowAttrs = { class: 'zone-member-row' };
+          if (!ctx || !ctx.viewOnly) {
+            rowAttrs.draggable = 'true';
+            rowAttrs['data-drag-kind'] = 'employee';
+            rowAttrs['data-drag-id'] = emp.id;
+            rowAttrs.title = 'Перетащите сотрудника в другой офис или зону';
+          }
+          memberList.appendChild(U.el('div', rowAttrs,
             U.el('span', { class: 'member-name', text: emp.fullName })
           ));
         });
@@ -395,14 +404,14 @@ window.App = window.App || {};
   }
 
   /** Teams placed into the office without a specific zone. */
-  function renderOfficeDirectTeams(scenario, office) {
+  function renderOfficeDirectTeams(scenario, office, ctx) {
     var hasAny = scenario.allocations.some(function (a) {
       return a.targetOfficeId === office.id && !a.targetZoneId && a.teamId;
     });
     if (!hasAny) { return null; }
     var wrap = U.el('div', { class: 'office-direct-teams' });
     wrap.appendChild(U.el('div', { class: 'zone-direct-label muted', text: 'Без зоны' }));
-    wrap.appendChild(renderZoneTeams(scenario, office, { id: null }));
+    wrap.appendChild(renderZoneTeams(scenario, office, { id: null }, ctx));
     return wrap;
   }
 
