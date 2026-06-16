@@ -131,6 +131,7 @@ App.dragDrop = (function () {
       source.setAttribute('aria-roledescription', 'перетаскиваемый элемент');
 
       source.addEventListener('dragstart', function (e) {
+        e.stopPropagation(); // prevent parent draggable (e.g. team-box) from overwriting payload
         var payload = { kind: source.dataset.dragKind, id: source.dataset.dragId };
         try {
           e.dataTransfer.setData('application/json', JSON.stringify(payload));
