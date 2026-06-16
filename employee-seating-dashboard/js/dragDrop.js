@@ -175,19 +175,23 @@ App.dragDrop = (function () {
 
       zone.addEventListener('dragover', function (e) {
         e.preventDefault(); // MANDATORY so drop fires
+        e.stopPropagation(); // prevent parent drop zones from also activating
         e.dataTransfer.dropEffect = 'move';
         zone.classList.add('drop-hover');
         handleAutoScroll({ x: e.clientX, y: e.clientY });
       });
       zone.addEventListener('dragenter', function (e) {
         e.preventDefault();
+        e.stopPropagation();
         zone.classList.add('drop-hover');
       });
-      zone.addEventListener('dragleave', function () {
+      zone.addEventListener('dragleave', function (e) {
+        e.stopPropagation();
         zone.classList.remove('drop-hover');
       });
       zone.addEventListener('drop', function (e) {
         e.preventDefault();
+        e.stopPropagation(); // prevent parent drop zones (e.g. office card) from overwriting zone placement
         zone.classList.remove('drop-hover');
         stopAutoScroll();
         var payload = readPayload(e.dataTransfer);
