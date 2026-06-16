@@ -308,7 +308,8 @@ window.App = window.App || {};
           U.el('span', { class: 'placement-asis', text: 'AS-IS: ' + asisText }),
           U.el('span', { class: 'placement-tobe', text: 'TO-BE: ' + tobeText })
         ]);
-        var row = U.el('div', { class: 'composition-row member-row' }, [
+        var isPlaced = placement.tobe.status === C.PLACEMENT_STATUS.PLACED_OFFICE || placement.tobe.status === C.PLACEMENT_STATUS.PLACED_REMOTE;
+        var row = U.el('div', { class: 'composition-row member-row' + (isPlaced ? ' zone-member-placed-here' : '') }, [
           U.el('span', { class: 'member-drag-handle', text: '⠿' }),
           U.el('span', { class: 'member-name', text: emp.fullName }),
           emp.position ? U.el('span', { class: 'muted member-pos', text: emp.position }) : null,
