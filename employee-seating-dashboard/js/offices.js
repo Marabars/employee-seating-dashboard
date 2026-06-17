@@ -66,6 +66,9 @@ App.offices = (function () {
       if (data.indexationPct !== undefined) {
         office.indexationPct = data.indexationPct === '' || data.indexationPct === null ? null : Number(data.indexationPct);
       }
+      if (data.leaseEndDate !== undefined) {
+        office.leaseEndDate = data.leaseEndDate || null;
+      }
     });
   }
 

@@ -203,8 +203,10 @@ window.App = window.App || {};
 
     var nameInput = textField('Название', office ? office.name : '', 'name');
     var areaInput = numField('Площадь, м²', office ? office.area : '', 'area');
+    var leaseEndInput = dateField('Дата окончания договора аренды', office ? office.leaseEndDate : '', 'leaseEndDate');
     body.appendChild(nameInput.wrap);
     body.appendChild(areaInput.wrap);
+    body.appendChild(leaseEndInput.wrap);
 
     // Phase selector — freely switch AS IS ↔ TO BE.
     var currentPhase = office ? office.phase : phase;
@@ -286,6 +288,7 @@ window.App = window.App || {};
           var data = {
             name: nameInput.input.value,
             area: areaInput.input.value,
+            leaseEndDate: leaseEndInput.input.value || null,
             rentPerSqm: rentInput.input.value,
             opexPerSqm: opexInput.input.value,
             indexationPct: idxInput.input.value,
@@ -340,6 +343,9 @@ window.App = window.App || {};
   }
   function numField(label, val, name) {
     var c = U.el('input', { type: 'number', min: '0', name: name }); c.value = (val === '' || val == null) ? '' : val; return fieldWrap(label, c);
+  }
+  function dateField(label, val, name) {
+    var c = U.el('input', { type: 'date', name: name }); c.value = val || ''; return fieldWrap(label, c);
   }
   function textareaField(label, val, name) {
     var c = U.el('textarea', { rows: '2', name: name }); c.value = val || ''; return fieldWrap(label, c);

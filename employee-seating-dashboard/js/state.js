@@ -66,7 +66,8 @@ App.state = (function () {
       zones: [],
       rentPerSqm: (data.rentPerSqm === undefined || data.rentPerSqm === '') ? null : Number(data.rentPerSqm),
       opexPerSqm: (data.opexPerSqm === undefined || data.opexPerSqm === '') ? null : Number(data.opexPerSqm),
-      indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct)
+      indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
+      leaseEndDate: data.leaseEndDate || null
     };
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
@@ -339,6 +340,7 @@ App.state = (function () {
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
+        if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
       });
     });
 

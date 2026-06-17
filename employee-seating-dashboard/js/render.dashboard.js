@@ -206,6 +206,10 @@ window.App = window.App || {};
 
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
 
+    if (office.phase === C.OFFICE_PHASE.ASIS && office.leaseEndDate) {
+      card.appendChild(U.el('div', { class: 'office-card-lease', text: 'Дата окончания договора: ' + office.leaseEndDate }));
+    }
+
     if (moneyMode) {
       card.appendChild(renderMoneyMetrics(office));
     } else {
