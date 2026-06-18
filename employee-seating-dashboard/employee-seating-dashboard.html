@@ -253,7 +253,8 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .phase-title-wrap { display: flex; align-items: center; gap: 6px; }
 
 /* Office card metrics row (Мест / Сотрудников / Баланс). */
-.office-card-area { font-size: 14px; color: var(--text-muted); margin: 4px 0 8px; }
+.office-card-area { font-size: 14px; color: var(--text-muted); margin: 4px 0 4px; }
+.office-card-lease { font-size: 13px; color: var(--yellow); margin: 0 0 8px; }
 .office-metrics { display: flex; gap: 8px; margin-bottom: 8px; }
 .office-metric { flex: 1; background: var(--surface-2); border-radius: 8px; padding: 8px; text-align: center; }
 .office-metric-value { font-size: 24px; font-weight: 800; }
@@ -2045,7 +2046,8 @@ App.state = (function () {
       zones: [],
       rentPerSqm: (data.rentPerSqm === undefined || data.rentPerSqm === '') ? null : Number(data.rentPerSqm),
       opexPerSqm: (data.opexPerSqm === undefined || data.opexPerSqm === '') ? null : Number(data.opexPerSqm),
-      indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct)
+      indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
+      leaseEndDate: data.leaseEndDate || null
     };
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
@@ -2318,6 +2320,7 @@ App.state = (function () {
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
+        if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
       });
     });
 
@@ -2596,6 +2599,9 @@ App.offices = (function () {
       }
       if (data.indexationPct !== undefined) {
         office.indexationPct = data.indexationPct === '' || data.indexationPct === null ? null : Number(data.indexationPct);
+      }
+      if (data.leaseEndDate !== undefined) {
+        office.leaseEndDate = data.leaseEndDate || null;
       }
     });
   }
@@ -5452,6 +5458,10 @@ window.App = window.App || {};
 
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
 
+    if (office.phase === C.OFFICE_PHASE.ASIS && office.leaseEndDate) {
+      card.appendChild(U.el('div', { class: 'office-card-lease', text: 'Дата окончания договора: ' + office.leaseEndDate }));
+    }
+
     if (moneyMode) {
       card.appendChild(renderMoneyMetrics(office));
     } else {
@@ -6493,8 +6503,10 @@ window.App = window.App || {};
 
     var nameInput = textField('Название', office ? office.name : '', 'name');
     var areaInput = numField('Площадь, м²', office ? office.area : '', 'area');
+    var leaseEndInput = dateField('Дата окончания договора аренды', office ? office.leaseEndDate : '', 'leaseEndDate');
     body.appendChild(nameInput.wrap);
     body.appendChild(areaInput.wrap);
+    body.appendChild(leaseEndInput.wrap);
 
     // Phase selector — freely switch AS IS ↔ TO BE.
     var currentPhase = office ? office.phase : phase;
@@ -6576,6 +6588,7 @@ window.App = window.App || {};
           var data = {
             name: nameInput.input.value,
             area: areaInput.input.value,
+            leaseEndDate: leaseEndInput.input.value || null,
             rentPerSqm: rentInput.input.value,
             opexPerSqm: opexInput.input.value,
             indexationPct: idxInput.input.value,
@@ -6630,6 +6643,9 @@ window.App = window.App || {};
   }
   function numField(label, val, name) {
     var c = U.el('input', { type: 'number', min: '0', name: name }); c.value = (val === '' || val == null) ? '' : val; return fieldWrap(label, c);
+  }
+  function dateField(label, val, name) {
+    var c = U.el('input', { type: 'date', name: name }); c.value = val || ''; return fieldWrap(label, c);
   }
   function textareaField(label, val, name) {
     var c = U.el('textarea', { rows: '2', name: name }); c.value = val || ''; return fieldWrap(label, c);
