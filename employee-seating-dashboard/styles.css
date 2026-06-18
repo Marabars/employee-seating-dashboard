@@ -248,6 +248,7 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* Office card metrics row (Мест / Сотрудников / Баланс). */
 .office-card-area { font-size: 14px; color: var(--text-muted); margin: 4px 0 4px; }
 .office-card-lease { font-size: 13px; color: var(--yellow); margin: 0 0 8px; }
+.office-card-lease-date { display: block; }
 .office-metrics { display: flex; gap: 8px; margin-bottom: 8px; }
 .office-metric { flex: 1; background: var(--surface-2); border-radius: 8px; padding: 8px; text-align: center; }
 .office-metric-value { font-size: 24px; font-weight: 800; }
