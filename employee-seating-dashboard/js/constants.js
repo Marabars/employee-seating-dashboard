@@ -40,7 +40,8 @@ App.constants = (function () {
   var ZONE_TYPE = {
     CABINET: 'cabinet',
     OPEN_SPACE: 'open_space',
-    VIP: 'vip'
+    VIP: 'vip',
+    HYBRID: 'hybrid'
   };
 
   // Work formats
@@ -118,7 +119,8 @@ App.constants = (function () {
   var ZONE_TYPE_LABEL = {
     cabinet: 'Кабинеты',
     open_space: 'Опенспейс',
-    vip: 'VIP-кабинеты'
+    vip: 'VIP-кабинеты',
+    hybrid: 'Гибрид'
   };
 
   var WORK_FORMAT_LABEL = {

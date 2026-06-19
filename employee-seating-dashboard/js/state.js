@@ -23,12 +23,14 @@ App.state = (function () {
 
   // ---- Factories ---------------------------------------------------------
 
-  /** Create the system "Удаленка" office that every scenario owns. */
-  function createRemoteOffice() {
+  /** Create the system "Удаленка" office for a given phase (asis/tobe). */
+  function createRemoteOffice(phase) {
+    var isAsis = phase === C.OFFICE_PHASE.ASIS;
     return {
       id: U.genId('office_remote'),
       type: C.OFFICE_TYPE.REMOTE,
-      name: 'Удаленка',
+      phase: isAsis ? C.OFFICE_PHASE.ASIS : C.OFFICE_PHASE.TOBE,
+      name: isAsis ? 'Удаленка (AS IS)' : 'Удаленка (TO BE)',
       isSystem: true,
       unlimitedCapacity: true,
       comment: ''
@@ -44,6 +46,20 @@ App.state = (function () {
       capacity: 0,
       isVipZone: false,
       isSystem: true,
+      comment: ''
+    };
+  }
+
+  /** Create the system "Гибрид" zone present in every physical office. */
+  function createHybridZone() {
+    return {
+      id: U.genId('zone'),
+      name: 'Гибрид',
+      type: C.ZONE_TYPE.HYBRID,
+      capacity: 0,
+      isVipZone: false,
+      isSystem: true,
+      isHybrid: true,
       comment: ''
     };
   }
@@ -69,12 +85,11 @@ App.state = (function () {
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
       leaseEndDate: data.leaseEndDate || null
     };
+    // Гибрид is always the first zone — catches unzoned allocations.
+    office.zones.push(createHybridZone());
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
     });
-    if (office.zones.length === 0) {
-      office.zones.push(createDefaultOpenSpaceZone());
-    }
     return office;
   }
 
@@ -92,13 +107,13 @@ App.state = (function () {
     };
   }
 
-  /** Create a fresh scenario with only the system remote office. */
+  /** Create a fresh scenario with ASIS and TOBE remote offices. */
   function createScenario(name, comment) {
     return {
       id: U.genId('scenario'),
       name: name || 'Новый сценарий',
       comment: comment || '',
-      offices: [createRemoteOffice()],
+      offices: [createRemoteOffice(C.OFFICE_PHASE.ASIS), createRemoteOffice(C.OFFICE_PHASE.TOBE)],
       teams: [],
       employees: [],
       allocations: []
@@ -312,12 +327,22 @@ App.state = (function () {
         });
       });
 
-      var hasRemote = s.offices.some(function (o) {
-        return o.type === C.OFFICE_TYPE.REMOTE;
+      // Migrate legacy remote office (no phase) → TOBE; ensure both phases exist.
+      s.offices.forEach(function (o) {
+        if (o.type !== C.OFFICE_TYPE.REMOTE) { return; }
+        if (!o.phase) {
+          o.phase = C.OFFICE_PHASE.TOBE;
+          o.name = 'Удаленка (TO BE)';
+        }
       });
-      if (!hasRemote) {
-        s.offices.push(createRemoteOffice());
-      }
+      var hasAsisRemote = s.offices.some(function (o) {
+        return o.type === C.OFFICE_TYPE.REMOTE && o.phase === C.OFFICE_PHASE.ASIS;
+      });
+      var hasTobeRemote = s.offices.some(function (o) {
+        return o.type === C.OFFICE_TYPE.REMOTE && o.phase === C.OFFICE_PHASE.TOBE;
+      });
+      if (!hasAsisRemote) { s.offices.unshift(createRemoteOffice(C.OFFICE_PHASE.ASIS)); }
+      if (!hasTobeRemote) { s.offices.push(createRemoteOffice(C.OFFICE_PHASE.TOBE)); }
 
       // Normalize physical offices: migrate legacy old/new -> phase, ensure
       // zones + money fields exist.
@@ -337,10 +362,27 @@ App.state = (function () {
         if (o.zones.length === 0) {
           o.zones.push(createDefaultOpenSpaceZone());
         }
+        // Ensure every physical office has a Гибрид zone as first zone.
+        var hasHybrid = o.zones.some(function (z) { return z.isHybrid; });
+        if (!hasHybrid) {
+          o.zones.unshift(createHybridZone());
+        }
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
+      });
+
+      // Migrate allocations with no zone in physical offices → Гибрид zone.
+      s.allocations.forEach(function (a) {
+        if (a.targetZoneId) { return; }
+        var office = U.findById(s.offices, a.targetOfficeId);
+        if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) { return; }
+        var hybridZone = null;
+        (office.zones || []).forEach(function (z) {
+          if (!hybridZone && z.isHybrid) { hybridZone = z; }
+        });
+        if (hybridZone) { a.targetZoneId = hybridZone.id; }
       });
     });
 
@@ -355,6 +397,7 @@ App.state = (function () {
     // factories (reused by scenarios/offices modules)
     createRemoteOffice: createRemoteOffice,
     createDefaultOpenSpaceZone: createDefaultOpenSpaceZone,
+    createHybridZone: createHybridZone,
     createOffice: createOffice,
     makeZoneObject: makeZoneObject,
     createScenario: createScenario,

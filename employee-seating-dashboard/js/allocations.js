@@ -235,10 +235,10 @@ App.allocations = (function () {
     return true;
   }
 
-  /** Send a team's remaining unallocated headcount to the remote office. */
+  /** Send a team's remaining unallocated headcount to the TOBE remote office. */
   function sendTeamRemainderToRemote(teamId) {
     var s = scenario();
-    var remote = calc.getRemoteOffice(s);
+    var remote = calc.getRemoteOffice(s, C.OFFICE_PHASE.TOBE);
     if (!remote) {
       return null;
     }

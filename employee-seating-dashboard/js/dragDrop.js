@@ -294,8 +294,10 @@ App.dragDrop = (function () {
     }
 
     if (!isRemote && !zone) {
-      // Dropped on the office body -> must pick a zone.
-      pickZone(office, a.targetZoneId, function (zoneId) {
+      // Dropped on the office body -> must pick a zone (pre-select Гибрид).
+      var hybridZone = (office.zones || []).filter(function (z) { return z.isHybrid; })[0];
+      var defaultZoneId = (a.targetZoneId) || (hybridZone ? hybridZone.id : null);
+      pickZone(office, defaultZoneId, function (zoneId) {
         applyMove(zoneId);
       });
       return;
@@ -317,15 +319,20 @@ App.dragDrop = (function () {
     if (!emp) {
       return;
     }
+    // If dropped on the office body (no zone) for a physical office, route to Гибрид zone.
+    var targetZone = zone;
+    if (!targetZone && !isRemote) {
+      targetZone = (office.zones || []).filter(function (z) { return z.isHybrid; })[0] || null;
+    }
     // VIP check (warning only — placement still proceeds, per ТЗ §9.2).
-    if (!isRemote && zone) {
-      var conflict = alloc.vipConflict(!!emp.isVip, zone);
+    if (!isRemote && targetZone) {
+      var conflict = alloc.vipConflict(!!emp.isVip, targetZone);
       if (conflict) {
         announce('Предупреждение: ' + conflict);
       }
     }
-    alloc.setEmployeeAllocation(employeeId, office.id, zone ? zone.id : null, '');
-    announce('Сотрудник ' + emp.fullName + ' размещён в ' + office.name + (zone ? ' / ' + zone.name : ''));
+    alloc.setEmployeeAllocation(employeeId, office.id, targetZone ? targetZone.id : null, '');
+    announce('Сотрудник ' + emp.fullName + ' размещён в ' + office.name + (targetZone ? ' / ' + targetZone.name : ''));
   }
 
   function dropTeam(scenario, teamId, office, zone, isRemote) {

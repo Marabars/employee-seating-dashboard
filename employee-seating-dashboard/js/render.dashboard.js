@@ -19,7 +19,7 @@ window.App = window.App || {};
   var expanded = {};          // office card expanded
   var expandedZones = {};     // zone expanded within an office card
   var expandedZoneTeams = {}; // team expanded within a zone/office card (key: officeId:zoneId:teamId)
-  var expandedRemote = false; // remote card expanded
+  var expandedRemote = {};    // { [officeId]: boolean } — remote cards expanded
   var moneyMode = false;      // money toggle for office cards
   var hideAsis = false;       // hide AS IS section on dashboard
   var hideTobe = false;       // hide TO BE section on dashboard
@@ -80,12 +80,14 @@ window.App = window.App || {};
         return sum + calc.calculateOfficeOccupancy(scenario, o.id);
       }, 0);
       var asisBalance = asisCapacity - asisOccupied;
+      var asisRemoteCount = calc.calculateAsisRemoteCount(scenario);
       var asisRow = U.el('div', { class: 'kpi-grid kpi-grid-asis' });
       asisRow.appendChild(R.kpiCard('Вместимость (AS IS)', asisCapacity, 'blue'));
       asisRow.appendChild(R.kpiCard('Занято (AS IS)', asisOccupied, 'blue'));
       asisRow.appendChild(R.kpiCard('Баланс мест (AS IS)',
         (asisBalance >= 0 ? '+' : '') + asisBalance,
         asisBalance >= 0 ? 'blue' : 'red'));
+      asisRow.appendChild(R.kpiCard('Удаленка (AS IS)', asisRemoteCount, 'blue'));
       panel.appendChild(asisRow);
     }
 
@@ -396,10 +398,13 @@ window.App = window.App || {};
       box.appendChild(teamBox);
 
       if (isTeamExpanded && allTeamEmployees.length > 0) {
-        // Employees with individual EMPLOYEE alloc in THIS office (any zone).
+        // Employees with individual EMPLOYEE alloc in THIS zone (not just office).
         var placedHereIds = {};
         (scenario.allocations || []).forEach(function (a) {
-          if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.targetOfficeId === office.id && a.employeeId) {
+          if (a.type === C.ALLOCATION_TYPE.EMPLOYEE &&
+              a.targetOfficeId === office.id &&
+              (a.targetZoneId || null) === zone.id &&
+              a.employeeId) {
             placedHereIds[a.employeeId] = true;
           }
         });
@@ -475,29 +480,40 @@ window.App = window.App || {};
   }
 
   function renderRemoteCard(scenario, ctx) {
-    var remote = calc.getRemoteOffice(scenario);
-    if (!remote) {
+    var remoteAsis = calc.getRemoteOffice(scenario, C.OFFICE_PHASE.ASIS);
+    var remoteTobe = calc.getRemoteOffice(scenario, C.OFFICE_PHASE.TOBE);
+    if (!remoteAsis && !remoteTobe) {
       return U.el('div');
     }
-    var occ = calc.calculateOfficeOccupancy(scenario, remote.id);
     var panel = R.section('Удаленка');
+    var grid = U.el('div', { class: 'office-grid' });
+    if (remoteAsis) { grid.appendChild(renderSingleRemoteCard(scenario, remoteAsis, 'AS IS')); }
+    if (remoteTobe) { grid.appendChild(renderSingleRemoteCard(scenario, remoteTobe, 'TO BE')); }
+    panel.appendChild(grid);
+    return panel;
+  }
+
+  function renderSingleRemoteCard(scenario, remote, phaseLabel) {
+    var occ = calc.calculateOfficeOccupancy(scenario, remote.id);
+    var isExpanded = !!expandedRemote[remote.id];
 
     var toggleBtn = U.el('button', {
       class: 'zone-toggle',
-      title: expandedRemote ? 'Свернуть' : 'Развернуть'
-    }, expandedRemote ? '▾' : '▸');
-    toggleBtn.addEventListener('click', function () {
-      expandedRemote = !expandedRemote;
-      R.render();
-    });
+      title: isExpanded ? 'Свернуть' : 'Развернуть'
+    }, isExpanded ? '▾' : '▸');
+    toggleBtn.addEventListener('click', (function (id, exp) {
+      return function () { expandedRemote[id] = !exp; R.render(); };
+    })(remote.id, isExpanded));
 
+    var phaseClass = remote.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
     var card = U.el('div', {
       class: 'office-card remote-card status-border-blue',
       dataset: { dropOffice: remote.id }
     }, [
       U.el('div', { class: 'remote-header' }, [
         toggleBtn,
-        U.el('h3', { text: 'Удаленка' })
+        U.el('h3', { text: 'Удаленка' }),
+        U.el('span', { class: 'phase-tag ' + phaseClass, text: phaseLabel })
       ]),
       U.el('div', { class: 'office-card-meta' }, [
         U.el('span', { text: 'Без лимита вместимости' }),
@@ -505,12 +521,10 @@ window.App = window.App || {};
       ])
     ]);
 
-    if (expandedRemote && occ > 0) {
+    if (isExpanded && occ > 0) {
       card.appendChild(renderRemoteTeams(scenario, remote));
     }
-
-    panel.appendChild(card);
-    return panel;
+    return card;
   }
 
   /** Teams and employees placed in the remote office, shown when card is expanded. */

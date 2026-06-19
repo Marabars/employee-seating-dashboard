@@ -160,11 +160,22 @@ App.calc = (function () {
     return C.STATUS_COLOR.RED;
   }
 
-  /** Find the remote (Удаленка) office of a scenario, if any. */
-  function getRemoteOffice(scenario) {
-    return (scenario.offices || []).filter(function (o) {
+  /**
+   * Find the remote (Удаленка) office of a scenario.
+   * Pass phase ('asis'/'tobe') to get the phase-specific office.
+   * Without phase returns the TOBE remote (backward compat).
+   */
+  function getRemoteOffice(scenario, phase) {
+    var remotes = (scenario.offices || []).filter(function (o) {
       return o.type === C.OFFICE_TYPE.REMOTE;
-    })[0] || null;
+    });
+    if (phase) {
+      return remotes.filter(function (o) { return o.phase === phase; })[0] || null;
+    }
+    // Default: TOBE remote (planning office).
+    return remotes.filter(function (o) {
+      return o.phase === C.OFFICE_PHASE.TOBE;
+    })[0] || remotes[0] || null;
   }
 
   /** Physical offices of a scenario (both phases). */
@@ -229,9 +240,18 @@ App.calc = (function () {
     return total;
   }
 
-  /** Total seats allocated to the remote office. */
+  /** Total seats allocated to the TOBE remote office (used in planning KPIs). */
   function calculateRemoteCount(scenario) {
-    var remote = getRemoteOffice(scenario);
+    var remote = getRemoteOffice(scenario, C.OFFICE_PHASE.TOBE);
+    if (!remote) {
+      return 0;
+    }
+    return calculateOfficeOccupancy(scenario, remote.id);
+  }
+
+  /** Total seats allocated to the ASIS remote office. */
+  function calculateAsisRemoteCount(scenario) {
+    var remote = getRemoteOffice(scenario, C.OFFICE_PHASE.ASIS);
     if (!remote) {
       return 0;
     }
@@ -541,6 +561,7 @@ App.calc = (function () {
     officeAnnualCost: officeAnnualCost,
     officeCostNYears: officeCostNYears,
     calculateRemoteCount: calculateRemoteCount,
+    calculateAsisRemoteCount: calculateAsisRemoteCount,
     calculatePlacedInOffices: calculatePlacedInOffices,
     calculateTotalEmployees: calculateTotalEmployees,
     calculateNewOfficesCapacity: calculateNewOfficesCapacity,
