@@ -255,6 +255,7 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* Office card metrics row (Мест / Сотрудников / Баланс). */
 .office-card-area { font-size: 14px; color: var(--text-muted); margin: 4px 0 4px; }
 .office-card-lease { font-size: 13px; color: var(--yellow); margin: 0 0 8px; }
+.office-card-lease-date { display: block; }
 .office-metrics { display: flex; gap: 8px; margin-bottom: 8px; }
 .office-metric { flex: 1; background: var(--surface-2); border-radius: 8px; padding: 8px; text-align: center; }
 .office-metric-value { font-size: 24px; font-weight: 800; }
@@ -1432,7 +1433,8 @@ App.constants = (function () {
   var ZONE_TYPE = {
     CABINET: 'cabinet',
     OPEN_SPACE: 'open_space',
-    VIP: 'vip'
+    VIP: 'vip',
+    HYBRID: 'hybrid'
   };
 
   // Work formats
@@ -1510,7 +1512,8 @@ App.constants = (function () {
   var ZONE_TYPE_LABEL = {
     cabinet: 'Кабинеты',
     open_space: 'Опенспейс',
-    vip: 'VIP-кабинеты'
+    vip: 'VIP-кабинеты',
+    hybrid: 'Гибрид'
   };
 
   var WORK_FORMAT_LABEL = {
@@ -2003,12 +2006,14 @@ App.state = (function () {
 
   // ---- Factories ---------------------------------------------------------
 
-  /** Create the system "Удаленка" office that every scenario owns. */
-  function createRemoteOffice() {
+  /** Create the system "Удаленка" office for a given phase (asis/tobe). */
+  function createRemoteOffice(phase) {
+    var isAsis = phase === C.OFFICE_PHASE.ASIS;
     return {
       id: U.genId('office_remote'),
       type: C.OFFICE_TYPE.REMOTE,
-      name: 'Удаленка',
+      phase: isAsis ? C.OFFICE_PHASE.ASIS : C.OFFICE_PHASE.TOBE,
+      name: isAsis ? 'Удаленка (AS IS)' : 'Удаленка (TO BE)',
       isSystem: true,
       unlimitedCapacity: true,
       comment: ''
@@ -2024,6 +2029,20 @@ App.state = (function () {
       capacity: 0,
       isVipZone: false,
       isSystem: true,
+      comment: ''
+    };
+  }
+
+  /** Create the system "Гибрид" zone present in every physical office. */
+  function createHybridZone() {
+    return {
+      id: U.genId('zone'),
+      name: 'Гибрид',
+      type: C.ZONE_TYPE.HYBRID,
+      capacity: 0,
+      isVipZone: false,
+      isSystem: true,
+      isHybrid: true,
       comment: ''
     };
   }
@@ -2049,12 +2068,11 @@ App.state = (function () {
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
       leaseEndDate: data.leaseEndDate || null
     };
+    // Гибрид is always the first zone — catches unzoned allocations.
+    office.zones.push(createHybridZone());
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
     });
-    if (office.zones.length === 0) {
-      office.zones.push(createDefaultOpenSpaceZone());
-    }
     return office;
   }
 
@@ -2072,13 +2090,13 @@ App.state = (function () {
     };
   }
 
-  /** Create a fresh scenario with only the system remote office. */
+  /** Create a fresh scenario with ASIS and TOBE remote offices. */
   function createScenario(name, comment) {
     return {
       id: U.genId('scenario'),
       name: name || 'Новый сценарий',
       comment: comment || '',
-      offices: [createRemoteOffice()],
+      offices: [createRemoteOffice(C.OFFICE_PHASE.ASIS), createRemoteOffice(C.OFFICE_PHASE.TOBE)],
       teams: [],
       employees: [],
       allocations: []
@@ -2292,12 +2310,22 @@ App.state = (function () {
         });
       });
 
-      var hasRemote = s.offices.some(function (o) {
-        return o.type === C.OFFICE_TYPE.REMOTE;
+      // Migrate legacy remote office (no phase) → TOBE; ensure both phases exist.
+      s.offices.forEach(function (o) {
+        if (o.type !== C.OFFICE_TYPE.REMOTE) { return; }
+        if (!o.phase) {
+          o.phase = C.OFFICE_PHASE.TOBE;
+          o.name = 'Удаленка (TO BE)';
+        }
       });
-      if (!hasRemote) {
-        s.offices.push(createRemoteOffice());
-      }
+      var hasAsisRemote = s.offices.some(function (o) {
+        return o.type === C.OFFICE_TYPE.REMOTE && o.phase === C.OFFICE_PHASE.ASIS;
+      });
+      var hasTobeRemote = s.offices.some(function (o) {
+        return o.type === C.OFFICE_TYPE.REMOTE && o.phase === C.OFFICE_PHASE.TOBE;
+      });
+      if (!hasAsisRemote) { s.offices.unshift(createRemoteOffice(C.OFFICE_PHASE.ASIS)); }
+      if (!hasTobeRemote) { s.offices.push(createRemoteOffice(C.OFFICE_PHASE.TOBE)); }
 
       // Normalize physical offices: migrate legacy old/new -> phase, ensure
       // zones + money fields exist.
@@ -2317,10 +2345,27 @@ App.state = (function () {
         if (o.zones.length === 0) {
           o.zones.push(createDefaultOpenSpaceZone());
         }
+        // Ensure every physical office has a Гибрид zone as first zone.
+        var hasHybrid = o.zones.some(function (z) { return z.isHybrid; });
+        if (!hasHybrid) {
+          o.zones.unshift(createHybridZone());
+        }
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
+      });
+
+      // Migrate allocations with no zone in physical offices → Гибрид zone.
+      s.allocations.forEach(function (a) {
+        if (a.targetZoneId) { return; }
+        var office = U.findById(s.offices, a.targetOfficeId);
+        if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) { return; }
+        var hybridZone = null;
+        (office.zones || []).forEach(function (z) {
+          if (!hybridZone && z.isHybrid) { hybridZone = z; }
+        });
+        if (hybridZone) { a.targetZoneId = hybridZone.id; }
       });
     });
 
@@ -2335,6 +2380,7 @@ App.state = (function () {
     // factories (reused by scenarios/offices modules)
     createRemoteOffice: createRemoteOffice,
     createDefaultOpenSpaceZone: createDefaultOpenSpaceZone,
+    createHybridZone: createHybridZone,
     createOffice: createOffice,
     makeZoneObject: makeZoneObject,
     createScenario: createScenario,
@@ -3267,11 +3313,22 @@ App.calc = (function () {
     return C.STATUS_COLOR.RED;
   }
 
-  /** Find the remote (Удаленка) office of a scenario, if any. */
-  function getRemoteOffice(scenario) {
-    return (scenario.offices || []).filter(function (o) {
+  /**
+   * Find the remote (Удаленка) office of a scenario.
+   * Pass phase ('asis'/'tobe') to get the phase-specific office.
+   * Without phase returns the TOBE remote (backward compat).
+   */
+  function getRemoteOffice(scenario, phase) {
+    var remotes = (scenario.offices || []).filter(function (o) {
       return o.type === C.OFFICE_TYPE.REMOTE;
-    })[0] || null;
+    });
+    if (phase) {
+      return remotes.filter(function (o) { return o.phase === phase; })[0] || null;
+    }
+    // Default: TOBE remote (planning office).
+    return remotes.filter(function (o) {
+      return o.phase === C.OFFICE_PHASE.TOBE;
+    })[0] || remotes[0] || null;
   }
 
   /** Physical offices of a scenario (both phases). */
@@ -3336,9 +3393,18 @@ App.calc = (function () {
     return total;
   }
 
-  /** Total seats allocated to the remote office. */
+  /** Total seats allocated to the TOBE remote office (used in planning KPIs). */
   function calculateRemoteCount(scenario) {
-    var remote = getRemoteOffice(scenario);
+    var remote = getRemoteOffice(scenario, C.OFFICE_PHASE.TOBE);
+    if (!remote) {
+      return 0;
+    }
+    return calculateOfficeOccupancy(scenario, remote.id);
+  }
+
+  /** Total seats allocated to the ASIS remote office. */
+  function calculateAsisRemoteCount(scenario) {
+    var remote = getRemoteOffice(scenario, C.OFFICE_PHASE.ASIS);
     if (!remote) {
       return 0;
     }
@@ -3648,6 +3714,7 @@ App.calc = (function () {
     officeAnnualCost: officeAnnualCost,
     officeCostNYears: officeCostNYears,
     calculateRemoteCount: calculateRemoteCount,
+    calculateAsisRemoteCount: calculateAsisRemoteCount,
     calculatePlacedInOffices: calculatePlacedInOffices,
     calculateTotalEmployees: calculateTotalEmployees,
     calculateNewOfficesCapacity: calculateNewOfficesCapacity,
@@ -3901,10 +3968,10 @@ App.allocations = (function () {
     return true;
   }
 
-  /** Send a team's remaining unallocated headcount to the remote office. */
+  /** Send a team's remaining unallocated headcount to the TOBE remote office. */
   function sendTeamRemainderToRemote(teamId) {
     var s = scenario();
-    var remote = calc.getRemoteOffice(s);
+    var remote = calc.getRemoteOffice(s, C.OFFICE_PHASE.TOBE);
     if (!remote) {
       return null;
     }
@@ -5271,7 +5338,7 @@ window.App = window.App || {};
   var expanded = {};          // office card expanded
   var expandedZones = {};     // zone expanded within an office card
   var expandedZoneTeams = {}; // team expanded within a zone/office card (key: officeId:zoneId:teamId)
-  var expandedRemote = false; // remote card expanded
+  var expandedRemote = {};    // { [officeId]: boolean } — remote cards expanded
   var moneyMode = false;      // money toggle for office cards
   var hideAsis = false;       // hide AS IS section on dashboard
   var hideTobe = false;       // hide TO BE section on dashboard
@@ -5332,12 +5399,14 @@ window.App = window.App || {};
         return sum + calc.calculateOfficeOccupancy(scenario, o.id);
       }, 0);
       var asisBalance = asisCapacity - asisOccupied;
+      var asisRemoteCount = calc.calculateAsisRemoteCount(scenario);
       var asisRow = U.el('div', { class: 'kpi-grid kpi-grid-asis' });
       asisRow.appendChild(R.kpiCard('Вместимость (AS IS)', asisCapacity, 'blue'));
       asisRow.appendChild(R.kpiCard('Занято (AS IS)', asisOccupied, 'blue'));
       asisRow.appendChild(R.kpiCard('Баланс мест (AS IS)',
         (asisBalance >= 0 ? '+' : '') + asisBalance,
         asisBalance >= 0 ? 'blue' : 'red'));
+      asisRow.appendChild(R.kpiCard('Удаленка (AS IS)', asisRemoteCount, 'blue'));
       panel.appendChild(asisRow);
     }
 
@@ -5459,7 +5528,10 @@ window.App = window.App || {};
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
 
     if (office.phase === C.OFFICE_PHASE.ASIS && office.leaseEndDate) {
-      card.appendChild(U.el('div', { class: 'office-card-lease', text: 'Дата окончания договора: ' + office.leaseEndDate }));
+      card.appendChild(U.el('div', { class: 'office-card-lease' }, [
+        U.el('span', { text: 'Дата окончания договора:' }),
+        U.el('span', { class: 'office-card-lease-date', text: office.leaseEndDate })
+      ]));
     }
 
     if (moneyMode) {
@@ -5645,10 +5717,13 @@ window.App = window.App || {};
       box.appendChild(teamBox);
 
       if (isTeamExpanded && allTeamEmployees.length > 0) {
-        // Employees with individual EMPLOYEE alloc in THIS office (any zone).
+        // Employees with individual EMPLOYEE alloc in THIS zone (not just office).
         var placedHereIds = {};
         (scenario.allocations || []).forEach(function (a) {
-          if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.targetOfficeId === office.id && a.employeeId) {
+          if (a.type === C.ALLOCATION_TYPE.EMPLOYEE &&
+              a.targetOfficeId === office.id &&
+              (a.targetZoneId || null) === zone.id &&
+              a.employeeId) {
             placedHereIds[a.employeeId] = true;
           }
         });
@@ -5724,29 +5799,40 @@ window.App = window.App || {};
   }
 
   function renderRemoteCard(scenario, ctx) {
-    var remote = calc.getRemoteOffice(scenario);
-    if (!remote) {
+    var remoteAsis = calc.getRemoteOffice(scenario, C.OFFICE_PHASE.ASIS);
+    var remoteTobe = calc.getRemoteOffice(scenario, C.OFFICE_PHASE.TOBE);
+    if (!remoteAsis && !remoteTobe) {
       return U.el('div');
     }
-    var occ = calc.calculateOfficeOccupancy(scenario, remote.id);
     var panel = R.section('Удаленка');
+    var grid = U.el('div', { class: 'office-grid' });
+    if (remoteAsis) { grid.appendChild(renderSingleRemoteCard(scenario, remoteAsis, 'AS IS')); }
+    if (remoteTobe) { grid.appendChild(renderSingleRemoteCard(scenario, remoteTobe, 'TO BE')); }
+    panel.appendChild(grid);
+    return panel;
+  }
+
+  function renderSingleRemoteCard(scenario, remote, phaseLabel) {
+    var occ = calc.calculateOfficeOccupancy(scenario, remote.id);
+    var isExpanded = !!expandedRemote[remote.id];
 
     var toggleBtn = U.el('button', {
       class: 'zone-toggle',
-      title: expandedRemote ? 'Свернуть' : 'Развернуть'
-    }, expandedRemote ? '▾' : '▸');
-    toggleBtn.addEventListener('click', function () {
-      expandedRemote = !expandedRemote;
-      R.render();
-    });
+      title: isExpanded ? 'Свернуть' : 'Развернуть'
+    }, isExpanded ? '▾' : '▸');
+    toggleBtn.addEventListener('click', (function (id, exp) {
+      return function () { expandedRemote[id] = !exp; R.render(); };
+    })(remote.id, isExpanded));
 
+    var phaseClass = remote.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
     var card = U.el('div', {
       class: 'office-card remote-card status-border-blue',
       dataset: { dropOffice: remote.id }
     }, [
       U.el('div', { class: 'remote-header' }, [
         toggleBtn,
-        U.el('h3', { text: 'Удаленка' })
+        U.el('h3', { text: 'Удаленка' }),
+        U.el('span', { class: 'phase-tag ' + phaseClass, text: phaseLabel })
       ]),
       U.el('div', { class: 'office-card-meta' }, [
         U.el('span', { text: 'Без лимита вместимости' }),
@@ -5754,12 +5840,10 @@ window.App = window.App || {};
       ])
     ]);
 
-    if (expandedRemote && occ > 0) {
+    if (isExpanded && occ > 0) {
       card.appendChild(renderRemoteTeams(scenario, remote));
     }
-
-    panel.appendChild(card);
-    return panel;
+    return card;
   }
 
   /** Teams and employees placed in the remote office, shown when card is expanded. */
@@ -8237,8 +8321,10 @@ App.dragDrop = (function () {
     }
 
     if (!isRemote && !zone) {
-      // Dropped on the office body -> must pick a zone.
-      pickZone(office, a.targetZoneId, function (zoneId) {
+      // Dropped on the office body -> must pick a zone (pre-select Гибрид).
+      var hybridZone = (office.zones || []).filter(function (z) { return z.isHybrid; })[0];
+      var defaultZoneId = (a.targetZoneId) || (hybridZone ? hybridZone.id : null);
+      pickZone(office, defaultZoneId, function (zoneId) {
         applyMove(zoneId);
       });
       return;
@@ -8260,15 +8346,20 @@ App.dragDrop = (function () {
     if (!emp) {
       return;
     }
+    // If dropped on the office body (no zone) for a physical office, route to Гибрид zone.
+    var targetZone = zone;
+    if (!targetZone && !isRemote) {
+      targetZone = (office.zones || []).filter(function (z) { return z.isHybrid; })[0] || null;
+    }
     // VIP check (warning only — placement still proceeds, per ТЗ §9.2).
-    if (!isRemote && zone) {
-      var conflict = alloc.vipConflict(!!emp.isVip, zone);
+    if (!isRemote && targetZone) {
+      var conflict = alloc.vipConflict(!!emp.isVip, targetZone);
       if (conflict) {
         announce('Предупреждение: ' + conflict);
       }
     }
-    alloc.setEmployeeAllocation(employeeId, office.id, zone ? zone.id : null, '');
-    announce('Сотрудник ' + emp.fullName + ' размещён в ' + office.name + (zone ? ' / ' + zone.name : ''));
+    alloc.setEmployeeAllocation(employeeId, office.id, targetZone ? targetZone.id : null, '');
+    announce('Сотрудник ' + emp.fullName + ' размещён в ' + office.name + (targetZone ? ' / ' + targetZone.name : ''));
   }
 
   function dropTeam(scenario, teamId, office, zone, isRemote) {
