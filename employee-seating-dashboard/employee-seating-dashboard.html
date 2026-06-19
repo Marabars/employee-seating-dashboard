@@ -1433,8 +1433,7 @@ App.constants = (function () {
   var ZONE_TYPE = {
     CABINET: 'cabinet',
     OPEN_SPACE: 'open_space',
-    VIP: 'vip',
-    HYBRID: 'hybrid'
+    VIP: 'vip'
   };
 
   // Work formats
@@ -1512,8 +1511,7 @@ App.constants = (function () {
   var ZONE_TYPE_LABEL = {
     cabinet: 'Кабинеты',
     open_space: 'Опенспейс',
-    vip: 'VIP-кабинеты',
-    hybrid: 'Гибрид'
+    vip: 'VIP-кабинеты'
   };
 
   var WORK_FORMAT_LABEL = {
@@ -2033,20 +2031,6 @@ App.state = (function () {
     };
   }
 
-  /** Create the system "Гибрид" zone present in every physical office. */
-  function createHybridZone() {
-    return {
-      id: U.genId('zone'),
-      name: 'Гибрид',
-      type: C.ZONE_TYPE.HYBRID,
-      capacity: 0,
-      isVipZone: false,
-      isSystem: true,
-      isHybrid: true,
-      comment: ''
-    };
-  }
-
   /**
    * Create a physical office for a phase (asis/tobe). `data.zones` is an
    * optional array of { name, type, capacity, isVipZone }. If none given, an
@@ -2068,11 +2052,12 @@ App.state = (function () {
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
       leaseEndDate: data.leaseEndDate || null
     };
-    // Гибрид is always the first zone — catches unzoned allocations.
-    office.zones.push(createHybridZone());
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
     });
+    if (office.zones.length === 0) {
+      office.zones.push(createDefaultOpenSpaceZone());
+    }
     return office;
   }
 
@@ -2345,28 +2330,12 @@ App.state = (function () {
         if (o.zones.length === 0) {
           o.zones.push(createDefaultOpenSpaceZone());
         }
-        // Ensure every physical office has a Гибрид zone as first zone.
-        var hasHybrid = o.zones.some(function (z) { return z.isHybrid; });
-        if (!hasHybrid) {
-          o.zones.unshift(createHybridZone());
-        }
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
       });
 
-      // Migrate allocations with no zone in physical offices → Гибрид zone.
-      s.allocations.forEach(function (a) {
-        if (a.targetZoneId) { return; }
-        var office = U.findById(s.offices, a.targetOfficeId);
-        if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) { return; }
-        var hybridZone = null;
-        (office.zones || []).forEach(function (z) {
-          if (!hybridZone && z.isHybrid) { hybridZone = z; }
-        });
-        if (hybridZone) { a.targetZoneId = hybridZone.id; }
-      });
     });
 
     if (!p.settings.lastSelectedScenarioId ||
@@ -2380,7 +2349,6 @@ App.state = (function () {
     // factories (reused by scenarios/offices modules)
     createRemoteOffice: createRemoteOffice,
     createDefaultOpenSpaceZone: createDefaultOpenSpaceZone,
-    createHybridZone: createHybridZone,
     createOffice: createOffice,
     makeZoneObject: makeZoneObject,
     createScenario: createScenario,
@@ -8321,10 +8289,8 @@ App.dragDrop = (function () {
     }
 
     if (!isRemote && !zone) {
-      // Dropped on the office body -> must pick a zone (pre-select Гибрид).
-      var hybridZone = (office.zones || []).filter(function (z) { return z.isHybrid; })[0];
-      var defaultZoneId = (a.targetZoneId) || (hybridZone ? hybridZone.id : null);
-      pickZone(office, defaultZoneId, function (zoneId) {
+      // Dropped on the office body -> must pick a zone.
+      pickZone(office, a.targetZoneId, function (zoneId) {
         applyMove(zoneId);
       });
       return;
@@ -8346,20 +8312,15 @@ App.dragDrop = (function () {
     if (!emp) {
       return;
     }
-    // If dropped on the office body (no zone) for a physical office, route to Гибрид zone.
-    var targetZone = zone;
-    if (!targetZone && !isRemote) {
-      targetZone = (office.zones || []).filter(function (z) { return z.isHybrid; })[0] || null;
-    }
     // VIP check (warning only — placement still proceeds, per ТЗ §9.2).
-    if (!isRemote && targetZone) {
-      var conflict = alloc.vipConflict(!!emp.isVip, targetZone);
+    if (!isRemote && zone) {
+      var conflict = alloc.vipConflict(!!emp.isVip, zone);
       if (conflict) {
         announce('Предупреждение: ' + conflict);
       }
     }
-    alloc.setEmployeeAllocation(employeeId, office.id, targetZone ? targetZone.id : null, '');
-    announce('Сотрудник ' + emp.fullName + ' размещён в ' + office.name + (targetZone ? ' / ' + targetZone.name : ''));
+    alloc.setEmployeeAllocation(employeeId, office.id, zone ? zone.id : null, '');
+    announce('Сотрудник ' + emp.fullName + ' размещён в ' + office.name + (zone ? ' / ' + zone.name : ''));
   }
 
   function dropTeam(scenario, teamId, office, zone, isRemote) {

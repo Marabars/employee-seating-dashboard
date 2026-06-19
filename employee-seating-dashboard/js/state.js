@@ -50,20 +50,6 @@ App.state = (function () {
     };
   }
 
-  /** Create the system "Гибрид" zone present in every physical office. */
-  function createHybridZone() {
-    return {
-      id: U.genId('zone'),
-      name: 'Гибрид',
-      type: C.ZONE_TYPE.HYBRID,
-      capacity: 0,
-      isVipZone: false,
-      isSystem: true,
-      isHybrid: true,
-      comment: ''
-    };
-  }
-
   /**
    * Create a physical office for a phase (asis/tobe). `data.zones` is an
    * optional array of { name, type, capacity, isVipZone }. If none given, an
@@ -85,11 +71,12 @@ App.state = (function () {
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
       leaseEndDate: data.leaseEndDate || null
     };
-    // Гибрид is always the first zone — catches unzoned allocations.
-    office.zones.push(createHybridZone());
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
     });
+    if (office.zones.length === 0) {
+      office.zones.push(createDefaultOpenSpaceZone());
+    }
     return office;
   }
 
@@ -362,28 +349,12 @@ App.state = (function () {
         if (o.zones.length === 0) {
           o.zones.push(createDefaultOpenSpaceZone());
         }
-        // Ensure every physical office has a Гибрид zone as first zone.
-        var hasHybrid = o.zones.some(function (z) { return z.isHybrid; });
-        if (!hasHybrid) {
-          o.zones.unshift(createHybridZone());
-        }
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
       });
 
-      // Migrate allocations with no zone in physical offices → Гибрид zone.
-      s.allocations.forEach(function (a) {
-        if (a.targetZoneId) { return; }
-        var office = U.findById(s.offices, a.targetOfficeId);
-        if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) { return; }
-        var hybridZone = null;
-        (office.zones || []).forEach(function (z) {
-          if (!hybridZone && z.isHybrid) { hybridZone = z; }
-        });
-        if (hybridZone) { a.targetZoneId = hybridZone.id; }
-      });
     });
 
     if (!p.settings.lastSelectedScenarioId ||
@@ -397,7 +368,6 @@ App.state = (function () {
     // factories (reused by scenarios/offices modules)
     createRemoteOffice: createRemoteOffice,
     createDefaultOpenSpaceZone: createDefaultOpenSpaceZone,
-    createHybridZone: createHybridZone,
     createOffice: createOffice,
     makeZoneObject: makeZoneObject,
     createScenario: createScenario,
