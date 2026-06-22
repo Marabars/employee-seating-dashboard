@@ -24,6 +24,7 @@ window.App = window.App || {};
   var hideAsis = false;       // hide AS IS section on dashboard
   var hideTobe = false;       // hide TO BE section on dashboard
   var teamSearch = '';        // search in unallocated teams panel
+  var expandedMsgGroups = { error: true, warning: true, info: true }; // message group collapse state
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -666,15 +667,54 @@ window.App = window.App || {};
       panel.appendChild(U.el('p', { class: 'muted', text: 'Нет сообщений' }));
       return panel;
     }
-    var listEl = U.el('ul', { class: 'message-list' });
+
+    var order = [C.LEVEL.ERROR, C.LEVEL.WARNING, C.LEVEL.INFO];
+    var groups = {};
+    order.forEach(function (lvl) { groups[lvl] = []; });
     ctx.messages.forEach(function (m) {
-      listEl.appendChild(U.el('li', { class: 'message-item level-' + m.level }, [
-        R.badge(levelLabel(m.level), levelColor(m.level)),
-        U.el('span', { text: m.message })
-      ]));
+      if (groups[m.level]) { groups[m.level].push(m); }
     });
-    panel.appendChild(listEl);
+
+    order.forEach(function (lvl) {
+      var msgs = groups[lvl];
+      if (msgs.length === 0) { return; }
+
+      var isOpen = !!expandedMsgGroups[lvl];
+      var arrow = isOpen ? '▾' : '▸';
+      var groupHeader = U.el('div', {
+        class: 'msg-group-header msg-group-' + lvl + (isOpen ? ' open' : ''),
+        onclick: function () {
+          expandedMsgGroups[lvl] = !expandedMsgGroups[lvl];
+          R.render();
+        }
+      }, [
+        U.el('span', { class: 'msg-group-arrow', text: arrow }),
+        R.badge(levelLabel(lvl), levelColor(lvl)),
+        U.el('span', { class: 'msg-group-count', text: msgs.length + ' ' + pluralMessages(msgs.length) })
+      ]);
+      panel.appendChild(groupHeader);
+
+      if (isOpen) {
+        var listEl = U.el('ul', { class: 'message-list message-group-body' });
+        msgs.forEach(function (m) {
+          listEl.appendChild(U.el('li', { class: 'message-item level-' + m.level }, [
+            U.el('span', { text: m.message })
+          ]));
+        });
+        panel.appendChild(listEl);
+      }
+    });
+
     return panel;
+  }
+
+  function pluralMessages(n) {
+    var abs = Math.abs(n) % 100;
+    var last = abs % 10;
+    if (abs > 10 && abs < 20) { return 'сообщений'; }
+    if (last === 1) { return 'сообщение'; }
+    if (last > 1 && last < 5) { return 'сообщения'; }
+    return 'сообщений';
   }
 
   function levelLabel(level) {

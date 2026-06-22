@@ -868,6 +868,33 @@ tr.office-drop-below > td {
 .zone-member-row[data-drag-kind]:hover { background: var(--surface-2); }
 .zone-member-row.dragging { opacity: 0.5; }
 
+/* ── Dashboard: collapsible message groups ──────────────────────────────── */
+.msg-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; margin-top: 6px;
+  border-radius: 6px; cursor: pointer;
+  background: var(--surface-2);
+  user-select: none;
+  transition: background 0.15s;
+}
+.msg-group-header:first-child { margin-top: 0; }
+.msg-group-header:hover { background: var(--border); }
+.msg-group-arrow { font-size: 0.85em; color: var(--text-muted); min-width: 10px; }
+.msg-group-count { font-size: 0.85em; color: var(--text-muted); margin-left: auto; }
+.message-group-body {
+  list-style: none; margin: 0 0 4px 0; padding: 0;
+  border-left: 2px solid var(--border);
+  margin-left: 10px;
+}
+.message-group-body .message-item {
+  padding: 6px 10px; font-size: 0.875em; color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.message-group-body .message-item:last-child { border-bottom: none; }
+.message-group-body .level-error  { border-left: 3px solid var(--red);    padding-left: 8px; }
+.message-group-body .level-warning { border-left: 3px solid var(--yellow); padding-left: 8px; }
+.message-group-body .level-info   { border-left: 3px solid var(--blue);   padding-left: 8px; }
+
 </style>
 </head>
 <body>
@@ -5316,6 +5343,7 @@ window.App = window.App || {};
   var hideAsis = false;       // hide AS IS section on dashboard
   var hideTobe = false;       // hide TO BE section on dashboard
   var teamSearch = '';        // search in unallocated teams panel
+  var expandedMsgGroups = { error: true, warning: true, info: true }; // message group collapse state
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -5958,15 +5986,54 @@ window.App = window.App || {};
       panel.appendChild(U.el('p', { class: 'muted', text: 'Нет сообщений' }));
       return panel;
     }
-    var listEl = U.el('ul', { class: 'message-list' });
+
+    var order = [C.LEVEL.ERROR, C.LEVEL.WARNING, C.LEVEL.INFO];
+    var groups = {};
+    order.forEach(function (lvl) { groups[lvl] = []; });
     ctx.messages.forEach(function (m) {
-      listEl.appendChild(U.el('li', { class: 'message-item level-' + m.level }, [
-        R.badge(levelLabel(m.level), levelColor(m.level)),
-        U.el('span', { text: m.message })
-      ]));
+      if (groups[m.level]) { groups[m.level].push(m); }
     });
-    panel.appendChild(listEl);
+
+    order.forEach(function (lvl) {
+      var msgs = groups[lvl];
+      if (msgs.length === 0) { return; }
+
+      var isOpen = !!expandedMsgGroups[lvl];
+      var arrow = isOpen ? '▾' : '▸';
+      var groupHeader = U.el('div', {
+        class: 'msg-group-header msg-group-' + lvl + (isOpen ? ' open' : ''),
+        onclick: function () {
+          expandedMsgGroups[lvl] = !expandedMsgGroups[lvl];
+          R.render();
+        }
+      }, [
+        U.el('span', { class: 'msg-group-arrow', text: arrow }),
+        R.badge(levelLabel(lvl), levelColor(lvl)),
+        U.el('span', { class: 'msg-group-count', text: msgs.length + ' ' + pluralMessages(msgs.length) })
+      ]);
+      panel.appendChild(groupHeader);
+
+      if (isOpen) {
+        var listEl = U.el('ul', { class: 'message-list message-group-body' });
+        msgs.forEach(function (m) {
+          listEl.appendChild(U.el('li', { class: 'message-item level-' + m.level }, [
+            U.el('span', { text: m.message })
+          ]));
+        });
+        panel.appendChild(listEl);
+      }
+    });
+
     return panel;
+  }
+
+  function pluralMessages(n) {
+    var abs = Math.abs(n) % 100;
+    var last = abs % 10;
+    if (abs > 10 && abs < 20) { return 'сообщений'; }
+    if (last === 1) { return 'сообщение'; }
+    if (last > 1 && last < 5) { return 'сообщения'; }
+    return 'сообщений';
   }
 
   function levelLabel(level) {
