@@ -324,36 +324,35 @@ App.calc = (function () {
    * the current state, not the planning target, and must not inflate the
    * "distributed" metric.
    *
-   * Double-counting prevention: when a team is placed via a TEAM allocation
-   * AND individual members later get EMPLOYEE allocations (e.g. by saving the
-   * employee form), the same person would otherwise be counted twice — once in
-   * the TEAM seats total and once as an individual. We resolve this as:
-   *   total = namedCount + max(0, teamTotal − namedCount)
-   *         = max(teamTotal, namedCount)
-   * Named employees with individual TO-BE placements are always counted once;
-   * the TEAM allocation's anonymous seats are reduced by the named overlap.
+   * Deduplication is done per-office (same approach as calculateOfficeOccupancy):
+   *   per office: max(TEAM seats, EMPLOYEE alloc count)
+   * This prevents double-counting named employees who have both an individual
+   * EMPLOYEE alloc and are covered by a TEAM alloc in the SAME office, while
+   * correctly summing genuinely separate placements across different offices.
    */
   function calculateTeamAllocated(scenario, teamId) {
-    // Unique named employees with individual TO-BE/remote placements.
-    var namedEmployeeIds = {};
+    var teamSeatsByOffice = {};
+    var namedCountByOffice = {};
+
     (scenario.allocations || []).forEach(function (a) {
-      if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.EMPLOYEE || !a.employeeId) { return; }
+      if (a.teamId !== teamId) { return; }
       var office = U.findById(scenario.offices, a.targetOfficeId);
       if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return; }
-      namedEmployeeIds[a.employeeId] = true;
+      var oId = office.id;
+      if (a.type === C.ALLOCATION_TYPE.TEAM) {
+        teamSeatsByOffice[oId] = (teamSeatsByOffice[oId] || 0) + (a.employeesCount || 0);
+      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
+        namedCountByOffice[oId] = (namedCountByOffice[oId] || 0) + 1;
+      }
     });
-    var namedCount = Object.keys(namedEmployeeIds).length;
 
-    // Sum of TEAM-type allocations in TO-BE/remote.
-    var teamTotal = (scenario.allocations || []).reduce(function (acc, a) {
-      if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return acc; }
-      var office = U.findById(scenario.offices, a.targetOfficeId);
-      if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return acc; }
-      return acc + (a.employeesCount || 0);
+    var allOffices = {};
+    Object.keys(teamSeatsByOffice).forEach(function (id) { allOffices[id] = true; });
+    Object.keys(namedCountByOffice).forEach(function (id) { allOffices[id] = true; });
+
+    return Object.keys(allOffices).reduce(function (sum, oId) {
+      return sum + Math.max(teamSeatsByOffice[oId] || 0, namedCountByOffice[oId] || 0);
     }, 0);
-
-    // namedCount individual seats + anonymous remainder from team allocations.
-    return namedCount + Math.max(0, teamTotal - namedCount);
   }
 
   /** Remaining unallocated headcount of a team (never below 0 for display). */

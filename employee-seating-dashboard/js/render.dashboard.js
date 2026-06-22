@@ -321,20 +321,16 @@ window.App = window.App || {};
   function renderZoneTeams(scenario, office, zone, ctx) {
     var byTeam = {};
     var firstAllocByTeam = {};
-    var namedElsewhere = {};
 
     scenario.allocations.forEach(function (a) {
       if (!a.teamId) { return; }
       var inThisZone = a.targetOfficeId === office.id && (a.targetZoneId || null) === zone.id;
-      if (inThisZone) {
-        if (!firstAllocByTeam[a.teamId]) { firstAllocByTeam[a.teamId] = a.id; }
-        if (a.type === C.ALLOCATION_TYPE.TEAM) {
-          byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
-        } else if (byTeam[a.teamId] === undefined) {
-          byTeam[a.teamId] = 0;
-        }
-      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
-        namedElsewhere[a.teamId] = (namedElsewhere[a.teamId] || 0) + 1;
+      if (!inThisZone) { return; }
+      if (!firstAllocByTeam[a.teamId]) { firstAllocByTeam[a.teamId] = a.id; }
+      if (a.type === C.ALLOCATION_TYPE.TEAM) {
+        byTeam[a.teamId] = (byTeam[a.teamId] || 0) + (a.employeesCount || 0);
+      } else if (byTeam[a.teamId] === undefined) {
+        byTeam[a.teamId] = 0;
       }
     });
 
@@ -360,9 +356,8 @@ window.App = window.App || {};
       var namedInZoneCount = Object.keys(namedInZoneIds).length;
 
       var rawSeats = byTeam[teamId] || 0;
-      var elsewhere = namedElsewhere[teamId] || 0;
-      var anonSeats = Math.max(0, rawSeats - namedInZoneCount - elsewhere);
-      var displayCount = anonSeats + namedInZoneCount;
+      // Named employees in this zone are a subset of TEAM seats; take max to avoid double-count.
+      var displayCount = Math.max(rawSeats, namedInZoneCount);
 
       var zKey = office.id + ':' + zone.id + ':' + teamId;
       var isTeamExpanded = !!expandedZoneTeams[zKey];
