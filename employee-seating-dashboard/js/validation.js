@@ -187,22 +187,27 @@ App.validation = (function () {
     });
   }
 
-  /** Employee placed more than once (error). */
+  /** Employee placed more than once within the same phase (error). */
   function validateEmployeesDuplicates(scenario, out) {
     var seen = {};
+    var reported = {};
     (scenario.allocations || []).forEach(function (a) {
       if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
-        if (seen[a.employeeId]) {
+        var office = findOffice(scenario, a.targetOfficeId);
+        var phase = office ? (office.phase || 'none') : 'none';
+        var key = a.employeeId + ':' + phase;
+        if (seen[key] && !reported[key]) {
           var emp = findEmployee(scenario, a.employeeId);
           out.push(msg(
             C.LEVEL.ERROR,
             C.CODE.EMPLOYEE_DUPLICATE,
-            'Сотрудник «' + (emp ? emp.fullName : a.employeeId) + '» размещен более одного раза',
+            'Сотрудник «' + (emp ? emp.fullName : a.employeeId) + '» размещен более одного раза в рамках одной фазы',
             'employee',
             a.employeeId
           ));
+          reported[key] = true;
         }
-        seen[a.employeeId] = true;
+        seen[key] = true;
       }
     });
   }
