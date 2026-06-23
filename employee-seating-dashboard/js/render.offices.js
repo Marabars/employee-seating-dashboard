@@ -203,9 +203,11 @@ window.App = window.App || {};
 
     var nameInput = textField('Название', office ? office.name : '', 'name');
     var areaInput = numField('Площадь, м²', office ? office.area : '', 'area');
+    var leaseStartInput = dateField('Дата начала договора аренды', office ? office.leaseStartDate : '', 'leaseStartDate');
     var leaseEndInput = dateField('Дата окончания договора аренды', office ? office.leaseEndDate : '', 'leaseEndDate');
     body.appendChild(nameInput.wrap);
     body.appendChild(areaInput.wrap);
+    body.appendChild(leaseStartInput.wrap);
     body.appendChild(leaseEndInput.wrap);
 
     // Phase selector — freely switch AS IS ↔ TO BE.
@@ -225,6 +227,75 @@ window.App = window.App || {};
     body.appendChild(rentInput.wrap);
     body.appendChild(opexInput.wrap);
     body.appendChild(idxInput.wrap);
+
+    // ---- Tenants editor ----------------------------------------
+    // Collect unique tenant names from all offices in the scenario for datalist
+    var allTenantNames = [];
+    var seenNames = {};
+    var currentScenario = App.state.getActiveScenario();
+    (currentScenario.offices || []).forEach(function (o) {
+      (o.tenants || []).forEach(function (t) {
+        if (t.name && !seenNames[t.name]) {
+          seenNames[t.name] = true;
+          allTenantNames.push(t.name);
+        }
+      });
+    });
+
+    var tenantDatalistId = 'tenant-names-list-' + (office ? office.id : 'new');
+    var datalist = U.el('datalist', { id: tenantDatalistId });
+    allTenantNames.forEach(function (n) {
+      datalist.appendChild(U.el('option', { value: n }));
+    });
+    body.appendChild(datalist);
+
+    // Working copy of tenants
+    var tenants = (office && Array.isArray(office.tenants) ? office.tenants : [])
+      .map(function (t) { return { id: t.id || U.genId('tenant'), name: t.name || '', area: t.area || 0 }; });
+
+    body.appendChild(U.el('h4', { text: 'Арендаторы' }));
+    var tenantsWrap = U.el('div', { class: 'form-tenants' });
+    body.appendChild(tenantsWrap);
+
+    function rebuildTenants() {
+      U.clear(tenantsWrap);
+      if (tenants.length === 0) {
+        tenantsWrap.appendChild(U.el('div', { class: 'muted', text: 'Нет арендаторов — используется вся площадь офиса.' }));
+      }
+      tenants.forEach(function (t, i) {
+        var row = U.el('div', { class: 'form-tenant-row' });
+
+        var nameInp = U.el('input', {
+          type: 'text', value: t.name,
+          placeholder: 'Арендатор', list: tenantDatalistId
+        });
+        nameInp.addEventListener('input', function () { t.name = nameInp.value; });
+
+        var areaInp = U.el('input', {
+          type: 'number', min: '0', step: 'any', value: t.area || '',
+          placeholder: 'Площадь, м²'
+        });
+        areaInp.addEventListener('input', function () { t.area = parseFloat(areaInp.value) || 0; });
+
+        var del = R.iconBtn('🗑', 'Удалить арендатора', function () {
+          tenants.splice(i, 1);
+          rebuildTenants();
+        });
+        row.appendChild(nameInp);
+        row.appendChild(U.el('span', { class: 'muted', text: 'м²' }));
+        row.appendChild(areaInp);
+        row.appendChild(del);
+        tenantsWrap.appendChild(row);
+      });
+
+      var addBtn = U.el('button', { class: 'btn btn-sm btn-secondary', type: 'button', onclick: function () {
+        tenants.push({ id: U.genId('tenant'), name: '', area: 0 });
+        rebuildTenants();
+      } }, '+ Арендатор');
+      tenantsWrap.appendChild(addBtn);
+    }
+    rebuildTenants();
+    // ---- end Tenants editor ------------------------------------
 
     // Zones editor with live total.
     body.appendChild(U.el('h4', { text: 'Зоны и места' }));
@@ -288,6 +359,7 @@ window.App = window.App || {};
           var data = {
             name: nameInput.input.value,
             area: areaInput.input.value,
+            leaseStartDate: leaseStartInput.input.value || null,
             leaseEndDate: leaseEndInput.input.value || null,
             rentPerSqm: rentInput.input.value,
             opexPerSqm: opexInput.input.value,
@@ -295,6 +367,7 @@ window.App = window.App || {};
             comment: commentInput.input.value,
             isDraft: draftInput.input.checked,
             zones: zones,
+            tenants: tenants.filter(function (t) { return t.name; }),
             phase: phaseSelect.value
           };
           if (office) {

@@ -887,3 +887,11 @@ tr.office-drop-below > td {
 .message-group-body .level-error  { border-left: 3px solid var(--red);    padding-left: 8px; }
 .message-group-body .level-warning { border-left: 3px solid var(--yellow); padding-left: 8px; }
 .message-group-body .level-info   { border-left: 3px solid var(--blue);   padding-left: 8px; }
+
+/* ── Office form: tenant rows ────────────────────────────────────────────── */
+.form-tenants { margin: 4px 0 12px 0; }
+.form-tenant-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.form-tenant-row input[type=text] { flex: 1; }
+.form-tenant-row input[type=number] { width: 110px; }
