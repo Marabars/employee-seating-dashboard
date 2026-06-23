@@ -112,6 +112,7 @@ App.state = (function () {
   /** Create the default project shown on first launch. */
   function createDefaultProject() {
     var scenario = createScenario('Базовый сценарий', '');
+    var yr = new Date().getFullYear();
     return {
       projectVersion: '1.0.0',
       appName: 'Дашборд рассадки сотрудников',
