@@ -42,7 +42,8 @@ App.app = (function () {
     { id: 'teams', label: 'Команды' },
     { id: 'employees', label: 'Сотрудники' },
     { id: 'comparison', label: 'Сравнение сценариев' },
-    { id: 'reports', label: 'Отчеты' }
+    { id: 'reports', label: 'Отчеты' },
+    { id: 'finance', label: 'Финансы' }
   ];
 
   function buildNav() {
