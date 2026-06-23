@@ -542,6 +542,116 @@ App.calc = (function () {
     };
   }
 
+  /**
+   * Annual CF for a given area with rent+opex, applying indexation
+   * from leaseStartDate to the projection year.
+   * Returns value in millions of RUB (area × (rent+opex) × factor / 1_000_000).
+   */
+  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year) {
+    var a = area || 0;
+    var rent = rentPerSqm || 0;
+    var opex = opexPerSqm || 0;
+    var idx = (indexationPct || 0) / 100;
+    var base = a * (rent + opex);
+    var yearsElapsed = 0;
+    if (leaseStartDate) {
+      var startYear = parseInt(String(leaseStartDate).substring(0, 4), 10);
+      if (!isNaN(startYear)) {
+        yearsElapsed = Math.max(0, year - startYear);
+      }
+    }
+    var factor = Math.pow(1 + idx, yearsElapsed);
+    return base * factor / 1000000;
+  }
+
+  /**
+   * Build CF data for the Finance tab.
+   * Returns:
+   *   { years: [2026,2027,...], officeRows: [...], tenantRows: [...] }
+   *
+   * officeRows: array of { name, phase, values: [number per year], rowTotal: number }
+   *   sorted: AS-IS offices first, then TO-BE offices, each group ends with a subtotal row.
+   *
+   * tenantRows: same structure, grouped by tenant name across all offices per phase.
+   */
+  function getScenarioCFData(scenario, startYear, endYear) {
+    var years = [];
+    for (var y = startYear; y <= endYear; y++) { years.push(y); }
+
+    // ---- CF by office ----
+    var physicalOffices = (scenario.offices || []).filter(function (o) {
+      return o.type === C.OFFICE_TYPE.PHYSICAL;
+    });
+
+    function buildOfficeRow(office) {
+      var values = years.map(function (yr) {
+        return cfForYear(office.area, office.rentPerSqm, office.opexPerSqm, office.indexationPct, office.leaseStartDate, yr);
+      });
+      var rowTotal = values.reduce(function (s, v) { return s + v; }, 0);
+      return { name: office.name, phase: office.phase, values: values, rowTotal: rowTotal, isSubtotal: false };
+    }
+
+    function subtotalRow(rows, phase, label) {
+      var values = years.map(function (_, i) {
+        return rows.reduce(function (s, r) { return s + (r.values[i] || 0); }, 0);
+      });
+      return { name: label || 'Итого', phase: phase, values: values, rowTotal: values.reduce(function (s, v) { return s + v; }, 0), isSubtotal: true };
+    }
+
+    var asisOffices = physicalOffices.filter(function (o) { return o.phase === C.OFFICE_PHASE.ASIS; });
+    var tobeOffices = physicalOffices.filter(function (o) { return o.phase === C.OFFICE_PHASE.TOBE; });
+    var asisOfficeRows = asisOffices.map(buildOfficeRow);
+    var tobeOfficeRows = tobeOffices.map(buildOfficeRow);
+    var officeRows = asisOfficeRows.concat([subtotalRow(asisOfficeRows, C.OFFICE_PHASE.ASIS, 'Итого AS IS')])
+      .concat(tobeOfficeRows).concat([subtotalRow(tobeOfficeRows, C.OFFICE_PHASE.TOBE, 'Итого TO BE')]);
+
+    // ---- CF by tenant ----
+    // Collect { tenantName, area, officeRef } per phase
+    function collectTenantEntries(offices) {
+      var entries = {}; // tenantName -> { area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate }[]
+      offices.forEach(function (office) {
+        var tList = office.tenants || [];
+        if (tList.length === 0) {
+          // Treat whole office as single anonymous tenant
+          if (office.area && (office.rentPerSqm || office.opexPerSqm)) {
+            var key = '(без арендатора)';
+            if (!entries[key]) { entries[key] = []; }
+            entries[key].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate });
+          }
+        } else {
+          tList.forEach(function (t) {
+            var key = t.name || '(без имени)';
+            if (!entries[key]) { entries[key] = []; }
+            entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate });
+          });
+        }
+      });
+      return entries;
+    }
+
+    function buildTenantRows(offices, phase) {
+      var entries = collectTenantEntries(offices);
+      var rows = Object.keys(entries).map(function (name) {
+        var parts = entries[name];
+        var values = years.map(function (yr) {
+          return parts.reduce(function (s, p) {
+            return s + cfForYear(p.area, p.rentPerSqm, p.opexPerSqm, p.indexationPct, p.leaseStartDate, yr);
+          }, 0);
+        });
+        return { name: name, phase: phase, values: values, rowTotal: values.reduce(function (s, v) { return s + v; }, 0), isSubtotal: false };
+      });
+      rows.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+      return rows;
+    }
+
+    var asisTenantRows = buildTenantRows(asisOffices, C.OFFICE_PHASE.ASIS);
+    var tobeTenantRows = buildTenantRows(tobeOffices, C.OFFICE_PHASE.TOBE);
+    var tenantRows = asisTenantRows.concat([subtotalRow(asisTenantRows, C.OFFICE_PHASE.ASIS, 'Итого AS IS')])
+      .concat(tobeTenantRows).concat([subtotalRow(tobeTenantRows, C.OFFICE_PHASE.TOBE, 'Итого TO BE')]);
+
+    return { years: years, officeRows: officeRows, tenantRows: tenantRows };
+  }
+
   return {
     calculateOfficeCapacity: calculateOfficeCapacity,
     calculateOfficeOccupancy: calculateOfficeOccupancy,
@@ -571,6 +681,7 @@ App.calc = (function () {
     calculateTotalZoneOverflow: calculateTotalZoneOverflow,
     calculateUnplacedCount: calculateUnplacedCount,
     calculateMoveProgress: calculateMoveProgress,
-    calculateScenarioKpis: calculateScenarioKpis
+    calculateScenarioKpis: calculateScenarioKpis,
+    getScenarioCFData: getScenarioCFData
   };
 })();
