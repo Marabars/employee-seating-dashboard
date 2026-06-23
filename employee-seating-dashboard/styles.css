@@ -895,3 +895,23 @@ tr.office-drop-below > td {
 }
 .form-tenant-row input[type=text] { flex: 1; }
 .form-tenant-row input[type=number] { width: 110px; }
+
+/* ── Finance tab: CF controls ────────────────────────────────────────────── */
+.cf-controls { display: flex; gap: 24px; align-items: center; padding: 8px 0 4px; flex-wrap: wrap; }
+.cf-stepper { display: flex; align-items: center; gap: 6px; }
+.cf-stepper-label { font-size: 0.875em; color: var(--text-muted); }
+.cf-year-val { min-width: 40px; text-align: center; font-weight: 600; }
+.cf-step { padding: 2px 8px; min-width: 28px; }
+
+/* ── Finance tab: CF tables ──────────────────────────────────────────────── */
+.cf-table-wrap { overflow-x: auto; margin-top: 8px; }
+.cf-table { width: 100%; border-collapse: collapse; font-size: 0.875em; }
+.cf-table th, .cf-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.cf-table th { color: var(--text-muted); font-weight: 500; }
+.cf-year-col { text-align: right; }
+.cf-val-col { text-align: right; color: var(--text); }
+.cf-name-col { min-width: 160px; }
+.cf-bold { font-weight: 600; }
+.cf-phase-header td { background: var(--surface-2); color: var(--text-muted); font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 10px; }
+.cf-subtotal-row { background: var(--surface-2); }
+.cf-subtotal-row td { border-top: 2px solid var(--border); }
