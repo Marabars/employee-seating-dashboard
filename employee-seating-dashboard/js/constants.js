@@ -175,6 +175,7 @@ App.constants = (function () {
       rent_per_sqm: ['rent_per_sqm', 'аренда', 'аренда руб/м2', 'аренда, ₽/м²'],
       opex_per_sqm: ['opex_per_sqm', 'эксплуатация', 'эксплуатация руб/м2', 'эксплуатация, ₽/м²'],
       indexation_pct: ['indexation_pct', 'индексация', 'индексация %'],
+      lease_start_date: ['lease_start_date', 'дата начала аренды'],
       is_draft: ['is_draft', 'черновик'],
       comment: ['comment', 'комментарий']
     },

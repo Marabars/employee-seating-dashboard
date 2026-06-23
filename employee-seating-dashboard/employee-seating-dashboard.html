@@ -1595,6 +1595,7 @@ App.constants = (function () {
       rent_per_sqm: ['rent_per_sqm', 'аренда', 'аренда руб/м2', 'аренда, ₽/м²'],
       opex_per_sqm: ['opex_per_sqm', 'эксплуатация', 'эксплуатация руб/м2', 'эксплуатация, ₽/м²'],
       indexation_pct: ['indexation_pct', 'индексация', 'индексация %'],
+      lease_start_date: ['lease_start_date', 'дата начала аренды'],
       is_draft: ['is_draft', 'черновик'],
       comment: ['comment', 'комментарий']
     },
@@ -2077,7 +2078,9 @@ App.state = (function () {
       rentPerSqm: (data.rentPerSqm === undefined || data.rentPerSqm === '') ? null : Number(data.rentPerSqm),
       opexPerSqm: (data.opexPerSqm === undefined || data.opexPerSqm === '') ? null : Number(data.opexPerSqm),
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
-      leaseEndDate: data.leaseEndDate || null
+      leaseEndDate: data.leaseEndDate || null,
+      leaseStartDate: data.leaseStartDate || null,
+      tenants: Array.isArray(data.tenants) ? data.tenants : []
     };
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
@@ -2132,6 +2135,7 @@ App.state = (function () {
         autosaveEnabled: false,
         viewOnlyMode: false,
         showMoveProgress: false,
+        cfSettings: { startYear: yr, endYear: yr + 4 },
         lastSelectedScenarioId: scenario.id
       },
       scenarios: [scenario]
@@ -2298,6 +2302,10 @@ App.state = (function () {
     if (typeof p.settings.showMoveProgress !== 'boolean') {
       p.settings.showMoveProgress = false;
     }
+    if (!p.settings.cfSettings || typeof p.settings.cfSettings.startYear !== 'number') {
+      var yr = new Date().getFullYear();
+      p.settings.cfSettings = { startYear: yr, endYear: yr + 4 };
+    }
 
     p.scenarios.forEach(function (s) {
       s.comment = s.comment || '';
@@ -2361,6 +2369,8 @@ App.state = (function () {
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
+        if (o.leaseStartDate === undefined) { o.leaseStartDate = null; }
+        if (!Array.isArray(o.tenants)) { o.tenants = []; }
       });
 
     });
@@ -2643,6 +2653,12 @@ App.offices = (function () {
       }
       if (data.leaseEndDate !== undefined) {
         office.leaseEndDate = data.leaseEndDate || null;
+      }
+      if (data.leaseStartDate !== undefined) {
+        office.leaseStartDate = data.leaseStartDate || null;
+      }
+      if (data.tenants !== undefined) {
+        office.tenants = Array.isArray(data.tenants) ? data.tenants : [];
       }
     });
   }

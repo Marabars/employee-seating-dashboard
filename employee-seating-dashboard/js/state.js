@@ -69,7 +69,9 @@ App.state = (function () {
       rentPerSqm: (data.rentPerSqm === undefined || data.rentPerSqm === '') ? null : Number(data.rentPerSqm),
       opexPerSqm: (data.opexPerSqm === undefined || data.opexPerSqm === '') ? null : Number(data.opexPerSqm),
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
-      leaseEndDate: data.leaseEndDate || null
+      leaseEndDate: data.leaseEndDate || null,
+      leaseStartDate: data.leaseStartDate || null,
+      tenants: Array.isArray(data.tenants) ? data.tenants : []
     };
     (data.zones || []).forEach(function (z) {
       office.zones.push(makeZoneObject(z));
@@ -124,6 +126,7 @@ App.state = (function () {
         autosaveEnabled: false,
         viewOnlyMode: false,
         showMoveProgress: false,
+        cfSettings: { startYear: yr, endYear: yr + 4 },
         lastSelectedScenarioId: scenario.id
       },
       scenarios: [scenario]
@@ -290,6 +293,10 @@ App.state = (function () {
     if (typeof p.settings.showMoveProgress !== 'boolean') {
       p.settings.showMoveProgress = false;
     }
+    if (!p.settings.cfSettings || typeof p.settings.cfSettings.startYear !== 'number') {
+      var yr = new Date().getFullYear();
+      p.settings.cfSettings = { startYear: yr, endYear: yr + 4 };
+    }
 
     p.scenarios.forEach(function (s) {
       s.comment = s.comment || '';
@@ -353,6 +360,8 @@ App.state = (function () {
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
+        if (o.leaseStartDate === undefined) { o.leaseStartDate = null; }
+        if (!Array.isArray(o.tenants)) { o.tenants = []; }
       });
 
     });
