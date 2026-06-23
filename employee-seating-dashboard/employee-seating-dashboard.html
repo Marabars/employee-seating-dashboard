@@ -919,7 +919,9 @@ tr.office-drop-below > td {
 .cf-val-col { text-align: right; color: var(--text); }
 .cf-name-col { min-width: 160px; }
 .cf-bold { font-weight: 600; }
-.cf-phase-header td { background: var(--surface-2); color: var(--text-muted); font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 10px; }
+.cf-phase-header td { font-size: 0.85em; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 6px 10px; }
+.cf-phase-header.phase-asis td { background: var(--blue-bg, rgba(96,165,250,.1)); color: var(--blue); }
+.cf-phase-header.phase-tobe td { background: rgba(186,247,120,.12); color: var(--accent); }
 .cf-subtotal-row { background: var(--surface-2); }
 .cf-subtotal-row td { border-top: 2px solid var(--border); }
 
@@ -8382,7 +8384,8 @@ window.App = window.App || {};
         if (row.phase !== lastPhase && !row.isSubtotal) {
           lastPhase = row.phase;
           var phaseLabel = row.phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
-          var headerRow = U.el('tr', { class: 'cf-phase-header' }, [
+          var phaseClass = row.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
+          var headerRow = U.el('tr', { class: 'cf-phase-header ' + phaseClass }, [
             U.el('td', { colspan: String(years.length + 2), text: phaseLabel })
           ]);
           tbody.appendChild(headerRow);

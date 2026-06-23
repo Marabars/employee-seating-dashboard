@@ -92,7 +92,8 @@ window.App = window.App || {};
         if (row.phase !== lastPhase && !row.isSubtotal) {
           lastPhase = row.phase;
           var phaseLabel = row.phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
-          var headerRow = U.el('tr', { class: 'cf-phase-header' }, [
+          var phaseClass = row.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
+          var headerRow = U.el('tr', { class: 'cf-phase-header ' + phaseClass }, [
             U.el('td', { colspan: String(years.length + 2), text: phaseLabel })
           ]);
           tbody.appendChild(headerRow);
