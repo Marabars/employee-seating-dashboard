@@ -18,7 +18,8 @@ window.App = window.App || {};
   function render(container, ctx) {
     var scenario = ctx.scenario;
     var settings = state.getSettings();
-    var cf = settings.cfSettings || { startYear: 2026, endYear: 2030 };
+    var cfRaw = settings.cfSettings || { startYear: 2026, endYear: 2030 };
+    var cf = { startYear: cfRaw.startYear, endYear: cfRaw.endYear };
 
     // ---- Year range controls ----
     var controlsPanel = R.section('Параметры прогноза');
@@ -115,7 +116,7 @@ window.App = window.App || {};
   }
 
   function formatM(v) {
-    if (!v || isNaN(v)) { return '—'; }
+    if (v === null || v === undefined || isNaN(v)) { return '—'; }
     return (Math.round(v * 100) / 100).toFixed(2);
   }
 
