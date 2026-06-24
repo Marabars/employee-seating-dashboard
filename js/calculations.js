@@ -548,6 +548,10 @@ App.calc = (function () {
    * Returns value in millions of RUB (area × (rent+opex) × factor / 1_000_000).
    * 7th param baseYear (number|null) is the fallback indexation origin when leaseStartDate is absent.
    */
+  function daysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
+  }
+
   function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) {
     var a = area || 0;
     var rent = rentPerSqm || 0;
@@ -572,10 +576,17 @@ App.calc = (function () {
   function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear) {
     if (leaseStartDate) {
       var lsStr = String(leaseStartDate);
-      var lsYear = parseInt(lsStr.substring(0, 4), 10);
+      var lsYear  = parseInt(lsStr.substring(0, 4), 10);
       var lsMonth = parseInt(lsStr.substring(5, 7), 10);
+      var lsDay   = parseInt(lsStr.substring(8, 10), 10) || 1;
       if (!isNaN(lsYear) && !isNaN(lsMonth)) {
         if (year < lsYear || (year === lsYear && month < lsMonth)) { return 0; }
+        var monthly = cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) / 12;
+        if (year === lsYear && month === lsMonth && lsDay > 1) {
+          var dim = daysInMonth(year, month);
+          return monthly * (dim - lsDay + 1) / dim;
+        }
+        return monthly;
       }
     }
     return cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) / 12;
@@ -602,15 +613,18 @@ App.calc = (function () {
 
     function buildOfficeRow(office) {
       var baseYear = years[0];
-      var values = years.map(function (yr) {
-        return cfForYear(office.area, office.rentPerSqm, office.opexPerSqm, office.indexationPct, office.leaseStartDate, yr, baseYear);
-      });
       var monthlyValues = {};
       years.forEach(function (yr) {
         monthlyValues[yr] = [];
         for (var m = 1; m <= 12; m++) {
-          monthlyValues[yr].push(cfForMonth(office.area, office.rentPerSqm, office.opexPerSqm, office.indexationPct, office.leaseStartDate, yr, m, baseYear));
+          monthlyValues[yr].push(cfForMonth(
+            office.area, office.rentPerSqm, office.opexPerSqm,
+            office.indexationPct, office.leaseStartDate, yr, m, baseYear
+          ));
         }
+      });
+      var values = years.map(function (yr) {
+        return monthlyValues[yr].reduce(function (s, v) { return s + v; }, 0);
       });
       return {
         name: office.name,
@@ -681,19 +695,20 @@ App.calc = (function () {
       var entries = collectTenantEntries(offices);
       var rows = Object.keys(entries).map(function (name) {
         var parts = entries[name];
-        var values = years.map(function (yr) {
-          return parts.reduce(function (s, p) {
-            return s + cfForYear(p.area, p.rentPerSqm, p.opexPerSqm, p.indexationPct, p.leaseStartDate, yr, baseYear);
-          }, 0);
-        });
         var monthlyValues = {};
         years.forEach(function (yr) {
           monthlyValues[yr] = [];
           for (var m = 1; m <= 12; m++) {
             monthlyValues[yr].push(parts.reduce(function (s, p) {
-              return s + cfForMonth(p.area, p.rentPerSqm, p.opexPerSqm, p.indexationPct, p.leaseStartDate, yr, m, baseYear);
+              return s + cfForMonth(
+                p.area, p.rentPerSqm, p.opexPerSqm,
+                p.indexationPct, p.leaseStartDate, yr, m, baseYear
+              );
             }, 0));
           }
+        });
+        var values = years.map(function (yr) {
+          return monthlyValues[yr].reduce(function (s, v) { return s + v; }, 0);
         });
         return {
           name: name,
