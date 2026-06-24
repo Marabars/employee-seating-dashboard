@@ -912,8 +912,8 @@ tr.office-drop-below > td {
 
 /* ── Finance tab: CF tables ──────────────────────────────────────────────── */
 .cf-table-wrap { overflow-x: auto; margin-top: 8px; }
-.cf-table { width: 100%; border-collapse: collapse; font-size: 0.875em; }
-.cf-table th, .cf-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.cf-table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.cf-table th, .cf-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
 .cf-table th { color: var(--text-muted); font-weight: 500; }
 .cf-year-col { text-align: right; }
 .cf-val-col { text-align: right; color: var(--text); }
@@ -924,6 +924,13 @@ tr.office-drop-below > td {
 .cf-phase-header.phase-tobe td { background: rgba(186,247,120,.12); color: var(--accent); }
 .cf-subtotal-row { background: var(--surface-2); }
 .cf-subtotal-row td { border-top: 2px solid var(--border); }
+
+.cf-year-clickable { cursor: pointer; user-select: none; }
+.cf-year-clickable:hover { background: rgba(0,0,0,0.04); }
+.cf-month-col { text-align: right; color: var(--text-muted); font-size: 0.82em; min-width: 56px; background: var(--surface); }
+.cf-ytotal-col { background: var(--surface); font-weight: 600; }
+.dash-cf-block { margin-top: 16px; border-top: 2px dashed var(--border); padding-top: 12px; }
+.dash-cf-controls { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; font-size: 0.9rem; }
 
 /* ── Team color picker ───────────────────────────────────────────────────── */
 .team-color-input { width: 48px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
@@ -3763,8 +3770,9 @@ App.calc = (function () {
    * Annual CF for a given area with rent+opex, applying indexation
    * from leaseStartDate to the projection year.
    * Returns value in millions of RUB (area × (rent+opex) × factor / 1_000_000).
+   * 7th param baseYear (number|null) is the fallback indexation origin when leaseStartDate is absent.
    */
-  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year) {
+  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) {
     var a = area || 0;
     var rent = rentPerSqm || 0;
     var opex = opexPerSqm || 0;
@@ -3773,12 +3781,28 @@ App.calc = (function () {
     var yearsElapsed = 0;
     if (leaseStartDate) {
       var startYear = parseInt(String(leaseStartDate).substring(0, 4), 10);
-      if (!isNaN(startYear)) {
-        yearsElapsed = Math.max(0, year - startYear);
+      if (!isNaN(startYear)) { yearsElapsed = Math.max(0, year - startYear); }
+    } else if (baseYear != null) {
+      yearsElapsed = Math.max(0, year - baseYear);
+    }
+    return base * Math.pow(1 + idx, yearsElapsed) / 1000000;
+  }
+
+  /**
+   * Monthly CF for a given area with rent+opex.
+   * Returns 0 if the month precedes the lease start, otherwise returns cfForYear(...) / 12.
+   * Month is 1-based (1=January, 12=December).
+   */
+  function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear) {
+    if (leaseStartDate) {
+      var lsStr = String(leaseStartDate);
+      var lsYear = parseInt(lsStr.substring(0, 4), 10);
+      var lsMonth = parseInt(lsStr.substring(5, 7), 10);
+      if (!isNaN(lsYear) && !isNaN(lsMonth)) {
+        if (year < lsYear || (year === lsYear && month < lsMonth)) { return 0; }
       }
     }
-    var factor = Math.pow(1 + idx, yearsElapsed);
-    return base * factor / 1000000;
+    return cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) / 12;
   }
 
   /**
@@ -3801,18 +3825,48 @@ App.calc = (function () {
     });
 
     function buildOfficeRow(office) {
+      var baseYear = years[0];
       var values = years.map(function (yr) {
-        return cfForYear(office.area, office.rentPerSqm, office.opexPerSqm, office.indexationPct, office.leaseStartDate, yr);
+        return cfForYear(office.area, office.rentPerSqm, office.opexPerSqm, office.indexationPct, office.leaseStartDate, yr, baseYear);
       });
-      var rowTotal = values.reduce(function (s, v) { return s + v; }, 0);
-      return { name: office.name, phase: office.phase, values: values, rowTotal: rowTotal, isSubtotal: false };
+      var monthlyValues = {};
+      years.forEach(function (yr) {
+        monthlyValues[yr] = [];
+        for (var m = 1; m <= 12; m++) {
+          monthlyValues[yr].push(cfForMonth(office.area, office.rentPerSqm, office.opexPerSqm, office.indexationPct, office.leaseStartDate, yr, m, baseYear));
+        }
+      });
+      return {
+        name: office.name,
+        phase: office.phase,
+        values: values,
+        monthlyValues: monthlyValues,
+        rowTotal: values.reduce(function (s, v) { return s + v; }, 0),
+        isSubtotal: false
+      };
     }
 
     function subtotalRow(rows, phase, label) {
       var values = years.map(function (_, i) {
         return rows.reduce(function (s, r) { return s + (r.values[i] || 0); }, 0);
       });
-      return { name: label || 'Итого', phase: phase, values: values, rowTotal: values.reduce(function (s, v) { return s + v; }, 0), isSubtotal: true };
+      var monthlyValues = {};
+      years.forEach(function (yr) {
+        monthlyValues[yr] = [];
+        for (var m = 0; m < 12; m++) {
+          monthlyValues[yr].push(rows.reduce(function (s, r) {
+            return s + ((r.monthlyValues && r.monthlyValues[yr]) ? r.monthlyValues[yr][m] : 0);
+          }, 0));
+        }
+      });
+      return {
+        name: label || 'Итого',
+        phase: phase,
+        values: values,
+        monthlyValues: monthlyValues,
+        rowTotal: values.reduce(function (s, v) { return s + v; }, 0),
+        isSubtotal: true
+      };
     }
 
     var asisOffices = physicalOffices.filter(function (o) { return o.phase === C.OFFICE_PHASE.ASIS; });
@@ -3847,15 +3901,32 @@ App.calc = (function () {
     }
 
     function buildTenantRows(offices, phase) {
+      var baseYear = years[0];
       var entries = collectTenantEntries(offices);
       var rows = Object.keys(entries).map(function (name) {
         var parts = entries[name];
         var values = years.map(function (yr) {
           return parts.reduce(function (s, p) {
-            return s + cfForYear(p.area, p.rentPerSqm, p.opexPerSqm, p.indexationPct, p.leaseStartDate, yr);
+            return s + cfForYear(p.area, p.rentPerSqm, p.opexPerSqm, p.indexationPct, p.leaseStartDate, yr, baseYear);
           }, 0);
         });
-        return { name: name, phase: phase, values: values, rowTotal: values.reduce(function (s, v) { return s + v; }, 0), isSubtotal: false };
+        var monthlyValues = {};
+        years.forEach(function (yr) {
+          monthlyValues[yr] = [];
+          for (var m = 1; m <= 12; m++) {
+            monthlyValues[yr].push(parts.reduce(function (s, p) {
+              return s + cfForMonth(p.area, p.rentPerSqm, p.opexPerSqm, p.indexationPct, p.leaseStartDate, yr, m, baseYear);
+            }, 0));
+          }
+        });
+        return {
+          name: name,
+          phase: phase,
+          values: values,
+          monthlyValues: monthlyValues,
+          rowTotal: values.reduce(function (s, v) { return s + v; }, 0),
+          isSubtotal: false
+        };
       });
       rows.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
       return rows;
@@ -3899,6 +3970,8 @@ App.calc = (function () {
     calculateUnplacedCount: calculateUnplacedCount,
     calculateMoveProgress: calculateMoveProgress,
     calculateScenarioKpis: calculateScenarioKpis,
+    cfForYear: cfForYear,
+    cfForMonth: cfForMonth,
     getScenarioCFData: getScenarioCFData
   };
 })();
@@ -5225,6 +5298,8 @@ App.render = (function () {
 
   var activeTab = 'dashboard';
 
+  var MONTHS_SHORT = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+
   // Tab renderers register themselves: { id, label, render(container, ctx) }.
   var tabs = {};
 
@@ -5479,6 +5554,96 @@ App.render = (function () {
     return 'Свободно: ' + free + ' ' + U.pluralPlaces(free);
   }
 
+  function renderCFTableBlock(opts) {
+    var rows = opts.rows;
+    var years = opts.years;
+    var expandedYears = opts.expandedYears || {};
+    var onToggleYear = opts.onToggleYear || function () {};
+    var firstColLabel = opts.firstColLabel || 'Офис / Фаза';
+
+    function fmt(v) {
+      if (v === null || v === undefined || isNaN(v)) { return '—'; }
+      return (Math.round(v * 100) / 100).toFixed(2);
+    }
+
+    var columns = [];
+    years.forEach(function (yr) {
+      var isExp = !!expandedYears[yr];
+      if (isExp) {
+        for (var m = 1; m <= 12; m++) {
+          columns.push({ type: 'month', year: yr, month: m, label: MONTHS_SHORT[m - 1] });
+        }
+        columns.push({ type: 'ytotal', year: yr, label: '∑ ' + yr });
+      } else {
+        columns.push({ type: 'year', year: yr, label: String(yr) });
+      }
+    });
+    columns.push({ type: 'total', label: 'Итого' });
+
+    var wrap = U.el('div', { class: 'cf-table-wrap' });
+    var table = U.el('table', { class: 'cf-table' });
+
+    var headerCells = [U.el('th', { text: firstColLabel })];
+    columns.forEach(function (col) {
+      var th;
+      if (col.type === 'year') {
+        th = U.el('th', {
+          class: 'cf-year-col cf-year-clickable',
+          title: 'Развернуть по месяцам',
+          onclick: (function (yr) { return function () { onToggleYear(yr); }; })(col.year)
+        }, '▸ ' + col.label);
+      } else if (col.type === 'ytotal') {
+        th = U.el('th', {
+          class: 'cf-year-col cf-year-clickable cf-ytotal-col',
+          title: 'Свернуть',
+          onclick: (function (yr) { return function () { onToggleYear(yr); }; })(col.year)
+        }, '▾ ' + col.label);
+      } else if (col.type === 'month') {
+        th = U.el('th', { class: 'cf-year-col cf-month-col', text: col.label });
+      } else {
+        th = U.el('th', { class: 'cf-year-col', text: col.label });
+      }
+      headerCells.push(th);
+    });
+    table.appendChild(U.el('thead', {}, U.el('tr', {}, headerCells)));
+
+    var tbody = U.el('tbody');
+    var lastPhase = null;
+    rows.forEach(function (row) {
+      if (row.phase !== lastPhase && !row.isSubtotal) {
+        lastPhase = row.phase;
+        var phaseLabel = row.phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
+        var phaseClass = row.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
+        tbody.appendChild(U.el('tr', { class: 'cf-phase-header ' + phaseClass }, [
+          U.el('td', { colspan: String(columns.length + 1), text: phaseLabel })
+        ]));
+      }
+      var cells = [U.el('td', { class: 'cf-name-col' + (row.isSubtotal ? ' cf-bold' : ''), text: row.name })];
+      columns.forEach(function (col) {
+        var val, cellClass;
+        if (col.type === 'year') {
+          val = row.values[years.indexOf(col.year)];
+          cellClass = 'cf-val-col';
+        } else if (col.type === 'ytotal') {
+          val = row.values[years.indexOf(col.year)];
+          cellClass = 'cf-val-col cf-ytotal-col cf-bold';
+        } else if (col.type === 'month') {
+          var mv = row.monthlyValues && row.monthlyValues[col.year];
+          val = mv ? mv[col.month - 1] : null;
+          cellClass = 'cf-val-col cf-month-col';
+        } else {
+          val = row.rowTotal;
+          cellClass = 'cf-val-col cf-bold';
+        }
+        cells.push(U.el('td', { class: cellClass, text: fmt(val) }));
+      });
+      tbody.appendChild(U.el('tr', { class: row.isSubtotal ? 'cf-subtotal-row' : '' }, cells));
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
   return {
     registerTab: registerTab,
     setActiveTab: setActiveTab,
@@ -5492,7 +5657,8 @@ App.render = (function () {
     emptyState: emptyState,
     section: section,
     iconBtn: iconBtn,
-    freeOrOverflowText: freeOrOverflowText
+    freeOrOverflowText: freeOrOverflowText,
+    cfTable: renderCFTableBlock
   };
 })();
 
@@ -5521,6 +5687,7 @@ window.App = window.App || {};
   var expandedZoneTeams = {}; // team expanded within a zone/office card (key: officeId:zoneId:teamId)
   var expandedRemote = {};    // { [officeId]: boolean } — remote cards expanded
   var moneyMode = false;      // money toggle for office cards
+  var dashExpandedCFYears = {}; // year expansion state for dashboard CF tables
   var hideAsis = false;       // hide AS IS section on dashboard
   var hideTobe = false;       // hide TO BE section on dashboard
   var teamSearch = '';        // search in unallocated teams panel
@@ -5595,9 +5762,73 @@ window.App = window.App || {};
     return panel;
   }
 
+  /** Year-range stepper strip for dashboard CF tables. */
+  function buildDashCFYearControls(cf) {
+    var strip = U.el('div', { class: 'dash-cf-controls' });
+
+    function makeStep(label, key) {
+      var dec = U.el('button', { class: 'btn btn-sm btn-secondary cf-step', text: '−' });
+      var inc = U.el('button', { class: 'btn btn-sm btn-secondary cf-step', text: '+' });
+      var disp = U.el('span', { class: 'cf-year-val', text: String(cf[key]) });
+      dec.addEventListener('click', function () {
+        cf[key] = Math.max(2000, cf[key] - 1);
+        if (key === 'startYear' && cf.startYear > cf.endYear) { cf.endYear = cf.startYear; }
+        if (key === 'endYear' && cf.endYear < cf.startYear) { cf.startYear = cf.endYear; }
+        state.commit('CF горизонт', function () {
+          state.getSettings().cfSettings = { startYear: cf.startYear, endYear: cf.endYear };
+        }, { skipHistory: true });
+        disp.textContent = String(cf[key]);
+      });
+      inc.addEventListener('click', function () {
+        cf[key] = Math.min(2100, cf[key] + 1);
+        if (key === 'startYear' && cf.startYear > cf.endYear) { cf.endYear = cf.startYear; }
+        if (key === 'endYear' && cf.endYear < cf.startYear) { cf.startYear = cf.endYear; }
+        state.commit('CF горизонт', function () {
+          state.getSettings().cfSettings = { startYear: cf.startYear, endYear: cf.endYear };
+        }, { skipHistory: true });
+        disp.textContent = String(cf[key]);
+      });
+      strip.appendChild(U.el('div', { class: 'cf-stepper' }, [
+        U.el('span', { class: 'cf-stepper-label', text: label }),
+        dec, disp, inc
+      ]));
+    }
+
+    makeStep('С года:', 'startYear');
+    makeStep('По год:', 'endYear');
+    return strip;
+  }
+
+  /** CF table block for one phase, embedded below office grid in money mode. */
+  function buildDashCFTable(scenario, phase, startYear, endYear) {
+    var data = calc.getScenarioCFData(scenario, startYear, endYear);
+    if (data.years.length === 0) { return null; }
+    var phaseRows = data.officeRows.filter(function (r) { return r.phase === phase; });
+    if (phaseRows.length === 0) { return null; }
+    var wrap = U.el('div', { class: 'dash-cf-block' });
+    var phaseLabel = phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
+    wrap.appendChild(U.el('div', { class: 'section-title', text: 'Cash Flow ' + phaseLabel + ' (млн руб./год)' }));
+    wrap.appendChild(R.cfTable({
+      rows: phaseRows,
+      years: data.years,
+      expandedYears: dashExpandedCFYears,
+      onToggleYear: function (yr) {
+        dashExpandedCFYears[yr] = !dashExpandedCFYears[yr];
+        R.render();
+      },
+      firstColLabel: 'Офис'
+    }));
+    return wrap;
+  }
+
   /** Offices block with AS IS / TO BE groups and a money toggle. */
   function renderOfficesBlock(scenario, ctx) {
     var panel = R.section('Офисы');
+    var cf = null;
+    if (moneyMode) {
+      var cfRaw = state.getSettings().cfSettings || { startYear: 2026, endYear: 2030 };
+      cf = { startYear: cfRaw.startYear, endYear: cfRaw.endYear };
+    }
     // Money toggle in the top-right corner of the block.
     var toggle = U.el('label', { class: 'money-toggle' }, [
       U.el('input', { type: 'checkbox', onchange: function (e) {
@@ -5625,6 +5856,9 @@ window.App = window.App || {};
     phaseToggles.appendChild(tobeBtn);
     phaseToggles.appendChild(asisBtn);
     head.appendChild(phaseToggles);
+    if (moneyMode && cf) {
+      panel.appendChild(buildDashCFYearControls(cf));
+    }
 
     var tobe = calc.getTobeOffices(scenario);
     var asis = calc.getAsisOffices(scenario);
@@ -5640,12 +5874,20 @@ window.App = window.App || {};
       var gT = U.el('div', { class: 'office-grid' });
       tobe.forEach(function (o) { gT.appendChild(renderOfficeCard(scenario, o, ctx)); });
       panel.appendChild(gT);
+      if (moneyMode && cf) {
+        var cfDataTobe = buildDashCFTable(scenario, C.OFFICE_PHASE.TOBE, cf.startYear, cf.endYear);
+        if (cfDataTobe) { panel.appendChild(cfDataTobe); }
+      }
     }
     if (asis.length && !hideAsis) {
       panel.appendChild(U.el('h3', { class: 'phase-head phase-asis', text: 'AS IS — как есть' }));
       var gA = U.el('div', { class: 'office-grid' });
       asis.forEach(function (o) { gA.appendChild(renderOfficeCard(scenario, o, ctx)); });
       panel.appendChild(gA);
+      if (moneyMode && cf) {
+        var cfDataAsis = buildDashCFTable(scenario, C.OFFICE_PHASE.ASIS, cf.startYear, cf.endYear);
+        if (cfDataAsis) { panel.appendChild(cfDataAsis); }
+      }
     }
     return panel;
   }
@@ -8332,6 +8574,8 @@ window.App = window.App || {};
   var calc = App.calc;
   var state = App.state;
 
+  var expandedCFYears = {};
+
   function render(container, ctx) {
     var scenario = ctx.scenario;
     var settings = state.getSettings();
@@ -8390,52 +8634,22 @@ window.App = window.App || {};
         panel.appendChild(U.el('p', { class: 'muted', text: 'Нет данных' }));
         return panel;
       }
-      var wrap = U.el('div', { class: 'cf-table-wrap' });
-      var table = U.el('table', { class: 'cf-table' });
-
-      // Header
-      var headerCells = [U.el('th', { text: 'Офис / Фаза' })];
-      years.forEach(function (yr) {
-        headerCells.push(U.el('th', { class: 'cf-year-col', text: String(yr) }));
-      });
-      headerCells.push(U.el('th', { class: 'cf-year-col', text: 'Итого' }));
-      table.appendChild(U.el('thead', {}, U.el('tr', {}, headerCells)));
-
-      // Body — split AS-IS and TO-BE with a divider row
-      var tbody = U.el('tbody');
-      var lastPhase = null;
-      rows.forEach(function (row) {
-        // Phase section header
-        if (row.phase !== lastPhase && !row.isSubtotal) {
-          lastPhase = row.phase;
-          var phaseLabel = row.phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
-          var phaseClass = row.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
-          var headerRow = U.el('tr', { class: 'cf-phase-header ' + phaseClass }, [
-            U.el('td', { colspan: String(years.length + 2), text: phaseLabel })
-          ]);
-          tbody.appendChild(headerRow);
-        }
-        var rowClass = row.isSubtotal ? 'cf-subtotal-row' : '';
-        var cells = [U.el('td', { class: 'cf-name-col' + (row.isSubtotal ? ' cf-bold' : ''), text: row.name })];
-        row.values.forEach(function (v) {
-          cells.push(U.el('td', { class: 'cf-val-col', text: formatM(v) }));
-        });
-        cells.push(U.el('td', { class: 'cf-val-col cf-bold', text: formatM(row.rowTotal) }));
-        tbody.appendChild(U.el('tr', { class: rowClass }, cells));
-      });
-      table.appendChild(tbody);
-      wrap.appendChild(table);
-      panel.appendChild(wrap);
+      var firstColLabel = title.indexOf('арендатор') > -1 ? 'Арендатор' : 'Офис / Фаза';
+      panel.appendChild(R.cfTable({
+        rows: rows,
+        years: years,
+        expandedYears: expandedCFYears,
+        onToggleYear: function (yr) {
+          expandedCFYears[yr] = !expandedCFYears[yr];
+          R.render();
+        },
+        firstColLabel: firstColLabel
+      }));
       return panel;
     }
 
     container.appendChild(renderCFTable('CF по офисам (млн руб./год)', data.officeRows, data.years));
     container.appendChild(renderCFTable('CF по арендаторам (млн руб./год)', data.tenantRows, data.years));
-  }
-
-  function formatM(v) {
-    if (v === null || v === undefined || isNaN(v)) { return '—'; }
-    return (Math.round(v * 100) / 100).toFixed(2);
   }
 
   App.render.registerTab('finance', { label: 'Финансы', render: render });
