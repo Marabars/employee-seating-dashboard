@@ -150,7 +150,8 @@ window.App = window.App || {};
         dashExpandedCFYears[yr] = !dashExpandedCFYears[yr];
         R.render();
       },
-      firstColLabel: 'Офис'
+      firstColLabel: 'Офис',
+      showPhaseHeaders: false
     }));
     return wrap;
   }

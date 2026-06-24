@@ -279,6 +279,7 @@ App.render = (function () {
     var expandedYears = opts.expandedYears || {};
     var onToggleYear = opts.onToggleYear || function () {};
     var firstColLabel = opts.firstColLabel || 'Офис / Фаза';
+    var showPhaseHeaders = opts.showPhaseHeaders !== false;
 
     function fmt(v) {
       if (v === null || v === undefined || isNaN(v)) { return '—'; }
@@ -329,7 +330,7 @@ App.render = (function () {
     var tbody = U.el('tbody');
     var lastPhase = null;
     rows.forEach(function (row) {
-      if (row.phase !== lastPhase && !row.isSubtotal) {
+      if (showPhaseHeaders && row.phase !== lastPhase && !row.isSubtotal) {
         lastPhase = row.phase;
         var phaseLabel = row.phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
         var phaseClass = row.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
