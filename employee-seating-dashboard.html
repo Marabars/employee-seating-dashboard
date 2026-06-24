@@ -833,6 +833,10 @@ tr.office-drop-below > td {
   margin-bottom: 12px;
 }
 .import-scenario-name { flex: 1; }
+.import-names-list { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
+.import-name-row { display: flex; align-items: center; gap: 8px; }
+.import-name-orig { white-space: nowrap; color: var(--text-muted); font-size: 0.85em; min-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.import-name-row .import-scenario-name { flex: 1; }
 
 /* ── Placement modal (Teams + Employees tabs) ────────────────────────────── */
 .place-modal-body { display: flex; flex-direction: column; gap: 12px; }
@@ -9437,17 +9441,119 @@ App.importExport = (function () {
             App.modals.alert('Файл не похож на проект приложения (нет корректных сценариев).');
             return;
           }
-          // Import is one coarse action in undo history.
-          App.undoRedo.checkpoint();
-          state.setProject(state.normalizeProject(obj));
-          state.notifyChange('Импорт JSON', { skipHistory: true });
-          App.modals.alert('Проект импортирован.');
+          var incoming = state.normalizeProject(obj);
+          showJsonImportDialog(incoming.scenarios);
         } catch (e) {
           App.modals.alert('Не удалось прочитать JSON: ' + e.message);
         }
       };
       reader.readAsText(file);
     });
+  }
+
+  function showJsonImportDialog(incomingScenarios) {
+    var project = state.getProject();
+    var existingNames = project.scenarios.map(function (s) { return s.name; });
+
+    var nameInputs = incomingScenarios.map(function (s) {
+      var suggested = s.name;
+      if (existingNames.indexOf(suggested) >= 0) {
+        var suffix = 2;
+        while (existingNames.indexOf(suggested + ' (' + suffix + ')') >= 0) { suffix++; }
+        suggested = suggested + ' (' + suffix + ')';
+      }
+      var input = U.el('input', { type: 'text', class: 'import-scenario-name', value: suggested });
+      return { scenario: s, input: input };
+    });
+
+    var rows = nameInputs.map(function (item) {
+      return U.el('div', { class: 'import-name-row' }, [
+        U.el('span', { class: 'import-name-orig', text: item.scenario.name + ' → ' }),
+        item.input
+      ]);
+    });
+
+    App.modals.open({
+      title: 'Импорт JSON — ' + incomingScenarios.length + ' сцен.',
+      body: U.el('div', {}, [
+        U.el('p', { text: 'Сценарии будут добавлены в текущий проект. Существующие данные не изменятся.' }),
+        U.el('div', { class: 'import-names-list' }, rows)
+      ]),
+      buttons: [
+        { label: 'Отмена', kind: 'secondary' },
+        { label: 'Добавить', kind: 'primary', onClick: function () {
+          App.undoRedo.checkpoint();
+          var proj = state.getProject();
+          nameInputs.forEach(function (item) {
+            var name = item.input.value.trim() || item.scenario.name;
+            var fresh = reIdScenario(item.scenario, name);
+            proj.scenarios.push(fresh);
+          });
+          proj.settings.lastSelectedScenarioId =
+            proj.scenarios[proj.scenarios.length - 1].id;
+          state.notifyChange('Импорт JSON', { skipHistory: true });
+          App.modals.alert('Добавлено сценариев: ' + nameInputs.length + '.');
+          return true;
+        }}
+      ]
+    });
+  }
+
+  function reIdScenario(scenario, newName) {
+    var s = JSON.parse(JSON.stringify(scenario));
+    s.id = U.genId('scenario');
+    s.name = newName;
+
+    var officeMap = {};
+    var zoneMap = {};
+    var teamMap = {};
+    var empMap = {};
+
+    (s.offices || []).forEach(function (o) {
+      var old = o.id;
+      o.id = U.genId('office');
+      officeMap[old] = o.id;
+      (o.zones || []).forEach(function (z) {
+        var oldZ = z.id;
+        z.id = U.genId('zone');
+        zoneMap[oldZ] = z.id;
+      });
+    });
+
+    (s.teams || []).forEach(function (t) {
+      var old = t.id;
+      t.id = U.genId('team');
+      teamMap[old] = t.id;
+    });
+
+    (s.employees || []).forEach(function (e) {
+      var old = e.id;
+      e.id = U.genId('employee');
+      empMap[old] = e.id;
+    });
+
+    (s.teams || []).forEach(function (t) {
+      if (t.currentOfficeId) { t.currentOfficeId = officeMap[t.currentOfficeId] || null; }
+      if (t.toBeOfficeId) { t.toBeOfficeId = officeMap[t.toBeOfficeId] || null; }
+      t.linkedTeamIds = (t.linkedTeamIds || []).map(function (id) {
+        return teamMap[id] || null;
+      }).filter(Boolean);
+    });
+
+    (s.employees || []).forEach(function (e) {
+      if (e.teamId) { e.teamId = teamMap[e.teamId] || null; }
+      if (e.currentOfficeId) { e.currentOfficeId = officeMap[e.currentOfficeId] || null; }
+    });
+
+    (s.allocations || []).forEach(function (a) {
+      a.id = U.genId('alloc');
+      if (a.targetOfficeId) { a.targetOfficeId = officeMap[a.targetOfficeId] || null; }
+      if (a.targetZoneId) { a.targetZoneId = zoneMap[a.targetZoneId] || null; }
+      if (a.teamId) { a.teamId = teamMap[a.teamId] || null; }
+      if (a.employeeId) { a.employeeId = empMap[a.employeeId] || null; }
+    });
+
+    return s;
   }
 
   // ---- Excel template ----------------------------------------------------
