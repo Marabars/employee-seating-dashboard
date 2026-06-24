@@ -905,8 +905,8 @@ tr.office-drop-below > td {
 
 /* ── Finance tab: CF tables ──────────────────────────────────────────────── */
 .cf-table-wrap { overflow-x: auto; margin-top: 8px; }
-.cf-table { width: 100%; border-collapse: collapse; font-size: 0.875em; }
-.cf-table th, .cf-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.cf-table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.cf-table th, .cf-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
 .cf-table th { color: var(--text-muted); font-weight: 500; }
 .cf-year-col { text-align: right; }
 .cf-val-col { text-align: right; color: var(--text); }
@@ -917,6 +917,13 @@ tr.office-drop-below > td {
 .cf-phase-header.phase-tobe td { background: rgba(186,247,120,.12); color: var(--accent); }
 .cf-subtotal-row { background: var(--surface-2); }
 .cf-subtotal-row td { border-top: 2px solid var(--border); }
+
+.cf-year-clickable { cursor: pointer; user-select: none; }
+.cf-year-clickable:hover { background: rgba(0,0,0,0.04); }
+.cf-month-col { text-align: right; color: var(--text-muted); font-size: 0.82em; min-width: 56px; background: var(--surface); }
+.cf-ytotal-col { background: var(--surface); font-weight: 600; }
+.dash-cf-block { margin-top: 16px; border-top: 2px dashed var(--border); padding-top: 12px; }
+.dash-cf-controls { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; font-size: 0.9rem; }
 
 /* ── Team color picker ───────────────────────────────────────────────────── */
 .team-color-input { width: 48px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
