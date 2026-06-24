@@ -936,15 +936,13 @@ tr.office-drop-below > td {
 .viz-section-head { font-size: 0.8rem; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border); }
-.viz-office-card { background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-.viz-office-title { font-weight: 600; font-size: 1em; margin-bottom: 2px; }
-.viz-office-meta { font-size: 0.8em; color: var(--text-muted); margin-bottom: 12px; }
-.viz-bar-wrap { width: 100%; overflow: hidden; border-radius: 6px; margin-bottom: 12px; }
-.viz-bar-svg { display: block; width: 100%; height: 36px; border-radius: 6px; }
-.viz-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 4px; }
-.viz-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.82em; }
-.viz-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.viz-legend-name { color: var(--text); }
-.viz-legend-seats { color: var(--text-muted); }
-.viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; }
+.viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 4px; }
+.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.viz-office-title { font-weight: 600; font-size: 1.05em; margin-bottom: 2px; }
+.viz-office-meta { font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px; }
+.viz-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.viz-bar-track { flex: 1; height: 26px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; overflow: visible; min-width: 0; }
+.viz-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; }
+.viz-bar-label { position: absolute; left: 8px; top: 0; bottom: 0; display: flex; align-items: center; white-space: nowrap; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
+.viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; }
+.viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; font-size: 0.9em; }

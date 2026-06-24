@@ -53,51 +53,15 @@ window.App = window.App || {};
     return { entries: top10, total: total, occupied: occupied };
   }
 
-  function renderBar(entries, total) {
-    var NS = 'http://www.w3.org/2000/svg';
-    var svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('class', 'viz-bar-svg');
-    svg.setAttribute('viewBox', '0 0 1000 36');
-    svg.setAttribute('preserveAspectRatio', 'none');
-
-    var bg = document.createElementNS(NS, 'rect');
-    bg.setAttribute('x', '0'); bg.setAttribute('y', '0');
-    bg.setAttribute('width', '1000'); bg.setAttribute('height', '36');
-    bg.setAttribute('fill', 'rgba(255,255,255,0.07)');
-    svg.appendChild(bg);
-
-    if (total <= 0) { return svg; }
-
-    var offset = 0;
-    entries.forEach(function (entry) {
-      var w = Math.max(1, (entry.seats / total) * 1000);
-      var rect = document.createElementNS(NS, 'rect');
-      rect.setAttribute('x', String(offset));
-      rect.setAttribute('y', '0');
-      rect.setAttribute('width', String(w));
-      rect.setAttribute('height', '36');
-      rect.setAttribute('fill', entry.color);
-      var title = document.createElementNS(NS, 'title');
-      title.textContent = entry.name + ': ' + entry.seats + ' мест';
-      rect.appendChild(title);
-      svg.appendChild(rect);
-      offset += w;
-    });
-    return svg;
-  }
-
-  function renderLegend(entries) {
-    var wrap = U.el('div', { class: 'viz-legend' });
-    entries.forEach(function (entry) {
-      var dot = U.el('span', { class: 'viz-legend-dot' });
-      dot.style.background = entry.color;
-      wrap.appendChild(U.el('div', { class: 'viz-legend-item' }, [
-        dot,
-        U.el('span', { class: 'viz-legend-name', text: entry.name }),
-        U.el('span', { class: 'viz-legend-seats', text: entry.seats + ' м.' })
-      ]));
-    });
-    return wrap;
+  function renderTeamBar(entry, total) {
+    var pct = total > 0 ? Math.max(1, Math.round((entry.seats / total) * 100)) : 1;
+    var fill = U.el('div', { class: 'viz-bar-fill' });
+    fill.style.width = pct + '%';
+    fill.style.background = entry.color;
+    var label = U.el('span', { class: 'viz-bar-label', text: entry.name });
+    var track = U.el('div', { class: 'viz-bar-track' }, [fill, label]);
+    var count = U.el('span', { class: 'viz-bar-count', text: String(entry.seats) });
+    return U.el('div', { class: 'viz-bar-row' }, [track, count]);
   }
 
   function renderOfficeCard(scenario, office) {
@@ -117,8 +81,9 @@ window.App = window.App || {};
       return card;
     }
 
-    card.appendChild(U.el('div', { class: 'viz-bar-wrap' }, [renderBar(data.entries, data.total)]));
-    card.appendChild(renderLegend(data.entries));
+    data.entries.forEach(function (entry) {
+      card.appendChild(renderTeamBar(entry, data.total));
+    });
     return card;
   }
 
@@ -133,9 +98,11 @@ window.App = window.App || {};
       wrap.appendChild(U.el('p', { class: 'muted', text: 'Нет офисов для данной фазы.' }));
       return wrap;
     }
+    var grid = U.el('div', { class: 'viz-grid' });
     offices.forEach(function (office) {
-      wrap.appendChild(renderOfficeCard(scenario, office));
+      grid.appendChild(renderOfficeCard(scenario, office));
     });
+    wrap.appendChild(grid);
     return wrap;
   }
 
