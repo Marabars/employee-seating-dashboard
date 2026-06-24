@@ -43,7 +43,7 @@ App.app = (function () {
     { id: 'employees', label: 'Сотрудники' },
     { id: 'comparison', label: 'Сравнение сценариев' },
     { id: 'reports', label: 'Отчеты' },
-    { id: 'finance', label: 'Финансы' },
+    { id: 'finance', label: 'Финансы', hidden: true },
     { id: 'visualization', label: 'Визуализация' }
   ];
 
@@ -51,6 +51,7 @@ App.app = (function () {
     var nav = U.qs('#main-nav');
     U.clear(nav);
     TABS.forEach(function (tab) {
+      if (tab.hidden) { return; }
       var btn = U.el('button', {
         class: 'nav-tab',
         dataset: { tab: tab.id },
