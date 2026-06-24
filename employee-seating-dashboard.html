@@ -5708,6 +5708,7 @@ window.App = window.App || {};
   var expandedRemote = {};    // { [officeId]: boolean } — remote cards expanded
   var moneyMode = false;      // money toggle for office cards
   var dashExpandedCFYears = {}; // year expansion state for dashboard CF tables
+  var dashExpandedTenantCFYears = {}; // year expansion state for tenant CF tables
   var hideAsis = false;       // hide AS IS section on dashboard
   var hideTobe = false;       // hide TO BE section on dashboard
   var teamSearch = '';        // search in unallocated teams panel
@@ -5842,6 +5843,29 @@ window.App = window.App || {};
     return wrap;
   }
 
+  /** Tenant CF table block for one phase, embedded below office CF table in money mode. */
+  function buildDashTenantCFTable(scenario, phase, startYear, endYear) {
+    var data = calc.getScenarioCFData(scenario, startYear, endYear);
+    if (data.years.length === 0) { return null; }
+    var phaseRows = data.tenantRows.filter(function (r) { return r.phase === phase; });
+    if (phaseRows.length === 0) { return null; }
+    var wrap = U.el('div', { class: 'dash-cf-block' });
+    var phaseLabel = phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
+    wrap.appendChild(U.el('div', { class: 'section-title', text: 'CF по арендаторам ' + phaseLabel + ' (млн руб./год)' }));
+    wrap.appendChild(R.cfTable({
+      rows: phaseRows,
+      years: data.years,
+      expandedYears: dashExpandedTenantCFYears,
+      onToggleYear: function (yr) {
+        dashExpandedTenantCFYears[yr] = !dashExpandedTenantCFYears[yr];
+        R.render();
+      },
+      firstColLabel: 'Арендатор',
+      showPhaseHeaders: false
+    }));
+    return wrap;
+  }
+
   /** Offices block with AS IS / TO BE groups and a money toggle. */
   function renderOfficesBlock(scenario, ctx) {
     var panel = R.section('Офисы');
@@ -5898,6 +5922,8 @@ window.App = window.App || {};
       if (moneyMode && cf) {
         var cfDataTobe = buildDashCFTable(scenario, C.OFFICE_PHASE.TOBE, cf.startYear, cf.endYear);
         if (cfDataTobe) { panel.appendChild(cfDataTobe); }
+        var cfTenantTobe = buildDashTenantCFTable(scenario, C.OFFICE_PHASE.TOBE, cf.startYear, cf.endYear);
+        if (cfTenantTobe) { panel.appendChild(cfTenantTobe); }
       }
     }
     if (asis.length && !hideAsis) {
@@ -5908,6 +5934,8 @@ window.App = window.App || {};
       if (moneyMode && cf) {
         var cfDataAsis = buildDashCFTable(scenario, C.OFFICE_PHASE.ASIS, cf.startYear, cf.endYear);
         if (cfDataAsis) { panel.appendChild(cfDataAsis); }
+        var cfTenantAsis = buildDashTenantCFTable(scenario, C.OFFICE_PHASE.ASIS, cf.startYear, cf.endYear);
+        if (cfTenantAsis) { panel.appendChild(cfTenantAsis); }
       }
     }
     return panel;
@@ -5972,11 +6000,20 @@ window.App = window.App || {};
 
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
 
-    if (office.phase === C.OFFICE_PHASE.ASIS && office.leaseEndDate) {
-      card.appendChild(U.el('div', { class: 'office-card-lease' }, [
-        U.el('span', { text: 'Дата окончания договора:' }),
-        U.el('span', { class: 'office-card-lease-date', text: office.leaseEndDate })
-      ]));
+    if (office.leaseStartDate || office.leaseEndDate) {
+      var leaseParts = [];
+      if (office.leaseStartDate) {
+        leaseParts.push(U.el('span', { class: 'lease-label', text: 'Начало: ' }));
+        leaseParts.push(U.el('span', { class: 'office-card-lease-date', text: office.leaseStartDate }));
+      }
+      if (office.leaseStartDate && office.leaseEndDate) {
+        leaseParts.push(U.el('span', { class: 'lease-sep', text: ' — ' }));
+      }
+      if (office.leaseEndDate) {
+        leaseParts.push(U.el('span', { class: 'lease-label', text: 'Окончание: ' }));
+        leaseParts.push(U.el('span', { class: 'office-card-lease-date', text: office.leaseEndDate }));
+      }
+      card.appendChild(U.el('div', { class: 'office-card-lease' }, leaseParts));
     }
 
     if (moneyMode) {
