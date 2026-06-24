@@ -948,10 +948,10 @@ tr.office-drop-below > td {
 .viz-office-title { font-weight: 600; font-size: 1.05em; margin-bottom: 2px; }
 .viz-office-meta { font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px; }
 .viz-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-.viz-bar-track { flex: 1; height: 26px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; overflow: visible; min-width: 0; }
+.viz-bar-track { flex: 1; min-height: 26px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; display: flex; align-items: center; padding: 4px 8px; min-width: 0; }
 .viz-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; }
-.viz-bar-label { position: absolute; left: 8px; top: 0; bottom: 0; display: flex; align-items: center; white-space: nowrap; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
-.viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; }
+.viz-bar-label { position: relative; z-index: 1; white-space: normal; word-break: break-word; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
+.viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; align-self: center; }
 .viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; font-size: 0.9em; }
 
 </style>
