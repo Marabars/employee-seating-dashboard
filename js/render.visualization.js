@@ -69,6 +69,34 @@ window.App = window.App || {};
     return U.el('div', { class: 'viz-bar-row' }, [track, count]);
   }
 
+  function renderZoneBatteries(scenario, office) {
+    var zones = (office.zones || []).filter(function (z) { return z.capacity && z.capacity > 0; });
+    if (zones.length === 0) { return null; }
+
+    var section = U.el('div', { class: 'viz-battery-section' });
+    zones.forEach(function (zone) {
+      var occ = calc.calculateZoneOccupancy(scenario, zone.id);
+      var cap = zone.capacity;
+      var pct = Math.round((occ / cap) * 100);
+      var color;
+      if (pct <= 85) { color = '#22c55e'; }
+      else if (pct <= 100) { color = '#f59e0b'; }
+      else { color = '#ef4444'; }
+      var fillPct = Math.min(pct, 100);
+
+      var fill = U.el('div', { class: 'viz-battery-fill' });
+      fill.style.width = fillPct + '%';
+      fill.style.background = color;
+
+      var text = U.el('div', { class: 'viz-battery-text', text: occ + '/' + cap });
+
+      var track = U.el('div', { class: 'viz-battery-track' }, [fill, text]);
+      var label = U.el('span', { class: 'viz-battery-label', text: zone.name });
+      section.appendChild(U.el('div', { class: 'viz-battery-row' }, [label, track]));
+    });
+    return section;
+  }
+
   function renderOfficeCard(scenario, office, phaseColor) {
     var data = getOfficeBarData(scenario, office);
     var capacity = calc.calculateOfficeCapacity(office);
@@ -89,6 +117,10 @@ window.App = window.App || {};
     data.entries.forEach(function (entry) {
       card.appendChild(renderTeamBar(entry, data.total, phaseColor));
     });
+
+    var batteries = renderZoneBatteries(scenario, office);
+    if (batteries) { card.appendChild(batteries); }
+
     return card;
   }
 

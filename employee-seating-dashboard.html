@@ -310,6 +310,7 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .money-row:last-child { border-bottom: none; }
 .money-row.money-strong { font-weight: 700; color: var(--accent); }
 .money-label { color: var(--text-muted); }
+.money-group-divider { border: none; border-top: 2px solid var(--border); margin: 8px 0; }
 
 /* Office form: inline zone editor. */
 .form-zones { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
@@ -959,6 +960,12 @@ tr.office-drop-below > td {
 .viz-bar-label { position: relative; z-index: 1; white-space: normal; word-break: break-word; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
 .viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; align-self: center; }
 .viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; font-size: 0.9em; }
+.viz-battery-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.viz-battery-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.viz-battery-label { font-size: 0.78em; color: var(--text-muted); min-width: 70px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viz-battery-track { flex: 1; height: 18px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; display: flex; align-items: center; }
+.viz-battery-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; transition: width 0.2s; }
+.viz-battery-text { position: relative; z-index: 1; width: 100%; text-align: center; font-size: 0.78em; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); pointer-events: none; }
 
 </style>
 </head>
@@ -6070,8 +6077,10 @@ window.App = window.App || {};
     wrap.appendChild(rowMoney('Аренда, ₽/м² с НДС', office.rentPerSqm != null ? office.rentPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Эксплуатация, ₽/м² с НДС', office.opexPerSqm != null ? office.opexPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Индексация, %/год', office.indexationPct != null ? office.indexationPct : '—'));
+    wrap.appendChild(U.el('div', { class: 'money-group-divider' }));
     wrap.appendChild(rowMoney('Итого аренда, млн. руб./год', fmtMln(annual), true));
     wrap.appendChild(rowMoney('Аренда за 5 лет, млн. руб.', fmtMln(fiveY), true));
+    wrap.appendChild(U.el('div', { class: 'money-group-divider' }));
     var monthly = annual / 12;
     wrap.appendChild(rowMoney('Аренда в месяц (сейчас)', fmtMln(monthly)));
     var capacity = calc.calculateOfficeCapacity(office);
@@ -8819,6 +8828,34 @@ window.App = window.App || {};
     return U.el('div', { class: 'viz-bar-row' }, [track, count]);
   }
 
+  function renderZoneBatteries(scenario, office) {
+    var zones = (office.zones || []).filter(function (z) { return z.capacity && z.capacity > 0; });
+    if (zones.length === 0) { return null; }
+
+    var section = U.el('div', { class: 'viz-battery-section' });
+    zones.forEach(function (zone) {
+      var occ = calc.calculateZoneOccupancy(scenario, zone.id);
+      var cap = zone.capacity;
+      var pct = Math.round((occ / cap) * 100);
+      var color;
+      if (pct <= 85) { color = '#22c55e'; }
+      else if (pct <= 100) { color = '#f59e0b'; }
+      else { color = '#ef4444'; }
+      var fillPct = Math.min(pct, 100);
+
+      var fill = U.el('div', { class: 'viz-battery-fill' });
+      fill.style.width = fillPct + '%';
+      fill.style.background = color;
+
+      var text = U.el('div', { class: 'viz-battery-text', text: occ + '/' + cap });
+
+      var track = U.el('div', { class: 'viz-battery-track' }, [fill, text]);
+      var label = U.el('span', { class: 'viz-battery-label', text: zone.name });
+      section.appendChild(U.el('div', { class: 'viz-battery-row' }, [label, track]));
+    });
+    return section;
+  }
+
   function renderOfficeCard(scenario, office, phaseColor) {
     var data = getOfficeBarData(scenario, office);
     var capacity = calc.calculateOfficeCapacity(office);
@@ -8839,6 +8876,10 @@ window.App = window.App || {};
     data.entries.forEach(function (entry) {
       card.appendChild(renderTeamBar(entry, data.total, phaseColor));
     });
+
+    var batteries = renderZoneBatteries(scenario, office);
+    if (batteries) { card.appendChild(batteries); }
+
     return card;
   }
 
