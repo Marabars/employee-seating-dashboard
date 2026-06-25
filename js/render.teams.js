@@ -68,6 +68,32 @@ window.App = window.App || {};
     var teams = filterTeams(scenario);
     panel.appendChild(U.el('div', { class: 'muted result-count', text: 'Найдено: ' + teams.length }));
 
+    function teamPlacementLines(teamId, phase) {
+      var byKey = {};
+      (scenario.allocations || []).forEach(function (a) {
+        if (a.teamId !== teamId) { return; }
+        var office = U.findById(scenario.offices, a.targetOfficeId);
+        if (!office || office.phase !== phase) { return; }
+        var zoneId = a.targetZoneId || '';
+        var key = a.targetOfficeId + '|' + zoneId;
+        if (!byKey[key]) {
+          var zone = zoneId ? U.findById(office.zones || [], zoneId) : null;
+          byKey[key] = { officeName: office.name, zoneName: zone ? zone.name : null, teamSeats: 0, namedCount: 0 };
+        }
+        if (a.type === C.ALLOCATION_TYPE.TEAM) {
+          byKey[key].teamSeats += (a.employeesCount || 0);
+        } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
+          byKey[key].namedCount += 1;
+        }
+      });
+      return Object.keys(byKey).map(function (key) {
+        var e = byKey[key];
+        var count = Math.max(e.teamSeats, e.namedCount);
+        var label = e.officeName + (e.zoneName ? ' / ' + e.zoneName : '');
+        return label + ' (' + count + ')';
+      });
+    }
+
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
       th(''), th('Команда'), th('Численность'), th('AS-IS офис'), th('TO-BE офис'),
@@ -78,8 +104,6 @@ window.App = window.App || {};
     teams.forEach(function (team) {
       var allocated = calc.calculateTeamAllocated(scenario, team.id);
       var remainder = calc.calculateTeamRemainder(scenario, team);
-      var currentOffice = U.findById(scenario.offices, team.currentOfficeId);
-      var toBeOffice = U.findById(scenario.offices, team.toBeOfficeId);
       var isExpanded = !!expanded[team.id];
 
       var actionsCell = U.el('td', { class: 'cell-actions' });
@@ -117,8 +141,20 @@ window.App = window.App || {};
         })),
         nameCell,
         U.el('td', { text: String(team.employeesCount || 0) }),
-        U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
-        U.el('td', { class: 'cell-tobe', text: toBeOffice ? toBeOffice.name : '—' }),
+        (function () {
+          var lines = teamPlacementLines(team.id, C.OFFICE_PHASE.ASIS);
+          var td = U.el('td', {});
+          if (!lines.length) { td.appendChild(U.el('span', { class: 'muted', text: '—' })); }
+          lines.forEach(function (l) { td.appendChild(U.el('div', { class: 'placement-detail', text: l })); });
+          return td;
+        }()),
+        (function () {
+          var lines = teamPlacementLines(team.id, C.OFFICE_PHASE.TOBE);
+          var td = U.el('td', { class: 'cell-tobe' });
+          if (!lines.length) { td.appendChild(U.el('span', { class: 'muted', text: '—' })); }
+          lines.forEach(function (l) { td.appendChild(U.el('div', { class: 'placement-detail', text: l })); });
+          return td;
+        }()),
         U.el('td', { text: team.isVip ? 'Да' : '—' }),
         U.el('td', { text: team.canSplit === false ? 'Нет' : 'Да' }),
         U.el('td', { text: String(allocated) }),
