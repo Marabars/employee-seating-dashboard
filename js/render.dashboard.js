@@ -28,7 +28,8 @@ window.App = window.App || {};
   var teamSearch = '';        // search in unallocated teams panel
   var expandedMsgGroups = { error: true, warning: true, info: true }; // message group collapse state
   var problemOfficesCollapsed = false; // collapsible problem offices section
-  var hiddenOffices = {}; // offices hidden on dashboard (id → true)
+  var dashCFCollapsed = {};        // { tobe: bool, asis: bool } — office CF collapsed per phase
+  var dashTenantCFCollapsed = {};  // { tobe: bool, asis: bool } — tenant CF collapsed per phase
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -142,20 +143,29 @@ window.App = window.App || {};
     if (data.years.length === 0) { return null; }
     var phaseRows = data.officeRows.filter(function (r) { return r.phase === phase; });
     if (phaseRows.length === 0) { return null; }
-    var wrap = U.el('div', { class: 'dash-cf-block' });
     var phaseLabel = phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
-    wrap.appendChild(U.el('div', { class: 'section-title', text: 'Cash Flow ' + phaseLabel + ' (млн руб./год)' }));
-    wrap.appendChild(R.cfTable({
-      rows: phaseRows,
-      years: data.years,
-      expandedYears: dashExpandedCFYears,
-      onToggleYear: function (yr) {
-        dashExpandedCFYears[yr] = !dashExpandedCFYears[yr];
-        R.render();
-      },
-      firstColLabel: 'Офис',
-      showPhaseHeaders: false
-    }));
+    var isCollapsed = !!dashCFCollapsed[phase];
+    var wrap = U.el('div', { class: 'dash-cf-block' });
+    wrap.appendChild(U.el('div', { class: 'cf-block-head' }, [
+      U.el('div', { class: 'section-title', text: 'Cash Flow ' + phaseLabel + ' (млн руб./год)' }),
+      U.el('button', {
+        class: 'btn btn-sm btn-secondary cf-collapse-btn',
+        onclick: (function (ph) { return function () { dashCFCollapsed[ph] = !dashCFCollapsed[ph]; R.render(); }; })(phase)
+      }, isCollapsed ? '▸ Развернуть' : '▾ Свернуть')
+    ]));
+    if (!isCollapsed) {
+      wrap.appendChild(R.cfTable({
+        rows: phaseRows,
+        years: data.years,
+        expandedYears: dashExpandedCFYears,
+        onToggleYear: function (yr) {
+          dashExpandedCFYears[yr] = !dashExpandedCFYears[yr];
+          R.render();
+        },
+        firstColLabel: 'Офис',
+        showPhaseHeaders: false
+      }));
+    }
     return wrap;
   }
 
@@ -165,20 +175,29 @@ window.App = window.App || {};
     if (data.years.length === 0) { return null; }
     var phaseRows = data.tenantRows.filter(function (r) { return r.phase === phase; });
     if (phaseRows.length === 0) { return null; }
-    var wrap = U.el('div', { class: 'dash-cf-block' });
     var phaseLabel = phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
-    wrap.appendChild(U.el('div', { class: 'section-title', text: 'CF по арендаторам ' + phaseLabel + ' (млн руб./год)' }));
-    wrap.appendChild(R.cfTable({
-      rows: phaseRows,
-      years: data.years,
-      expandedYears: dashExpandedTenantCFYears,
-      onToggleYear: function (yr) {
-        dashExpandedTenantCFYears[yr] = !dashExpandedTenantCFYears[yr];
-        R.render();
-      },
-      firstColLabel: 'Арендатор',
-      showPhaseHeaders: false
-    }));
+    var isCollapsed = !!dashTenantCFCollapsed[phase];
+    var wrap = U.el('div', { class: 'dash-cf-block' });
+    wrap.appendChild(U.el('div', { class: 'cf-block-head' }, [
+      U.el('div', { class: 'section-title', text: 'CF по арендаторам ' + phaseLabel + ' (млн руб./год)' }),
+      U.el('button', {
+        class: 'btn btn-sm btn-secondary cf-collapse-btn',
+        onclick: (function (ph) { return function () { dashTenantCFCollapsed[ph] = !dashTenantCFCollapsed[ph]; R.render(); }; })(phase)
+      }, isCollapsed ? '▸ Развернуть' : '▾ Свернуть')
+    ]));
+    if (!isCollapsed) {
+      wrap.appendChild(R.cfTable({
+        rows: phaseRows,
+        years: data.years,
+        expandedYears: dashExpandedTenantCFYears,
+        onToggleYear: function (yr) {
+          dashExpandedTenantCFYears[yr] = !dashExpandedTenantCFYears[yr];
+          R.render();
+        },
+        firstColLabel: 'Арендатор',
+        showPhaseHeaders: false
+      }));
+    }
     return wrap;
   }
 
@@ -221,17 +240,8 @@ window.App = window.App || {};
       panel.appendChild(buildDashCFYearControls(cf));
     }
 
-    var hiddenCount = Object.keys(hiddenOffices).length;
-    if (hiddenCount > 0 && !ctx.viewOnly) {
-      head.appendChild(U.el('button', {
-        class: 'btn btn-sm btn-secondary',
-        title: 'Показать скрытые офисы',
-        onclick: function () { hiddenOffices = {}; R.render(); }
-      }, 'Показать все (' + hiddenCount + ')'));
-    }
-
-    var tobe = calc.getTobeOffices(scenario).filter(function (o) { return !hiddenOffices[o.id]; });
-    var asis = calc.getAsisOffices(scenario).filter(function (o) { return !hiddenOffices[o.id]; });
+    var tobe = calc.getTobeOffices(scenario);
+    var asis = calc.getAsisOffices(scenario);
 
     if (tobe.length === 0 && asis.length === 0) {
       panel.appendChild(R.emptyState(C.EMPTY_STATES.offices, 'Перейти к офисам',
@@ -334,25 +344,17 @@ window.App = window.App || {};
       title: balPositive ? 'Профицит мест' : 'Дефицит мест'
     }, balPositive ? '+' : '−'));
 
-    var headBtns = U.el('div', { class: 'office-head-btns' }, [
-      ctx.viewOnly ? null : U.el('button', {
-        class: 'icon-btn office-hide-btn',
-        title: 'Скрыть офис',
-        onclick: function () { hiddenOffices[office.id] = true; R.render(); }
-      }, '×'),
-      U.el('button', {
-        class: 'icon-btn',
-        title: isExpanded ? 'Свернуть' : 'Развернуть',
-        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
-      }, isExpanded ? '▾' : '▸')
-    ]);
     card.appendChild(U.el('div', { class: 'office-card-head' }, [
       U.el('div', {}, [
         U.el('h3', { text: office.name }),
         U.el('span', { class: 'phase-tag ' + phaseClass, text: C.OFFICE_PHASE_LABEL[office.phase] || '' }),
         office.isDraft ? R.badge('Черновик', 'grey') : null
       ]),
-      headBtns
+      U.el('button', {
+        class: 'icon-btn',
+        title: isExpanded ? 'Свернуть' : 'Развернуть',
+        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
+      }, isExpanded ? '▾' : '▸')
     ]));
 
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
@@ -533,11 +535,12 @@ window.App = window.App || {};
       var isTeamExpanded = !!expandedZoneTeams[zKey];
       var hasTeamAlloc = rawSeats > 0;
 
+      var hasAnyAlloc = !!firstAllocByTeam[teamId];
       var teamBoxAttrs = { class: 'team-box' + (hasTeamAlloc ? '' : ' team-box-individual') };
-      if (hasTeamAlloc) {
+      if (hasAnyAlloc && (!ctx || !ctx.viewOnly)) {
         teamBoxAttrs.draggable = 'true';
         teamBoxAttrs['data-drag-kind'] = 'allocation';
-        teamBoxAttrs['data-drag-id'] = firstAllocByTeam[teamId];
+        teamBoxAttrs['data-drag-id'] = String(firstAllocByTeam[teamId]);
       }
       var teamBox = U.el('div', teamBoxAttrs, [
         U.el('span', { class: 'team-box-name', text: team ? team.name : teamId }),
@@ -837,7 +840,7 @@ window.App = window.App || {};
     }
     var panel = R.section('Проблемные офисы (' + problems.length + ')', {
       label: problemOfficesCollapsed ? '▸ Развернуть' : '▾ Свернуть',
-      onclick: function () { problemOfficesCollapsed = !problemOfficesCollapsed; R.render(); }
+      onClick: function () { problemOfficesCollapsed = !problemOfficesCollapsed; R.render(); }
     });
     if (!problemOfficesCollapsed) {
       var listEl = U.el('ul', { class: 'problem-list' });
