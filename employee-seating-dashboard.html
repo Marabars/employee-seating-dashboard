@@ -6058,7 +6058,7 @@ window.App = window.App || {};
     ]);
   }
 
-  /** Money view: rent, opex, indexation, annual total, 5-year total. */
+  /** Money view: rent, opex, indexation, annual total, 5-year total, monthly, per-seat. */
   function renderMoneyMetrics(office) {
     var wrap = U.el('div', { class: 'office-money' });
     var annual = calc.officeAnnualCost(office);
@@ -6072,6 +6072,16 @@ window.App = window.App || {};
     wrap.appendChild(rowMoney('Индексация, %/год', office.indexationPct != null ? office.indexationPct : '—'));
     wrap.appendChild(rowMoney('Итого аренда, млн. руб./год', fmtMln(annual), true));
     wrap.appendChild(rowMoney('Аренда за 5 лет, млн. руб.', fmtMln(fiveY), true));
+    var monthly = annual / 12;
+    wrap.appendChild(rowMoney('Аренда в месяц (сейчас)', fmtMln(monthly)));
+    var capacity = calc.calculateOfficeCapacity(office);
+    var perSeat;
+    if (!capacity || !isFinite(capacity)) {
+      perSeat = '—';
+    } else {
+      perSeat = Math.round(monthly / capacity * 1000) + ' тыс. руб.';
+    }
+    wrap.appendChild(rowMoney('Аренда в мес на рабочее место', perSeat));
     return wrap;
   }
 
