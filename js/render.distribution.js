@@ -201,21 +201,37 @@ window.App = window.App || {};
     if (!isCollapsed) {
       (office.zones || []).forEach(function (zone) {
         var zOcc = calc.calculateZoneOccupancy(scenario, zone.id);
+        var isZoneCollapsed = !!collapsedZones[zone.id];
+
+        var zoneToggleBtn = R.iconBtn(isZoneCollapsed ? '▸' : '▾', isZoneCollapsed ? 'Раскрыть зону' : 'Свернуть зону',
+          (function (zid, zcol) {
+            return function (e) {
+              e.stopPropagation();
+              collapsedZones[zid] = !zcol;
+              R.render();
+            };
+          })(zone.id, isZoneCollapsed)
+        );
+
         var zoneBox = U.el('div', {
           class: 'drop-target zone-target' + (zone.isVipZone ? ' vip' : ''),
           dataset: { dropOffice: office.id, dropZone: zone.id },
           'aria-dropeffect': 'move'
         }, [
           U.el('div', { class: 'target-head' }, [
+            zoneToggleBtn,
             U.el('span', { text: zone.name + (zone.isVipZone ? ' ★' : '') }),
             U.el('span', { class: 'target-stat', text: zOcc + ' / ' + (zone.capacity || 0) })
           ]),
           R.progressBar(zOcc, zone.capacity || 0, ctx.thresholds),
           U.el('div', { class: 'target-free', text: R.freeOrOverflowText(zone.capacity || 0, zOcc) })
         ]);
-        allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
-          zoneBox.appendChild(allocationChip(scenario, a, ctx));
-        });
+
+        if (!isZoneCollapsed) {
+          allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
+            zoneBox.appendChild(allocationChip(scenario, a, ctx));
+          });
+        }
         box.appendChild(zoneBox);
       });
     }
