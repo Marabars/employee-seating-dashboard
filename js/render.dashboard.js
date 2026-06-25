@@ -368,11 +368,6 @@ window.App = window.App || {};
         'Осталось мест: ' + (balance >= 0 ? balance : 0) + (balance < 0 ? ' (дефицит ' + (-balance) + ')' : '') }));
     }
 
-    if (!isExpanded && !moneyMode) {
-      var chips = renderAllocChips(scenario, office, ctx);
-      if (chips) { card.appendChild(chips); }
-    }
-
     if (isExpanded) {
       card.appendChild(renderZones(scenario, office, ctx));
       var directTeams = renderOfficeDirectTeams(scenario, office, ctx);
