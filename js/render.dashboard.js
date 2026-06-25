@@ -279,6 +279,30 @@ window.App = window.App || {};
     return panel;
   }
 
+  function renderAllocChips(scenario, office, ctx) {
+    var teamAllocs = (scenario.allocations || []).filter(function (a) {
+      return a.targetOfficeId === office.id && a.type === C.ALLOCATION_TYPE.TEAM;
+    });
+    if (teamAllocs.length === 0) { return null; }
+
+    var wrap = U.el('div', { class: 'alloc-chips' });
+    teamAllocs.forEach(function (a) {
+      var team = (scenario.teams || []).filter(function (t) { return t.id === a.teamId; })[0];
+      var teamName = team ? team.name : a.teamId;
+      var count = a.employeesCount || 0;
+      wrap.appendChild(U.el('div', {
+        class: 'alloc-chip',
+        dataset: { dragKind: 'allocation', dragId: a.id },
+        draggable: ctx.viewOnly ? 'false' : 'true',
+        title: 'Перетащите, чтобы переместить'
+      }, [
+        U.el('span', { class: 'alloc-chip-name', text: teamName }),
+        U.el('span', { class: 'alloc-chip-count', text: String(count) })
+      ]));
+    });
+    return wrap;
+  }
+
   function renderOfficeCard(scenario, office, ctx) {
     var capacity = calc.calculateOfficeCapacity(office);
     var occupied = calc.calculateOfficeOccupancy(scenario, office.id);
@@ -342,6 +366,11 @@ window.App = window.App || {};
       card.appendChild(R.progressBar(occupied, capacity, ctx.thresholds));
       card.appendChild(U.el('div', { class: 'office-card-free', text:
         'Осталось мест: ' + (balance >= 0 ? balance : 0) + (balance < 0 ? ' (дефицит ' + (-balance) + ')' : '') }));
+    }
+
+    if (!isExpanded && !moneyMode) {
+      var chips = renderAllocChips(scenario, office, ctx);
+      if (chips) { card.appendChild(chips); }
     }
 
     if (isExpanded) {

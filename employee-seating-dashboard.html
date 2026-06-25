@@ -463,6 +463,14 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .team-chip-name { font-weight: 600; }
 .team-chip-count { font-size: 14px; color: var(--text-muted); }
 
+/* ---- Allocation chips (dashboard office cards) ---- */
+.alloc-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.alloc-chip { display: flex; align-items: center; gap: 4px; background: var(--surface-alt, rgba(128,128,128,0.12)); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; cursor: grab; font-size: 0.8em; transition: box-shadow 0.15s; user-select: none; }
+.alloc-chip:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+.alloc-chip[draggable="true"] { cursor: grab; }
+.alloc-chip-name { font-weight: 500; color: var(--text); }
+.alloc-chip-count { background: var(--primary, #4f8ef7); color: #fff; border-radius: 10px; padding: 0 6px; font-size: 0.85em; font-weight: 600; min-width: 18px; text-align: center; }
+
 /* ---- Lists ---- */
 .problem-list, .message-list { list-style: none; padding: 0; margin: 0; }
 .problem-item, .message-item {
@@ -5979,6 +5987,30 @@ window.App = window.App || {};
     return panel;
   }
 
+  function renderAllocChips(scenario, office, ctx) {
+    var teamAllocs = (scenario.allocations || []).filter(function (a) {
+      return a.targetOfficeId === office.id && a.type === C.ALLOCATION_TYPE.TEAM;
+    });
+    if (teamAllocs.length === 0) { return null; }
+
+    var wrap = U.el('div', { class: 'alloc-chips' });
+    teamAllocs.forEach(function (a) {
+      var team = (scenario.teams || []).filter(function (t) { return t.id === a.teamId; })[0];
+      var teamName = team ? team.name : a.teamId;
+      var count = a.employeesCount || 0;
+      wrap.appendChild(U.el('div', {
+        class: 'alloc-chip',
+        dataset: { dragKind: 'allocation', dragId: a.id },
+        draggable: ctx.viewOnly ? 'false' : 'true',
+        title: 'Перетащите, чтобы переместить'
+      }, [
+        U.el('span', { class: 'alloc-chip-name', text: teamName }),
+        U.el('span', { class: 'alloc-chip-count', text: String(count) })
+      ]));
+    });
+    return wrap;
+  }
+
   function renderOfficeCard(scenario, office, ctx) {
     var capacity = calc.calculateOfficeCapacity(office);
     var occupied = calc.calculateOfficeOccupancy(scenario, office.id);
@@ -6042,6 +6074,11 @@ window.App = window.App || {};
       card.appendChild(R.progressBar(occupied, capacity, ctx.thresholds));
       card.appendChild(U.el('div', { class: 'office-card-free', text:
         'Осталось мест: ' + (balance >= 0 ? balance : 0) + (balance < 0 ? ' (дефицит ' + (-balance) + ')' : '') }));
+    }
+
+    if (!isExpanded && !moneyMode) {
+      var chips = renderAllocChips(scenario, office, ctx);
+      if (chips) { card.appendChild(chips); }
     }
 
     if (isExpanded) {
