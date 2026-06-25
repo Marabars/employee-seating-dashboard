@@ -400,10 +400,16 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* ---- Zones ---- */
 .zone-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .zone-row { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
-.zone-row-head, .target-head { display: flex; justify-content: space-between; align-items: center; }
+.zone-row-head, .target-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .zone-name { font-weight: 500; }
 .zone-stat, .target-stat { font-size: 14px; color: var(--text-muted); }
 .zone-free, .target-free { font-size: 14px; color: var(--text-muted); }
+.target-head .icon-btn {
+  font-size: 0.75em;
+  opacity: 0.7;
+  padding: 0 2px;
+  min-width: 16px;
+}
 
 /* ---- Tables ---- */
 .data-table { width: 100%; border-collapse: collapse; font-size: 15px; }
