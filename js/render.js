@@ -283,7 +283,8 @@ App.render = (function () {
 
     function fmt(v) {
       if (v === null || v === undefined || isNaN(v)) { return '—'; }
-      return (Math.round(v * 100) / 100).toFixed(2);
+      var rounded = Math.round(v * 100) / 100;
+      return rounded.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     var columns = [];
