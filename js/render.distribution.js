@@ -17,6 +17,8 @@ window.App = window.App || {};
 
   var search = '';
   var expandedTeams = {};
+  var collapsedOffices = {};
+  var collapsedZones = {};
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -170,6 +172,17 @@ window.App = window.App || {};
   function renderOfficeTarget(scenario, office, ctx) {
     var capacity = calc.calculateOfficeCapacity(office);
     var occupied = calc.calculateOfficeOccupancy(scenario, office.id);
+    var isCollapsed = !!collapsedOffices[office.id];
+
+    var toggleBtn = R.iconBtn(isCollapsed ? '▸' : '▾', isCollapsed ? 'Раскрыть офис' : 'Свернуть офис',
+      (function (oid, col) {
+        return function (e) {
+          e.stopPropagation();
+          collapsedOffices[oid] = !col;
+          R.render();
+        };
+      })(office.id, isCollapsed)
+    );
 
     var box = U.el('div', {
       class: 'drop-target office-target',
@@ -177,6 +190,7 @@ window.App = window.App || {};
       'aria-dropeffect': 'move'
     }, [
       U.el('div', { class: 'target-head' }, [
+        toggleBtn,
         U.el('h3', { text: office.name }),
         U.el('span', { class: 'target-stat', text: occupied + ' / ' + capacity })
       ]),
@@ -184,26 +198,27 @@ window.App = window.App || {};
       U.el('div', { class: 'target-free', text: R.freeOrOverflowText(capacity, occupied) })
     ]);
 
-    (office.zones || []).forEach(function (zone) {
-      var zOcc = calc.calculateZoneOccupancy(scenario, zone.id);
-      var zoneBox = U.el('div', {
-        class: 'drop-target zone-target' + (zone.isVipZone ? ' vip' : ''),
-        dataset: { dropOffice: office.id, dropZone: zone.id },
-        'aria-dropeffect': 'move'
-      }, [
-        U.el('div', { class: 'target-head' }, [
-          U.el('span', { text: zone.name + (zone.isVipZone ? ' ★' : '') }),
-          U.el('span', { class: 'target-stat', text: zOcc + ' / ' + (zone.capacity || 0) })
-        ]),
-        R.progressBar(zOcc, zone.capacity || 0, ctx.thresholds),
-        U.el('div', { class: 'target-free', text: R.freeOrOverflowText(zone.capacity || 0, zOcc) })
-      ]);
-      // Allocation chips placed into this zone — draggable to move between zones.
-      allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
-        zoneBox.appendChild(allocationChip(scenario, a, ctx));
+    if (!isCollapsed) {
+      (office.zones || []).forEach(function (zone) {
+        var zOcc = calc.calculateZoneOccupancy(scenario, zone.id);
+        var zoneBox = U.el('div', {
+          class: 'drop-target zone-target' + (zone.isVipZone ? ' vip' : ''),
+          dataset: { dropOffice: office.id, dropZone: zone.id },
+          'aria-dropeffect': 'move'
+        }, [
+          U.el('div', { class: 'target-head' }, [
+            U.el('span', { text: zone.name + (zone.isVipZone ? ' ★' : '') }),
+            U.el('span', { class: 'target-stat', text: zOcc + ' / ' + (zone.capacity || 0) })
+          ]),
+          R.progressBar(zOcc, zone.capacity || 0, ctx.thresholds),
+          U.el('div', { class: 'target-free', text: R.freeOrOverflowText(zone.capacity || 0, zOcc) })
+        ]);
+        allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
+          zoneBox.appendChild(allocationChip(scenario, a, ctx));
+        });
+        box.appendChild(zoneBox);
       });
-      box.appendChild(zoneBox);
-    });
+    }
     return box;
   }
 
