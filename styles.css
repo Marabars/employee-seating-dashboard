@@ -966,8 +966,10 @@ tr.office-drop-below > td {
   text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border); }
 .viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 4px; }
-.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; }
-.viz-bars-wrap { flex: 1; }
+.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.viz-card-top { padding: 14px 14px 12px; }
+.viz-card-bottom { padding: 10px 14px 12px; border-top: 1px solid var(--border); }
+.viz-bars-wrap {}
 .viz-office-title { font-weight: 600; font-size: 1.05em; margin-bottom: 2px; }
 .viz-office-meta { font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px; }
 .viz-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
@@ -976,7 +978,7 @@ tr.office-drop-below > td {
 .viz-bar-label { position: relative; z-index: 1; white-space: normal; word-break: break-word; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
 .viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; align-self: center; }
 .viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; font-size: 0.9em; }
-.viz-battery-section { display: grid; grid-template-columns: max-content 1fr; column-gap: 8px; row-gap: 5px; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 10px; }
+.viz-battery-section { display: grid; grid-template-columns: max-content 1fr; column-gap: 8px; row-gap: 5px; align-items: center; }
 .viz-battery-row { display: contents; }
 .viz-battery-label { font-size: 0.78em; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viz-battery-track { flex: 1; height: 18px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; display: flex; align-items: center; }

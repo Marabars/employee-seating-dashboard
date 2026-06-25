@@ -97,31 +97,68 @@ window.App = window.App || {};
     return section;
   }
 
+  function equalizeCardRows(grid) {
+    var cards = grid.querySelectorAll('.viz-office-card');
+    if (!cards.length) { return; }
+    var i, j, key, tops, maxH, h;
+
+    for (i = 0; i < cards.length; i++) {
+      var t = cards[i].querySelector('.viz-card-top');
+      if (t) { t.style.minHeight = ''; }
+    }
+
+    var rows = {};
+    for (i = 0; i < cards.length; i++) {
+      var topEl = cards[i].querySelector('.viz-card-top');
+      if (!topEl) { continue; }
+      key = cards[i].offsetTop;
+      if (!rows[key]) { rows[key] = []; }
+      rows[key].push(topEl);
+    }
+
+    var keys = Object.keys(rows);
+    for (i = 0; i < keys.length; i++) {
+      tops = rows[keys[i]];
+      maxH = 0;
+      for (j = 0; j < tops.length; j++) {
+        h = tops[j].offsetHeight;
+        if (h > maxH) { maxH = h; }
+      }
+      for (j = 0; j < tops.length; j++) {
+        tops[j].style.minHeight = maxH + 'px';
+      }
+    }
+  }
+
   function renderOfficeCard(scenario, office, phaseColor, maxSeats) {
     var data = getOfficeBarData(scenario, office);
     var capacity = calc.calculateOfficeCapacity(office);
     var capLabel = (capacity === Infinity) ? '∞' : String(capacity);
 
     var card = U.el('div', { class: 'viz-office-card' });
-    card.appendChild(U.el('div', { class: 'viz-office-title', text: office.name }));
-    card.appendChild(U.el('div', {
+
+    var topBlock = U.el('div', { class: 'viz-card-top' });
+    topBlock.appendChild(U.el('div', { class: 'viz-office-title', text: office.name }));
+    topBlock.appendChild(U.el('div', {
       class: 'viz-office-meta',
       text: 'Занято: ' + data.occupied + ' / ' + capLabel + ' мест'
     }));
 
-    var batteries = renderZoneBatteries(scenario, office);
-    if (batteries) { card.appendChild(batteries); }
-
     if (data.entries.length === 0) {
-      card.appendChild(U.el('div', { class: 'viz-empty', text: 'Нет размещений' }));
-      return card;
+      topBlock.appendChild(U.el('div', { class: 'viz-empty', text: 'Нет размещений' }));
+    } else {
+      var barsWrap = U.el('div', { class: 'viz-bars-wrap' });
+      data.entries.forEach(function (entry) {
+        barsWrap.appendChild(renderTeamBar(entry, maxSeats, phaseColor));
+      });
+      topBlock.appendChild(barsWrap);
     }
+    card.appendChild(topBlock);
 
-    var barsWrap = U.el('div', { class: 'viz-bars-wrap' });
-    data.entries.forEach(function (entry) {
-      barsWrap.appendChild(renderTeamBar(entry, maxSeats, phaseColor));
-    });
-    card.appendChild(barsWrap);
+    var bottomBlock = U.el('div', { class: 'viz-card-bottom' });
+    var batteries = renderZoneBatteries(scenario, office);
+    if (batteries) { bottomBlock.appendChild(batteries); }
+    card.appendChild(bottomBlock);
 
     return card;
   }
@@ -171,8 +208,13 @@ window.App = window.App || {};
     phaseToggles.appendChild(asisBtn);
     container.appendChild(phaseToggles);
 
-    container.appendChild(renderPhaseSection(scenario, C.OFFICE_PHASE.TOBE, 'TO BE', hideVizTobe));
-    container.appendChild(renderPhaseSection(scenario, C.OFFICE_PHASE.ASIS, 'AS IS', hideVizAsis));
+    var tobeSection = renderPhaseSection(scenario, C.OFFICE_PHASE.TOBE, 'TO BE', hideVizTobe);
+    container.appendChild(tobeSection);
+    var asisSection = renderPhaseSection(scenario, C.OFFICE_PHASE.ASIS, 'AS IS', hideVizAsis);
+    container.appendChild(asisSection);
+
+    var grids = container.querySelectorAll('.viz-grid');
+    for (var gi = 0; gi < grids.length; gi++) { equalizeCardRows(grids[gi]); }
   }
 
   App.render.registerTab('visualization', { label: 'Визуализация', render: render });
