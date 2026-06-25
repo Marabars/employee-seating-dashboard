@@ -109,6 +109,9 @@ window.App = window.App || {};
       text: 'Занято: ' + data.occupied + ' / ' + capLabel + ' мест'
     }));
 
+    var batteries = renderZoneBatteries(scenario, office);
+    if (batteries) { card.appendChild(batteries); }
+
     if (data.entries.length === 0) {
       card.appendChild(U.el('div', { class: 'viz-empty', text: 'Нет размещений' }));
       return card;
@@ -119,9 +122,6 @@ window.App = window.App || {};
       barsWrap.appendChild(renderTeamBar(entry, maxSeats, phaseColor));
     });
     card.appendChild(barsWrap);
-
-    var batteries = renderZoneBatteries(scenario, office);
-    if (batteries) { card.appendChild(batteries); }
 
     return card;
   }
