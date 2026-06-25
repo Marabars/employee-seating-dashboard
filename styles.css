@@ -104,8 +104,9 @@ h4 { font-size: 14px; color: var(--text-muted); }
   padding: 0 16px;
   overflow-x: auto;
   position: sticky;
-  top: 70px;
+  top: 72px;
   z-index: 49;
+  background: var(--bg);
 }
 .nav-tab {
   border: none;
@@ -298,11 +299,12 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* Money mode. */
 .money-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .money-toggle input { cursor: pointer; }
-.office-money { margin: 6px 0; }
+.office-money { margin: 6px 0; margin-top: auto; }
 .money-row { display: flex; justify-content: space-between; font-size: 15px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .money-row:last-child { border-bottom: none; }
 .money-row.money-strong { font-weight: 700; color: var(--accent); }
-.money-label { color: var(--text-muted); }
+.money-label { color: var(--text); }
+.money-value { color: var(--text); font-weight: 500; }
 .money-group-divider { border: none; border-top: 2px solid var(--border); margin: 8px 0; }
 
 /* Office form: inline zone editor. */
@@ -361,6 +363,8 @@ h4 { font-size: 14px; color: var(--text-muted); }
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   position: relative;
   overflow: hidden;
@@ -380,6 +384,9 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .status-border-grey::before { background: var(--grey); }
 .status-border-blue::before { background: var(--blue); }
 .office-card-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.office-head-btns { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.office-hide-btn { opacity: 0.4; font-size: 14px; }
+.office-hide-btn:hover { opacity: 0.9; color: var(--red); }
 .office-card-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin: 6px 0; }
 .office-card-free { font-weight: 600; }
 .office-card-percent { font-size: 12px; color: var(--text-muted); }
@@ -812,8 +819,9 @@ tr.office-drop-below > td {
   background: rgba(186, 247, 120, 0.08);
 }
 .unalloc-counter {
-  font-size: 0.8em;
-  color: var(--text-muted);
+  font-size: 0.9em;
+  color: #fff;
+  font-weight: 700;
   margin-bottom: 8px;
   padding: 0 4px;
 }
@@ -952,7 +960,8 @@ tr.office-drop-below > td {
   text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border); }
 .viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 4px; }
-.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; }
+.viz-bars-wrap { flex: 1; }
 .viz-office-title { font-weight: 600; font-size: 1.05em; margin-bottom: 2px; }
 .viz-office-meta { font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px; }
 .viz-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
@@ -961,7 +970,7 @@ tr.office-drop-below > td {
 .viz-bar-label { position: relative; z-index: 1; white-space: normal; word-break: break-word; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
 .viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; align-self: center; }
 .viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; font-size: 0.9em; }
-.viz-battery-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.viz-battery-section { margin-top: auto; border-top: 1px solid var(--border); padding-top: 8px; }
 .viz-battery-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
 .viz-battery-label { font-size: 0.78em; color: var(--text-muted); min-width: 70px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viz-battery-track { flex: 1; height: 18px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; display: flex; align-items: center; }

@@ -58,8 +58,8 @@ window.App = window.App || {};
     return { entries: top10, total: total, occupied: occupied };
   }
 
-  function renderTeamBar(entry, total, phaseColor) {
-    var pct = total > 0 ? Math.max(1, Math.round((entry.seats / total) * 100)) : 1;
+  function renderTeamBar(entry, maxSeats, phaseColor) {
+    var pct = maxSeats > 0 ? Math.max(2, Math.round((entry.seats / maxSeats) * 100)) : 2;
     var fill = U.el('div', { class: 'viz-bar-fill' });
     fill.style.width = pct + '%';
     fill.style.background = phaseColor || entry.color;
@@ -97,7 +97,7 @@ window.App = window.App || {};
     return section;
   }
 
-  function renderOfficeCard(scenario, office, phaseColor) {
+  function renderOfficeCard(scenario, office, phaseColor, maxSeats) {
     var data = getOfficeBarData(scenario, office);
     var capacity = calc.calculateOfficeCapacity(office);
     var capLabel = (capacity === Infinity) ? '∞' : String(capacity);
@@ -114,9 +114,11 @@ window.App = window.App || {};
       return card;
     }
 
+    var barsWrap = U.el('div', { class: 'viz-bars-wrap' });
     data.entries.forEach(function (entry) {
-      card.appendChild(renderTeamBar(entry, data.total, phaseColor));
+      barsWrap.appendChild(renderTeamBar(entry, maxSeats, phaseColor));
     });
+    card.appendChild(barsWrap);
 
     var batteries = renderZoneBatteries(scenario, office);
     if (batteries) { card.appendChild(batteries); }
@@ -136,9 +138,16 @@ window.App = window.App || {};
       wrap.appendChild(U.el('p', { class: 'muted', text: 'Нет офисов для данной фазы.' }));
       return wrap;
     }
+    var maxSeats = 1;
+    offices.forEach(function (office) {
+      var data = getOfficeBarData(scenario, office);
+      data.entries.forEach(function (entry) {
+        if (entry.seats > maxSeats) { maxSeats = entry.seats; }
+      });
+    });
     var grid = U.el('div', { class: 'viz-grid' });
     offices.forEach(function (office) {
-      grid.appendChild(renderOfficeCard(scenario, office, phaseColor));
+      grid.appendChild(renderOfficeCard(scenario, office, phaseColor, maxSeats));
     });
     wrap.appendChild(grid);
     return wrap;

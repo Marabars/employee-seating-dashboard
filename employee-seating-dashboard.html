@@ -111,8 +111,9 @@ h4 { font-size: 14px; color: var(--text-muted); }
   padding: 0 16px;
   overflow-x: auto;
   position: sticky;
-  top: 70px;
+  top: 72px;
   z-index: 49;
+  background: var(--bg);
 }
 .nav-tab {
   border: none;
@@ -305,11 +306,12 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* Money mode. */
 .money-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .money-toggle input { cursor: pointer; }
-.office-money { margin: 6px 0; }
+.office-money { margin: 6px 0; margin-top: auto; }
 .money-row { display: flex; justify-content: space-between; font-size: 15px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .money-row:last-child { border-bottom: none; }
 .money-row.money-strong { font-weight: 700; color: var(--accent); }
-.money-label { color: var(--text-muted); }
+.money-label { color: var(--text); }
+.money-value { color: var(--text); font-weight: 500; }
 .money-group-divider { border: none; border-top: 2px solid var(--border); margin: 8px 0; }
 
 /* Office form: inline zone editor. */
@@ -368,6 +370,8 @@ h4 { font-size: 14px; color: var(--text-muted); }
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   position: relative;
   overflow: hidden;
@@ -387,6 +391,9 @@ h4 { font-size: 14px; color: var(--text-muted); }
 .status-border-grey::before { background: var(--grey); }
 .status-border-blue::before { background: var(--blue); }
 .office-card-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.office-head-btns { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.office-hide-btn { opacity: 0.4; font-size: 14px; }
+.office-hide-btn:hover { opacity: 0.9; color: var(--red); }
 .office-card-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin: 6px 0; }
 .office-card-free { font-weight: 600; }
 .office-card-percent { font-size: 12px; color: var(--text-muted); }
@@ -819,8 +826,9 @@ tr.office-drop-below > td {
   background: rgba(186, 247, 120, 0.08);
 }
 .unalloc-counter {
-  font-size: 0.8em;
-  color: var(--text-muted);
+  font-size: 0.9em;
+  color: #fff;
+  font-weight: 700;
   margin-bottom: 8px;
   padding: 0 4px;
 }
@@ -959,7 +967,8 @@ tr.office-drop-below > td {
   text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border); }
 .viz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 4px; }
-.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.viz-office-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; }
+.viz-bars-wrap { flex: 1; }
 .viz-office-title { font-weight: 600; font-size: 1.05em; margin-bottom: 2px; }
 .viz-office-meta { font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px; }
 .viz-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
@@ -968,7 +977,7 @@ tr.office-drop-below > td {
 .viz-bar-label { position: relative; z-index: 1; white-space: normal; word-break: break-word; font-size: 0.85em; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.55); pointer-events: none; }
 .viz-bar-count { min-width: 36px; text-align: right; font-size: 0.95em; font-weight: 600; color: var(--text); flex-shrink: 0; align-self: center; }
 .viz-empty { color: var(--text-muted); font-style: italic; padding: 4px 0; font-size: 0.9em; }
-.viz-battery-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.viz-battery-section { margin-top: auto; border-top: 1px solid var(--border); padding-top: 8px; }
 .viz-battery-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
 .viz-battery-label { font-size: 0.78em; color: var(--text-muted); min-width: 70px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viz-battery-track { flex: 1; height: 18px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; display: flex; align-items: center; }
@@ -5735,6 +5744,8 @@ window.App = window.App || {};
   var hideTobe = false;       // hide TO BE section on dashboard
   var teamSearch = '';        // search in unallocated teams panel
   var expandedMsgGroups = { error: true, warning: true, info: true }; // message group collapse state
+  var problemOfficesCollapsed = false; // collapsible problem offices section
+  var hiddenOffices = {}; // offices hidden on dashboard (id → true)
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -5927,8 +5938,17 @@ window.App = window.App || {};
       panel.appendChild(buildDashCFYearControls(cf));
     }
 
-    var tobe = calc.getTobeOffices(scenario);
-    var asis = calc.getAsisOffices(scenario);
+    var hiddenCount = Object.keys(hiddenOffices).length;
+    if (hiddenCount > 0 && !ctx.viewOnly) {
+      head.appendChild(U.el('button', {
+        class: 'btn btn-sm btn-secondary',
+        title: 'Показать скрытые офисы',
+        onclick: function () { hiddenOffices = {}; R.render(); }
+      }, 'Показать все (' + hiddenCount + ')'));
+    }
+
+    var tobe = calc.getTobeOffices(scenario).filter(function (o) { return !hiddenOffices[o.id]; });
+    var asis = calc.getAsisOffices(scenario).filter(function (o) { return !hiddenOffices[o.id]; });
 
     if (tobe.length === 0 && asis.length === 0) {
       panel.appendChild(R.emptyState(C.EMPTY_STATES.offices, 'Перейти к офисам',
@@ -6031,17 +6051,25 @@ window.App = window.App || {};
       title: balPositive ? 'Профицит мест' : 'Дефицит мест'
     }, balPositive ? '+' : '−'));
 
+    var headBtns = U.el('div', { class: 'office-head-btns' }, [
+      ctx.viewOnly ? null : U.el('button', {
+        class: 'icon-btn office-hide-btn',
+        title: 'Скрыть офис',
+        onclick: function () { hiddenOffices[office.id] = true; R.render(); }
+      }, '×'),
+      U.el('button', {
+        class: 'icon-btn',
+        title: isExpanded ? 'Свернуть' : 'Развернуть',
+        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
+      }, isExpanded ? '▾' : '▸')
+    ]);
     card.appendChild(U.el('div', { class: 'office-card-head' }, [
       U.el('div', {}, [
         U.el('h3', { text: office.name }),
         U.el('span', { class: 'phase-tag ' + phaseClass, text: C.OFFICE_PHASE_LABEL[office.phase] || '' }),
         office.isDraft ? R.badge('Черновик', 'grey') : null
       ]),
-      U.el('button', {
-        class: 'icon-btn',
-        title: isExpanded ? 'Свернуть' : 'Развернуть',
-        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
-      }, isExpanded ? '▾' : '▸')
+      headBtns
     ]));
 
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
@@ -6120,7 +6148,8 @@ window.App = window.App || {};
     if (!capacity || !isFinite(capacity)) {
       perSeat = '—';
     } else {
-      perSeat = Math.round(monthly / capacity * 1000) + ' тыс. руб.';
+      var perSeatVal = Math.round(monthly / capacity / 1000);
+      perSeat = perSeatVal.toLocaleString('ru-RU') + ' тыс. руб.';
     }
     wrap.appendChild(rowMoney('Аренда в мес на рабочее место', perSeat));
     return wrap;
@@ -6458,7 +6487,7 @@ window.App = window.App || {};
     if (allUnallocatedTeams.length > 0) {
       panel.appendChild(U.el('div', {
         class: 'unalloc-counter',
-        text: allUnallocatedTeams.length + ' команд · ' + allUnallocTotal + ' чел.'
+        text: allUnallocatedTeams.length + ' команд  ·  ' + allUnallocTotal + ' чел.'
       }));
     }
 
@@ -6497,7 +6526,8 @@ window.App = window.App || {};
       var remainder = calc.calculateTeamRemainder(scenario, team);
       listEl.appendChild(U.el('div', {
         class: 'team-chip' + (team.isVip ? ' vip' : ''),
-        dataset: { dragKind: 'team', dragId: team.id },
+        'data-drag-kind': 'team',
+        'data-drag-id': String(team.id),
         draggable: ctx.viewOnly ? 'false' : 'true',
         title: 'Перетащите в офис или зону'
       }, [
@@ -6510,7 +6540,6 @@ window.App = window.App || {};
   }
 
   function renderProblemOffices(scenario, ctx) {
-    var panel = R.section('Проблемные офисы');
     var problems = ctx.messages.filter(function (m) {
       return m.code === C.CODE.OFFICE_OVERFLOW ||
         m.code === C.CODE.ZONE_OVERFLOW ||
@@ -6519,14 +6548,21 @@ window.App = window.App || {};
         m.code === C.CODE.DRAFT_ZERO_CAPACITY;
     });
     if (problems.length === 0) {
-      panel.appendChild(U.el('p', { class: 'muted', text: 'Проблем не обнаружено' }));
-      return panel;
+      var emptyPanel = R.section('Проблемные офисы');
+      emptyPanel.appendChild(U.el('p', { class: 'muted', text: 'Проблем не обнаружено' }));
+      return emptyPanel;
     }
-    var listEl = U.el('ul', { class: 'problem-list' });
-    problems.forEach(function (m) {
-      listEl.appendChild(U.el('li', { class: 'problem-item level-' + m.level, text: m.message }));
+    var panel = R.section('Проблемные офисы (' + problems.length + ')', {
+      label: problemOfficesCollapsed ? '▸ Развернуть' : '▾ Свернуть',
+      onclick: function () { problemOfficesCollapsed = !problemOfficesCollapsed; R.render(); }
     });
-    panel.appendChild(listEl);
+    if (!problemOfficesCollapsed) {
+      var listEl = U.el('ul', { class: 'problem-list' });
+      problems.forEach(function (m) {
+        listEl.appendChild(U.el('li', { class: 'problem-item level-' + m.level, text: m.message }));
+      });
+      panel.appendChild(listEl);
+    }
     return panel;
   }
 
@@ -8849,8 +8885,8 @@ window.App = window.App || {};
     return { entries: top10, total: total, occupied: occupied };
   }
 
-  function renderTeamBar(entry, total, phaseColor) {
-    var pct = total > 0 ? Math.max(1, Math.round((entry.seats / total) * 100)) : 1;
+  function renderTeamBar(entry, maxSeats, phaseColor) {
+    var pct = maxSeats > 0 ? Math.max(2, Math.round((entry.seats / maxSeats) * 100)) : 2;
     var fill = U.el('div', { class: 'viz-bar-fill' });
     fill.style.width = pct + '%';
     fill.style.background = phaseColor || entry.color;
@@ -8888,7 +8924,7 @@ window.App = window.App || {};
     return section;
   }
 
-  function renderOfficeCard(scenario, office, phaseColor) {
+  function renderOfficeCard(scenario, office, phaseColor, maxSeats) {
     var data = getOfficeBarData(scenario, office);
     var capacity = calc.calculateOfficeCapacity(office);
     var capLabel = (capacity === Infinity) ? '∞' : String(capacity);
@@ -8905,9 +8941,11 @@ window.App = window.App || {};
       return card;
     }
 
+    var barsWrap = U.el('div', { class: 'viz-bars-wrap' });
     data.entries.forEach(function (entry) {
-      card.appendChild(renderTeamBar(entry, data.total, phaseColor));
+      barsWrap.appendChild(renderTeamBar(entry, maxSeats, phaseColor));
     });
+    card.appendChild(barsWrap);
 
     var batteries = renderZoneBatteries(scenario, office);
     if (batteries) { card.appendChild(batteries); }
@@ -8927,9 +8965,16 @@ window.App = window.App || {};
       wrap.appendChild(U.el('p', { class: 'muted', text: 'Нет офисов для данной фазы.' }));
       return wrap;
     }
+    var maxSeats = 1;
+    offices.forEach(function (office) {
+      var data = getOfficeBarData(scenario, office);
+      data.entries.forEach(function (entry) {
+        if (entry.seats > maxSeats) { maxSeats = entry.seats; }
+      });
+    });
     var grid = U.el('div', { class: 'viz-grid' });
     offices.forEach(function (office) {
-      grid.appendChild(renderOfficeCard(scenario, office, phaseColor));
+      grid.appendChild(renderOfficeCard(scenario, office, phaseColor, maxSeats));
     });
     wrap.appendChild(grid);
     return wrap;

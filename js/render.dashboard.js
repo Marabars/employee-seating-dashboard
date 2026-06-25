@@ -27,6 +27,8 @@ window.App = window.App || {};
   var hideTobe = false;       // hide TO BE section on dashboard
   var teamSearch = '';        // search in unallocated teams panel
   var expandedMsgGroups = { error: true, warning: true, info: true }; // message group collapse state
+  var problemOfficesCollapsed = false; // collapsible problem offices section
+  var hiddenOffices = {}; // offices hidden on dashboard (id → true)
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -219,8 +221,17 @@ window.App = window.App || {};
       panel.appendChild(buildDashCFYearControls(cf));
     }
 
-    var tobe = calc.getTobeOffices(scenario);
-    var asis = calc.getAsisOffices(scenario);
+    var hiddenCount = Object.keys(hiddenOffices).length;
+    if (hiddenCount > 0 && !ctx.viewOnly) {
+      head.appendChild(U.el('button', {
+        class: 'btn btn-sm btn-secondary',
+        title: 'Показать скрытые офисы',
+        onclick: function () { hiddenOffices = {}; R.render(); }
+      }, 'Показать все (' + hiddenCount + ')'));
+    }
+
+    var tobe = calc.getTobeOffices(scenario).filter(function (o) { return !hiddenOffices[o.id]; });
+    var asis = calc.getAsisOffices(scenario).filter(function (o) { return !hiddenOffices[o.id]; });
 
     if (tobe.length === 0 && asis.length === 0) {
       panel.appendChild(R.emptyState(C.EMPTY_STATES.offices, 'Перейти к офисам',
@@ -323,17 +334,25 @@ window.App = window.App || {};
       title: balPositive ? 'Профицит мест' : 'Дефицит мест'
     }, balPositive ? '+' : '−'));
 
+    var headBtns = U.el('div', { class: 'office-head-btns' }, [
+      ctx.viewOnly ? null : U.el('button', {
+        class: 'icon-btn office-hide-btn',
+        title: 'Скрыть офис',
+        onclick: function () { hiddenOffices[office.id] = true; R.render(); }
+      }, '×'),
+      U.el('button', {
+        class: 'icon-btn',
+        title: isExpanded ? 'Свернуть' : 'Развернуть',
+        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
+      }, isExpanded ? '▾' : '▸')
+    ]);
     card.appendChild(U.el('div', { class: 'office-card-head' }, [
       U.el('div', {}, [
         U.el('h3', { text: office.name }),
         U.el('span', { class: 'phase-tag ' + phaseClass, text: C.OFFICE_PHASE_LABEL[office.phase] || '' }),
         office.isDraft ? R.badge('Черновик', 'grey') : null
       ]),
-      U.el('button', {
-        class: 'icon-btn',
-        title: isExpanded ? 'Свернуть' : 'Развернуть',
-        onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
-      }, isExpanded ? '▾' : '▸')
+      headBtns
     ]));
 
     card.appendChild(U.el('div', { class: 'office-card-area', text: 'Площадь: ' + U.fmtArea(office.area) }));
@@ -412,7 +431,8 @@ window.App = window.App || {};
     if (!capacity || !isFinite(capacity)) {
       perSeat = '—';
     } else {
-      perSeat = Math.round(monthly / capacity * 1000) + ' тыс. руб.';
+      var perSeatVal = Math.round(monthly / capacity / 1000);
+      perSeat = perSeatVal.toLocaleString('ru-RU') + ' тыс. руб.';
     }
     wrap.appendChild(rowMoney('Аренда в мес на рабочее место', perSeat));
     return wrap;
@@ -750,7 +770,7 @@ window.App = window.App || {};
     if (allUnallocatedTeams.length > 0) {
       panel.appendChild(U.el('div', {
         class: 'unalloc-counter',
-        text: allUnallocatedTeams.length + ' команд · ' + allUnallocTotal + ' чел.'
+        text: allUnallocatedTeams.length + ' команд  ·  ' + allUnallocTotal + ' чел.'
       }));
     }
 
@@ -789,7 +809,8 @@ window.App = window.App || {};
       var remainder = calc.calculateTeamRemainder(scenario, team);
       listEl.appendChild(U.el('div', {
         class: 'team-chip' + (team.isVip ? ' vip' : ''),
-        dataset: { dragKind: 'team', dragId: team.id },
+        'data-drag-kind': 'team',
+        'data-drag-id': String(team.id),
         draggable: ctx.viewOnly ? 'false' : 'true',
         title: 'Перетащите в офис или зону'
       }, [
@@ -802,7 +823,6 @@ window.App = window.App || {};
   }
 
   function renderProblemOffices(scenario, ctx) {
-    var panel = R.section('Проблемные офисы');
     var problems = ctx.messages.filter(function (m) {
       return m.code === C.CODE.OFFICE_OVERFLOW ||
         m.code === C.CODE.ZONE_OVERFLOW ||
@@ -811,14 +831,21 @@ window.App = window.App || {};
         m.code === C.CODE.DRAFT_ZERO_CAPACITY;
     });
     if (problems.length === 0) {
-      panel.appendChild(U.el('p', { class: 'muted', text: 'Проблем не обнаружено' }));
-      return panel;
+      var emptyPanel = R.section('Проблемные офисы');
+      emptyPanel.appendChild(U.el('p', { class: 'muted', text: 'Проблем не обнаружено' }));
+      return emptyPanel;
     }
-    var listEl = U.el('ul', { class: 'problem-list' });
-    problems.forEach(function (m) {
-      listEl.appendChild(U.el('li', { class: 'problem-item level-' + m.level, text: m.message }));
+    var panel = R.section('Проблемные офисы (' + problems.length + ')', {
+      label: problemOfficesCollapsed ? '▸ Развернуть' : '▾ Свернуть',
+      onclick: function () { problemOfficesCollapsed = !problemOfficesCollapsed; R.render(); }
     });
-    panel.appendChild(listEl);
+    if (!problemOfficesCollapsed) {
+      var listEl = U.el('ul', { class: 'problem-list' });
+      problems.forEach(function (m) {
+        listEl.appendChild(U.el('li', { class: 'problem-item level-' + m.level, text: m.message }));
+      });
+      panel.appendChild(listEl);
+    }
     return panel;
   }
 
