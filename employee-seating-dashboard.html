@@ -105,13 +105,13 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* ---- Navigation ---- */
 .main-nav {
   display: flex;
-  gap: 4px;
+  gap: 20px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   padding: 4px 16px 0;
   overflow-x: auto;
   position: fixed;
-  top: 72px;
+  top: 80px;
   left: 0;
   right: 0;
   z-index: 49;
@@ -134,7 +134,7 @@ h4 { font-size: 14px; color: var(--text-muted); }
   display: flex;
   align-items: flex-start;
   min-height: calc(100vh - 110px);
-  padding-top: 52px; /* compensate for fixed nav bar height */
+  padding-top: 60px; /* compensate for fixed nav bar height */
 }
 .scenarios-panel {
   width: 240px;
@@ -407,10 +407,16 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* ---- Zones ---- */
 .zone-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .zone-row { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
-.zone-row-head, .target-head { display: flex; justify-content: space-between; align-items: center; }
+.zone-row-head, .target-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .zone-name { font-weight: 500; }
 .zone-stat, .target-stat { font-size: 14px; color: var(--text-muted); }
 .zone-free, .target-free { font-size: 14px; color: var(--text-muted); }
+.target-head .icon-btn {
+  font-size: 0.75em;
+  opacity: 0.7;
+  padding: 0 2px;
+  min-width: 16px;
+}
 
 /* ---- Tables ---- */
 .data-table { width: 100%; border-collapse: collapse; font-size: 15px; }
@@ -6680,6 +6686,8 @@ window.App = window.App || {};
 
   var search = '';
   var expandedTeams = {};
+  var collapsedOffices = {};
+  var collapsedZones = {};
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -6833,6 +6841,17 @@ window.App = window.App || {};
   function renderOfficeTarget(scenario, office, ctx) {
     var capacity = calc.calculateOfficeCapacity(office);
     var occupied = calc.calculateOfficeOccupancy(scenario, office.id);
+    var isCollapsed = !!collapsedOffices[office.id];
+
+    var toggleBtn = R.iconBtn(isCollapsed ? '▸' : '▾', isCollapsed ? 'Раскрыть офис' : 'Свернуть офис',
+      (function (oid, col) {
+        return function (e) {
+          e.stopPropagation();
+          if (!col) { collapsedOffices[oid] = true; } else { delete collapsedOffices[oid]; }
+          R.render();
+        };
+      })(office.id, isCollapsed)
+    );
 
     var box = U.el('div', {
       class: 'drop-target office-target',
@@ -6840,6 +6859,7 @@ window.App = window.App || {};
       'aria-dropeffect': 'move'
     }, [
       U.el('div', { class: 'target-head' }, [
+        toggleBtn,
         U.el('h3', { text: office.name }),
         U.el('span', { class: 'target-stat', text: occupied + ' / ' + capacity })
       ]),
@@ -6848,23 +6868,48 @@ window.App = window.App || {};
     ]);
 
     (office.zones || []).forEach(function (zone) {
+      if (isCollapsed) {
+        // Keep drop target in DOM for DnD, no visual content
+        box.appendChild(U.el('div', {
+          class: 'drop-target zone-target',
+          dataset: { dropOffice: office.id, dropZone: zone.id },
+          'aria-dropeffect': 'move',
+          style: 'display:none'
+        }));
+        return;
+      }
       var zOcc = calc.calculateZoneOccupancy(scenario, zone.id);
+      var isZoneCollapsed = !!collapsedZones[zone.id];
+
+      var zoneToggleBtn = R.iconBtn(isZoneCollapsed ? '▸' : '▾', isZoneCollapsed ? 'Раскрыть зону' : 'Свернуть зону',
+        (function (zid, zcol) {
+          return function (e) {
+            e.stopPropagation();
+            if (!zcol) { collapsedZones[zid] = true; } else { delete collapsedZones[zid]; }
+            R.render();
+          };
+        })(zone.id, isZoneCollapsed)
+      );
+
       var zoneBox = U.el('div', {
         class: 'drop-target zone-target' + (zone.isVipZone ? ' vip' : ''),
         dataset: { dropOffice: office.id, dropZone: zone.id },
         'aria-dropeffect': 'move'
       }, [
         U.el('div', { class: 'target-head' }, [
+          zoneToggleBtn,
           U.el('span', { text: zone.name + (zone.isVipZone ? ' ★' : '') }),
           U.el('span', { class: 'target-stat', text: zOcc + ' / ' + (zone.capacity || 0) })
         ]),
         R.progressBar(zOcc, zone.capacity || 0, ctx.thresholds),
         U.el('div', { class: 'target-free', text: R.freeOrOverflowText(zone.capacity || 0, zOcc) })
       ]);
-      // Allocation chips placed into this zone — draggable to move between zones.
-      allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
-        zoneBox.appendChild(allocationChip(scenario, a, ctx));
-      });
+
+      if (!isZoneCollapsed) {
+        allocationsIn(scenario, office.id, zone.id).forEach(function (a) {
+          zoneBox.appendChild(allocationChip(scenario, a, ctx));
+        });
+      }
       box.appendChild(zoneBox);
     });
     return box;
@@ -7586,6 +7631,32 @@ window.App = window.App || {};
     var teams = filterTeams(scenario);
     panel.appendChild(U.el('div', { class: 'muted result-count', text: 'Найдено: ' + teams.length }));
 
+    function teamPlacementLines(teamId, phase) {
+      var byKey = {};
+      (scenario.allocations || []).forEach(function (a) {
+        if (a.teamId !== teamId) { return; }
+        var office = U.findById(scenario.offices, a.targetOfficeId);
+        if (!office || office.phase !== phase) { return; }
+        var zoneId = a.targetZoneId || '';
+        var key = a.targetOfficeId + '|' + zoneId;
+        if (!byKey[key]) {
+          var zone = zoneId ? U.findById(office.zones || [], zoneId) : null;
+          byKey[key] = { officeName: office.name, zoneName: zone ? zone.name : null, teamSeats: 0, namedCount: 0 };
+        }
+        if (a.type === C.ALLOCATION_TYPE.TEAM) {
+          byKey[key].teamSeats += (a.employeesCount || 0);
+        } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
+          byKey[key].namedCount += 1;
+        }
+      });
+      return Object.keys(byKey).map(function (key) {
+        var e = byKey[key];
+        var count = Math.max(e.teamSeats, e.namedCount);
+        var label = e.officeName + (e.zoneName ? ' / ' + e.zoneName : '');
+        return label + ' (' + count + ')';
+      });
+    }
+
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
       th(''), th('Команда'), th('Численность'), th('AS-IS офис'), th('TO-BE офис'),
@@ -7596,8 +7667,6 @@ window.App = window.App || {};
     teams.forEach(function (team) {
       var allocated = calc.calculateTeamAllocated(scenario, team.id);
       var remainder = calc.calculateTeamRemainder(scenario, team);
-      var currentOffice = U.findById(scenario.offices, team.currentOfficeId);
-      var toBeOffice = U.findById(scenario.offices, team.toBeOfficeId);
       var isExpanded = !!expanded[team.id];
 
       var actionsCell = U.el('td', { class: 'cell-actions' });
@@ -7635,8 +7704,20 @@ window.App = window.App || {};
         })),
         nameCell,
         U.el('td', { text: String(team.employeesCount || 0) }),
-        U.el('td', { text: currentOffice ? currentOffice.name : '—' }),
-        U.el('td', { class: 'cell-tobe', text: toBeOffice ? toBeOffice.name : '—' }),
+        (function () {
+          var lines = teamPlacementLines(team.id, C.OFFICE_PHASE.ASIS);
+          var td = U.el('td', {});
+          if (!lines.length) { td.appendChild(U.el('span', { class: 'muted', text: '—' })); }
+          lines.forEach(function (l) { td.appendChild(U.el('div', { class: 'placement-detail', text: l })); });
+          return td;
+        }()),
+        (function () {
+          var lines = teamPlacementLines(team.id, C.OFFICE_PHASE.TOBE);
+          var td = U.el('td', { class: 'cell-tobe' });
+          if (!lines.length) { td.appendChild(U.el('span', { class: 'muted', text: '—' })); }
+          lines.forEach(function (l) { td.appendChild(U.el('div', { class: 'placement-detail', text: l })); });
+          return td;
+        }()),
         U.el('td', { text: team.isVip ? 'Да' : '—' }),
         U.el('td', { text: team.canSplit === false ? 'Нет' : 'Да' }),
         U.el('td', { text: String(allocated) }),
