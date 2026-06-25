@@ -802,6 +802,12 @@ tr.office-drop-below > td {
   border-color: var(--accent);
   background: rgba(186, 247, 120, 0.08);
 }
+.unalloc-counter {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
 
 /* ── Dual placement status (AS-IS / TO-BE) ───────────────────────────────── */
 .placement-dual {

@@ -702,6 +702,22 @@ window.App = window.App || {};
     searchWrap.appendChild(searchInput);
     panel.appendChild(searchWrap);
 
+    // Compute stats for ALL unallocated teams (not filtered by search).
+    var allUnallocatedTeams = scenario.teams.filter(function (team) {
+      return calc.calculateTeamRemainder(scenario, team) > 0;
+    });
+    var allUnallocTotal = allUnallocatedTeams.reduce(function (sum, team) {
+      return sum + calc.calculateTeamRemainder(scenario, team);
+    }, 0);
+
+    // Add counter element if there are unallocated teams.
+    if (allUnallocatedTeams.length > 0) {
+      panel.appendChild(U.el('div', {
+        class: 'unalloc-counter',
+        text: allUnallocatedTeams.length + ' команд · ' + allUnallocTotal + ' чел.'
+      }));
+    }
+
     // Filter teams: only those with remainder > 0 AND matching search query.
     var q = teamSearch.trim().toLowerCase();
     var unallocated = scenario.teams.filter(function (team) {
