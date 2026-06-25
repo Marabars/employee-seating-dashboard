@@ -284,7 +284,16 @@ App.render = (function () {
     function fmt(v) {
       if (v === null || v === undefined || isNaN(v)) { return '—'; }
       var rounded = Math.round(v * 100) / 100;
-      return rounded.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var sign = rounded < 0 ? '-' : '';
+      var abs = Math.abs(rounded);
+      var parts = abs.toFixed(2).split('.');
+      var intStr = parts[0];
+      var out = '';
+      for (var i = 0; i < intStr.length; i++) {
+        if (i > 0 && (intStr.length - i) % 3 === 0) { out += ' '; }
+        out += intStr.charAt(i);
+      }
+      return sign + out + ',' + parts[1];
     }
 
     var columns = [];
