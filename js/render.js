@@ -313,7 +313,7 @@ App.render = (function () {
     var wrap = U.el('div', { class: 'cf-table-wrap' });
     var table = U.el('table', { class: 'cf-table' });
 
-    var headerCells = [U.el('th', { text: firstColLabel })];
+    var headerCells = [U.el('th', { class: 'cf-name-col', text: firstColLabel })];
     columns.forEach(function (col) {
       var th;
       if (col.type === 'year') {

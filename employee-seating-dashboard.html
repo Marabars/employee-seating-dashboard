@@ -941,7 +941,7 @@ tr.office-drop-below > td {
 
 /* ── Finance tab: CF tables ──────────────────────────────────────────────── */
 .cf-table-wrap { overflow-x: auto; margin-top: 8px; }
-.cf-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
+.cf-table { border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
 .cf-table th, .cf-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
 .cf-table th { color: var(--text-muted); font-weight: 500; }
 .cf-year-col { text-align: right; width: 100px; }
@@ -5652,7 +5652,7 @@ App.render = (function () {
     var wrap = U.el('div', { class: 'cf-table-wrap' });
     var table = U.el('table', { class: 'cf-table' });
 
-    var headerCells = [U.el('th', { text: firstColLabel })];
+    var headerCells = [U.el('th', { class: 'cf-name-col', text: firstColLabel })];
     columns.forEach(function (col) {
       var th;
       if (col.type === 'year') {
