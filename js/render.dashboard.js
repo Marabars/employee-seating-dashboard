@@ -329,7 +329,7 @@ window.App = window.App || {};
     var occupied = calc.calculateOfficeOccupancy(scenario, office.id);
     var balance = calc.calculateBalance(capacity, occupied);
     var percent = calc.calculateOccupancyPercent(occupied, capacity);
-    var isExpanded = !!expanded[office.id];
+    var isExpanded = !moneyMode && !!expanded[office.id];
     var phaseClass = office.phase === C.OFFICE_PHASE.ASIS ? 'phase-asis' : 'phase-tobe';
 
     var card = U.el('div', {
@@ -350,7 +350,7 @@ window.App = window.App || {};
         U.el('span', { class: 'phase-tag ' + phaseClass, text: C.OFFICE_PHASE_LABEL[office.phase] || '' }),
         office.isDraft ? R.badge('Черновик', 'grey') : null
       ]),
-      U.el('button', {
+      moneyMode ? null : U.el('button', {
         class: 'icon-btn',
         title: isExpanded ? 'Свернуть' : 'Развернуть',
         onclick: function () { expanded[office.id] = !isExpanded; R.render(); }
