@@ -71,6 +71,7 @@ App.state = (function () {
       indexationPct: (data.indexationPct === undefined || data.indexationPct === '') ? null : Number(data.indexationPct),
       leaseEndDate: data.leaseEndDate || null,
       leaseStartDate: data.leaseStartDate || null,
+      indexationStartDate: data.indexationStartDate || null,
       tenants: Array.isArray(data.tenants) ? data.tenants : []
     };
     (data.zones || []).forEach(function (z) {
@@ -363,6 +364,7 @@ App.state = (function () {
         if (o.indexationPct === undefined) { o.indexationPct = null; }
         if (o.leaseEndDate === undefined) { o.leaseEndDate = null; }
         if (o.leaseStartDate === undefined) { o.leaseStartDate = null; }
+        if (o.indexationStartDate === undefined) { o.indexationStartDate = null; }
         if (!Array.isArray(o.tenants)) { o.tenants = []; }
       });
 
