@@ -224,9 +224,11 @@ window.App = window.App || {};
     var rentInput = numField('Аренда, ₽/м² с НДС', office && office.rentPerSqm != null ? office.rentPerSqm : '', 'rentPerSqm');
     var opexInput = numField('Эксплуатация, ₽/м² с НДС', office && office.opexPerSqm != null ? office.opexPerSqm : '', 'opexPerSqm');
     var idxInput = numField('Индексация, %/год', office && office.indexationPct != null ? office.indexationPct : '', 'indexationPct');
+    var idxStartInput = dateField('Дата начала индексации', office && office.indexationStartDate ? office.indexationStartDate : '', 'indexationStartDate');
     body.appendChild(rentInput.wrap);
     body.appendChild(opexInput.wrap);
     body.appendChild(idxInput.wrap);
+    body.appendChild(idxStartInput.wrap);
 
     // ---- Tenants editor ----------------------------------------
     // Collect unique tenant names from all offices in the scenario for datalist
@@ -364,6 +366,7 @@ window.App = window.App || {};
             rentPerSqm: rentInput.input.value,
             opexPerSqm: opexInput.input.value,
             indexationPct: idxInput.input.value,
+            indexationStartDate: idxStartInput.input.value || null,
             comment: commentInput.input.value,
             isDraft: draftInput.input.checked,
             zones: zones,
