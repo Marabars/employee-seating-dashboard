@@ -552,18 +552,18 @@ App.calc = (function () {
     return new Date(year, month, 0).getDate();
   }
 
-  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) {
+  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear, indexationStartDate) {
     var a = area || 0;
     var rent = rentPerSqm || 0;
     var opex = opexPerSqm || 0;
     var idx = (indexationPct || 0) / 100;
     var base = a * (rent + opex);
     var yearsElapsed = 0;
-    if (leaseStartDate) {
-      var startYear = parseInt(String(leaseStartDate).substring(0, 4), 10);
-      if (!isNaN(startYear)) { yearsElapsed = Math.max(0, year - startYear); }
-    } else if (baseYear != null) {
-      yearsElapsed = Math.max(0, year - baseYear);
+    if (indexationStartDate) {
+      var idxYear = parseInt(String(indexationStartDate).substring(0, 4), 10);
+      if (!isNaN(idxYear) && year >= idxYear) {
+        yearsElapsed = year - idxYear + 1;
+      }
     }
     return base * Math.pow(1 + idx, yearsElapsed) / 1000000;
   }
@@ -573,23 +573,61 @@ App.calc = (function () {
    * Returns 0 if the month precedes the lease start, otherwise returns cfForYear(...) / 12.
    * Month is 1-based (1=January, 12=December).
    */
-  function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear) {
-    if (leaseStartDate) {
-      var lsStr = String(leaseStartDate);
-      var lsYear  = parseInt(lsStr.substring(0, 4), 10);
-      var lsMonth = parseInt(lsStr.substring(5, 7), 10);
-      var lsDay   = parseInt(lsStr.substring(8, 10), 10) || 1;
-      if (!isNaN(lsYear) && !isNaN(lsMonth)) {
-        if (year < lsYear || (year === lsYear && month < lsMonth)) { return 0; }
-        var monthly = cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) / 12;
-        if (year === lsYear && month === lsMonth && lsDay > 1) {
-          var dim = daysInMonth(year, month);
-          return monthly * (dim - lsDay + 1) / dim;
+  function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear, indexationStartDate) {
+    var a = area || 0;
+    var rent = rentPerSqm || 0;
+    var opex = opexPerSqm || 0;
+    var idx = (indexationPct || 0) / 100;
+    var base = a * (rent + opex);
+
+    function monthlyAt(exp) {
+      return base * Math.pow(1 + idx, exp) / 1000000 / 12;
+    }
+
+    var exponent = 0;
+    var idxProrateDay = 0;
+    if (indexationStartDate) {
+      var idxStr = String(indexationStartDate);
+      var idxYear  = parseInt(idxStr.substring(0, 4), 10);
+      var idxMonth = parseInt(idxStr.substring(5, 7), 10);
+      var idxDay   = parseInt(idxStr.substring(8, 10), 10) || 1;
+      if (!isNaN(idxYear) && !isNaN(idxMonth)) {
+        if (year > idxYear || (year === idxYear && month > idxMonth)) {
+          exponent = year - idxYear + 1;
+        } else if (year === idxYear && month === idxMonth) {
+          exponent = 1;
+          idxProrateDay = idxDay;
         }
-        return monthly;
       }
     }
-    return cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear) / 12;
+
+    var lsYear = null; var lsMonth = null; var lsDay = 1;
+    if (leaseStartDate) {
+      var lsStr = String(leaseStartDate);
+      lsYear  = parseInt(lsStr.substring(0, 4), 10);
+      lsMonth = parseInt(lsStr.substring(5, 7), 10);
+      lsDay   = parseInt(lsStr.substring(8, 10), 10) || 1;
+      if (!isNaN(lsYear) && !isNaN(lsMonth)) {
+        if (year < lsYear || (year === lsYear && month < lsMonth)) { return 0; }
+      }
+    }
+
+    var dim = daysInMonth(year, month);
+
+    var monthly;
+    if (idxProrateDay > 1) {
+      var baseDays = idxProrateDay - 1;
+      var idxDays  = dim - baseDays;
+      monthly = (monthlyAt(0) * baseDays + monthlyAt(exponent) * idxDays) / dim;
+    } else {
+      monthly = monthlyAt(exponent);
+    }
+
+    if (lsYear !== null && year === lsYear && month === lsMonth && lsDay > 1) {
+      monthly = monthly * (dim - lsDay + 1) / dim;
+    }
+
+    return monthly;
   }
 
   /**
@@ -619,7 +657,8 @@ App.calc = (function () {
         for (var m = 1; m <= 12; m++) {
           monthlyValues[yr].push(cfForMonth(
             office.area, office.rentPerSqm, office.opexPerSqm,
-            office.indexationPct, office.leaseStartDate, yr, m, baseYear
+            office.indexationPct, office.leaseStartDate, yr, m, baseYear,
+            office.indexationStartDate
           ));
         }
       });
@@ -677,13 +716,13 @@ App.calc = (function () {
           if (office.area && (office.rentPerSqm || office.opexPerSqm)) {
             var key = '(без арендатора)';
             if (!entries[key]) { entries[key] = []; }
-            entries[key].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate });
+            entries[key].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
           }
         } else {
           tList.forEach(function (t) {
             var key = t.name || '(без имени)';
             if (!entries[key]) { entries[key] = []; }
-            entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate });
+            entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
           });
         }
       });
@@ -702,7 +741,8 @@ App.calc = (function () {
             monthlyValues[yr].push(parts.reduce(function (s, p) {
               return s + cfForMonth(
                 p.area, p.rentPerSqm, p.opexPerSqm,
-                p.indexationPct, p.leaseStartDate, yr, m, baseYear
+                p.indexationPct, p.leaseStartDate, yr, m, baseYear,
+                p.indexationStartDate
               );
             }, 0));
           }

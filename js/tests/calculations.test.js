@@ -375,4 +375,57 @@
       expect(p.unplacedPercent).toBe(0);
     });
   });
+
+  // ── indexationStartDate tests ────────────────────────────────────────────
+
+  describe('cfForYear — indexationStartDate', function () {
+    it('null indexationStartDate gives base rate (exponent=0)', function () {
+      // area=1000, rent=100, opex=50 => base=150000 => 0.15M/yr, idx=10%
+      var result = calc.cfForYear(1000, 100, 50, 10, null, 2025, null, null);
+      expect(result).toBeCloseTo(0.15, 4);
+    });
+
+    it('year before indexationStartDate.year gives base rate', function () {
+      var result = calc.cfForYear(1000, 100, 50, 10, null, 2022, null, '2023-01-01');
+      expect(result).toBeCloseTo(0.15, 4);
+    });
+
+    it('start year gives exponent 1 (0.15 * 1.1^1 = 0.165)', function () {
+      var result = calc.cfForYear(1000, 100, 50, 10, null, 2023, null, '2023-01-01');
+      expect(result).toBeCloseTo(0.165, 4);
+    });
+
+    it('year+2 after start gives exponent 3 (0.15 * 1.1^3 = 0.19965)', function () {
+      var result = calc.cfForYear(1000, 100, 50, 10, null, 2025, null, '2023-01-01');
+      expect(result).toBeCloseTo(0.19965, 4);
+    });
+  });
+
+  describe('cfForMonth — indexationStartDate', function () {
+    it('month before indexationStartDate gives base rate (0.15/12 = 0.0125)', function () {
+      // March 2023, idx starts June 2023 => exponent 0
+      var result = calc.cfForMonth(1000, 100, 50, 10, '2023-01-01', 2023, 3, null, '2023-06-01');
+      expect(result).toBeCloseTo(0.0125, 4);
+    });
+
+    it('month after indexationStartDate gives indexed rate (0.15*1.1/12 = 0.01375)', function () {
+      // August 2023, idx starts June 2023 => exponent 1
+      var result = calc.cfForMonth(1000, 100, 50, 10, '2023-01-01', 2023, 8, null, '2023-06-01');
+      expect(result).toBeCloseTo(0.01375, 4);
+    });
+
+    it('idx start month day=1 gives full indexed rate (no proration)', function () {
+      // June 2023, idx starts June 1 => exponent 1, no proration
+      var result = calc.cfForMonth(1000, 100, 50, 10, '2023-01-01', 2023, 6, null, '2023-06-01');
+      expect(result).toBeCloseTo(0.01375, 4);
+    });
+
+    it('idx start month mid-month prorates correctly', function () {
+      // June 2023 (30 days), idx starts June 16
+      // baseDays=15 at 0.0125, idxDays=15 at 0.01375
+      // = (0.0125*15 + 0.01375*15) / 30 = 0.013125
+      var result = calc.cfForMonth(1000, 100, 50, 10, '2023-01-01', 2023, 6, null, '2023-06-16');
+      expect(result).toBeCloseTo(0.013125, 4);
+    });
+  });
 })();
