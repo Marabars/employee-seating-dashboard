@@ -198,6 +198,28 @@ App.allocations = (function () {
   }
 
   /**
+   * Move ALL allocations for a team from one office/zone to another in a single
+   * commit. Used when dragging a team alloc-chip so named employees move too.
+   */
+  function moveTeamZone(teamId, fromOfficeId, fromZoneId, toOfficeId, toZoneId) {
+    var targets = list().filter(function (a) {
+      return a.teamId === teamId
+        && a.targetOfficeId === fromOfficeId
+        && (a.targetZoneId || null) === (fromZoneId || null);
+    });
+    if (!targets.length) {
+      return false;
+    }
+    state.commit('Перемещение команды', function () {
+      targets.forEach(function (a) {
+        a.targetOfficeId = toOfficeId;
+        a.targetZoneId = toZoneId || null;
+      });
+    });
+    return true;
+  }
+
+  /**
    * Reduce a team allocation by `amount` seats (pull part of a team back out).
    * If amount >= current count, the allocation is removed entirely.
    */
@@ -260,6 +282,7 @@ App.allocations = (function () {
     setEmployeeAllocation: setEmployeeAllocation,
     update: update,
     move: move,
+    moveTeamZone: moveTeamZone,
     reduceTeamAllocation: reduceTeamAllocation,
     remove: remove,
     sendTeamRemainderToRemote: sendTeamRemainderToRemote

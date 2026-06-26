@@ -280,6 +280,9 @@ App.dragDrop = (function () {
     if (!a) {
       return;
     }
+    var fromOfficeId = a.targetOfficeId;
+    var fromZoneId = a.targetZoneId || null;
+
     function applyMove(zoneId) {
       var z = zoneId ? alloc.findZone(scenario, zoneId) : null;
       if (!isRemote && z) {
@@ -289,7 +292,12 @@ App.dragDrop = (function () {
           announce('Предупреждение: ' + conflict);
         }
       }
-      alloc.move(allocationId, office.id, zoneId);
+      if (a.teamId) {
+        // Move ALL allocations for this team in the source zone (TEAM + EMPLOYEE) in one commit.
+        alloc.moveTeamZone(a.teamId, fromOfficeId, fromZoneId, office.id, zoneId || null);
+      } else {
+        alloc.move(allocationId, office.id, zoneId);
+      }
       announce('Размещение перемещено в ' + office.name + (z ? ' / ' + z.name : ''));
     }
 
