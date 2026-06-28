@@ -72,6 +72,9 @@ App.offices = (function () {
       if (data.leaseStartDate !== undefined) {
         office.leaseStartDate = data.leaseStartDate || null;
       }
+      if (data.indexationStartDate !== undefined) {
+        office.indexationStartDate = data.indexationStartDate || null;
+      }
       if (data.tenants !== undefined) {
         office.tenants = Array.isArray(data.tenants) ? data.tenants : [];
       }
