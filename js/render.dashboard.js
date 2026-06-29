@@ -443,7 +443,9 @@ window.App = window.App || {};
   function fmtMln(value) {
     if (value == null) { return '—'; }
     var mln = value / 1000000;
-    return mln.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' млн.';
+    var sign = mln < 0 ? -1 : 1;
+    var rounded = sign * Math.round(Math.abs(mln) * 100 + 1e-9) / 100;
+    return rounded.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' млн.';
   }
 
   function rowMoney(label, value, strong) {
