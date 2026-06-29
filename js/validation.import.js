@@ -117,7 +117,7 @@ App.importValidation = (function () {
       var office = {
         name: name,
         phase: phase,
-        area: U.toNonNegativeInt(cell(row, idx, 'area')),
+        area: Math.max(0, parseFloat(cell(row, idx, 'area')) || 0),
         isDraft: U.parseBoolean(cell(row, idx, 'is_draft')),
         comment: String(cell(row, idx, 'comment') || ''),
         // optional inline zone capacities

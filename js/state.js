@@ -62,7 +62,7 @@ App.state = (function () {
       type: C.OFFICE_TYPE.PHYSICAL,
       phase: phase === C.OFFICE_PHASE.ASIS ? C.OFFICE_PHASE.ASIS : C.OFFICE_PHASE.TOBE,
       name: data.name || 'Офис',
-      area: U.toNonNegativeInt(data.area),
+      area: Math.max(0, parseFloat(data.area) || 0),
       isDraft: !!data.isDraft,
       comment: data.comment || '',
       zones: [],

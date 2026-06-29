@@ -50,7 +50,7 @@ App.offices = (function () {
     }
     state.commit('Изменение офиса', function () {
       if (data.name !== undefined) { office.name = data.name; }
-      if (data.area !== undefined) { office.area = U.toNonNegativeInt(data.area); }
+      if (data.area !== undefined) { office.area = Math.max(0, parseFloat(data.area) || 0); }
       if (data.comment !== undefined) { office.comment = data.comment; }
       if (data.isDraft !== undefined) { office.isDraft = !!data.isDraft; }
       if (data.phase !== undefined &&

@@ -418,7 +418,7 @@ window.App = window.App || {};
     var c = U.el('input', { type: 'text', name: name }); c.value = val || ''; return fieldWrap(label, c);
   }
   function numField(label, val, name) {
-    var c = U.el('input', { type: 'number', min: '0', name: name }); c.value = (val === '' || val == null) ? '' : val; return fieldWrap(label, c);
+    var c = U.el('input', { type: 'number', min: '0', step: 'any', name: name }); c.value = (val === '' || val == null) ? '' : val; return fieldWrap(label, c);
   }
   function dateField(label, val, name) {
     var c = U.el('input', { type: 'date', name: name }); c.value = val || ''; return fieldWrap(label, c);

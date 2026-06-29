@@ -709,21 +709,28 @@ App.calc = (function () {
     // Collect { tenantName, area, officeRef } per phase
     function collectTenantEntries(offices) {
       var entries = {}; // tenantName -> { area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate }[]
+      var NO_TENANT = 'Без арендатора';
       offices.forEach(function (office) {
         var tList = office.tenants || [];
+        var hasMoney = office.rentPerSqm || office.opexPerSqm;
         if (tList.length === 0) {
-          // Treat whole office as single anonymous tenant
-          if (office.area && (office.rentPerSqm || office.opexPerSqm)) {
-            var key = '(без арендатора)';
-            if (!entries[key]) { entries[key] = []; }
-            entries[key].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+          if (office.area && hasMoney) {
+            if (!entries[NO_TENANT]) { entries[NO_TENANT] = []; }
+            entries[NO_TENANT].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
           }
         } else {
+          var assignedArea = 0;
           tList.forEach(function (t) {
-            var key = t.name || '(без имени)';
+            var key = t.name || NO_TENANT;
             if (!entries[key]) { entries[key] = []; }
             entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+            assignedArea += (t.area || 0);
           });
+          var remaining = (office.area || 0) - assignedArea;
+          if (remaining > 0.001 && hasMoney) {
+            if (!entries[NO_TENANT]) { entries[NO_TENANT] = []; }
+            entries[NO_TENANT].push({ area: remaining, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+          }
         }
       });
       return entries;

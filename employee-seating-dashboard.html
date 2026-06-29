@@ -2174,7 +2174,7 @@ App.state = (function () {
       type: C.OFFICE_TYPE.PHYSICAL,
       phase: phase === C.OFFICE_PHASE.ASIS ? C.OFFICE_PHASE.ASIS : C.OFFICE_PHASE.TOBE,
       name: data.name || 'Офис',
-      area: U.toNonNegativeInt(data.area),
+      area: Math.max(0, parseFloat(data.area) || 0),
       isDraft: !!data.isDraft,
       comment: data.comment || '',
       zones: [],
@@ -2742,7 +2742,7 @@ App.offices = (function () {
     }
     state.commit('Изменение офиса', function () {
       if (data.name !== undefined) { office.name = data.name; }
-      if (data.area !== undefined) { office.area = U.toNonNegativeInt(data.area); }
+      if (data.area !== undefined) { office.area = Math.max(0, parseFloat(data.area) || 0); }
       if (data.comment !== undefined) { office.comment = data.comment; }
       if (data.isDraft !== undefined) { office.isDraft = !!data.isDraft; }
       if (data.phase !== undefined &&
@@ -3987,21 +3987,28 @@ App.calc = (function () {
     // Collect { tenantName, area, officeRef } per phase
     function collectTenantEntries(offices) {
       var entries = {}; // tenantName -> { area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate }[]
+      var NO_TENANT = 'Без арендатора';
       offices.forEach(function (office) {
         var tList = office.tenants || [];
+        var hasMoney = office.rentPerSqm || office.opexPerSqm;
         if (tList.length === 0) {
-          // Treat whole office as single anonymous tenant
-          if (office.area && (office.rentPerSqm || office.opexPerSqm)) {
-            var key = '(без арендатора)';
-            if (!entries[key]) { entries[key] = []; }
-            entries[key].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+          if (office.area && hasMoney) {
+            if (!entries[NO_TENANT]) { entries[NO_TENANT] = []; }
+            entries[NO_TENANT].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
           }
         } else {
+          var assignedArea = 0;
           tList.forEach(function (t) {
-            var key = t.name || '(без имени)';
+            var key = t.name || NO_TENANT;
             if (!entries[key]) { entries[key] = []; }
             entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+            assignedArea += (t.area || 0);
           });
+          var remaining = (office.area || 0) - assignedArea;
+          if (remaining > 0.001 && hasMoney) {
+            if (!entries[NO_TENANT]) { entries[NO_TENANT] = []; }
+            entries[NO_TENANT].push({ area: remaining, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+          }
         }
       });
       return entries;
@@ -4877,7 +4884,7 @@ App.importValidation = (function () {
       var office = {
         name: name,
         phase: phase,
-        area: U.toNonNegativeInt(cell(row, idx, 'area')),
+        area: Math.max(0, parseFloat(cell(row, idx, 'area')) || 0),
         isDraft: U.parseBoolean(cell(row, idx, 'is_draft')),
         comment: String(cell(row, idx, 'comment') || ''),
         // optional inline zone capacities
@@ -7564,7 +7571,7 @@ window.App = window.App || {};
     var c = U.el('input', { type: 'text', name: name }); c.value = val || ''; return fieldWrap(label, c);
   }
   function numField(label, val, name) {
-    var c = U.el('input', { type: 'number', min: '0', name: name }); c.value = (val === '' || val == null) ? '' : val; return fieldWrap(label, c);
+    var c = U.el('input', { type: 'number', min: '0', step: 'any', name: name }); c.value = (val === '' || val == null) ? '' : val; return fieldWrap(label, c);
   }
   function dateField(label, val, name) {
     var c = U.el('input', { type: 'date', name: name }); c.value = val || ''; return fieldWrap(label, c);
