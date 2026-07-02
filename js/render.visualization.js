@@ -307,6 +307,156 @@ window.App = window.App || {};
     return wrap;
   }
 
+  // ── CF section ──────────────────────────────────────────────────────────
+
+  var MR_GRUPП_COLOR = '#E3DBF0';
+  var MR_GRUPП_NAME  = 'МР Групп';
+
+  function fmtYAxis(v) {
+    if (v >= 100) { return String(Math.round(v)); }
+    if (v >= 10)  { return String(Math.round(v * 10) / 10); }
+    return String(Math.round(v * 100) / 100);
+  }
+
+  function renderStackedBarSVG(yearsData, colorFn) {
+    var svgW = 400; var svgH = 200;
+    var padL = 36; var padR = 8; var padT = 10; var padB = 24;
+    var chartW = svgW - padL - padR;
+    var chartH = svgH - padT - padB;
+
+    var maxTotal = 1;
+    yearsData.forEach(function (yd) {
+      var s = yd.segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
+      if (s > maxTotal) { maxTotal = s; }
+    });
+
+    var nBars = yearsData.length || 1;
+    var colW = chartW / nBars;
+    var barW = colW * 0.6;
+
+    var NS = 'http://www.w3.org/2000/svg';
+    function el(tag, attrs, text) {
+      var e = document.createElementNS(NS, tag);
+      Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+      if (text !== undefined) { e.textContent = text; }
+      return e;
+    }
+
+    var svg = el('svg', { viewBox: '0 0 ' + svgW + ' ' + svgH, width: '100%' });
+    svg.style.display = 'block'; svg.style.overflow = 'visible';
+
+    var nGrid = 4;
+    for (var gi = 0; gi <= nGrid; gi++) {
+      var yPx = padT + chartH * (1 - gi / nGrid);
+      svg.appendChild(el('line', {
+        x1: padL, x2: svgW - padR, y1: yPx, y2: yPx,
+        stroke: gi === 0 ? 'rgba(128,128,128,0.4)' : 'rgba(128,128,128,0.15)',
+        'stroke-dasharray': gi > 0 ? '4,3' : 'none'
+      }));
+      if (gi > 0) {
+        svg.appendChild(el('text', {
+          x: padL - 3, y: yPx + 3.5,
+          'text-anchor': 'end', 'font-size': '9', fill: 'rgba(128,128,128,0.75)'
+        }, fmtYAxis(maxTotal * gi / nGrid)));
+      }
+    }
+
+    yearsData.forEach(function (yd, bi) {
+      var barX = padL + bi * colW + (colW - barW) / 2;
+      var yBase = padT + chartH;
+      var yStack = 0;
+      yd.segments.forEach(function (seg) {
+        if (seg.value <= 0) { return; }
+        var h = (seg.value / maxTotal) * chartH;
+        svg.appendChild(el('rect', { x: barX, y: yBase - yStack - h, width: barW, height: h, fill: colorFn(seg.key), rx: 2 }));
+        yStack += h;
+      });
+      svg.appendChild(el('text', {
+        x: barX + barW / 2, y: svgH - 5,
+        'text-anchor': 'middle', 'font-size': '10', fill: 'rgba(128,128,128,0.8)'
+      }, String(yd.year).substring(2)));
+    });
+
+    return svg;
+  }
+
+  function renderChartLegend(items) {
+    var wrap = U.el('div', { class: 'viz-chart-legend' });
+    items.forEach(function (item) {
+      var dot = U.el('span', { class: 'viz-chart-legend-dot' });
+      dot.style.background = item.color;
+      var entry = U.el('div', { class: 'viz-chart-legend-entry' });
+      entry.appendChild(dot);
+      entry.appendChild(U.el('span', { class: 'viz-chart-legend-label', text: item.name }));
+      wrap.appendChild(entry);
+    });
+    return wrap;
+  }
+
+  function renderCFSection(scenario) {
+    var settings = App.state.getSettings();
+    var cfSettings = (settings && settings.cfSettings) || {};
+    var startY = cfSettings.startYear || 2026;
+    var endY   = cfSettings.endYear   || 2030;
+
+    var tobeOffices = (scenario.offices || []).filter(function (o) {
+      return o.type === C.OFFICE_TYPE.PHYSICAL && o.phase === C.OFFICE_PHASE.TOBE;
+    });
+
+    var officeColorMap = {};
+    tobeOffices.forEach(function (o, idx) {
+      officeColorMap[o.id] = officeColor(o.name) || PALETTE[idx % PALETTE.length];
+    });
+
+    var years = [];
+    for (var y = startY; y <= endY; y++) { years.push(y); }
+
+    var chart1Data = years.map(function (yr) {
+      return {
+        year: yr,
+        segments: tobeOffices.map(function (o) {
+          return {
+            key: o.id,
+            value: calc.cfForYear(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, yr, o.indexationStartDate)
+          };
+        })
+      };
+    });
+
+    var chart2Data = years.map(function (yr) {
+      var total = 0;
+      tobeOffices.forEach(function (o) {
+        (o.tenants || []).forEach(function (t) {
+          if ((t.name || '').trim().toLowerCase() === MR_GRUPП_NAME.toLowerCase()) {
+            total += calc.cfForYear(t.area || 0, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, yr, o.indexationStartDate);
+          }
+        });
+      });
+      return { year: yr, segments: [{ key: MR_GRUPП_NAME, value: total }] };
+    });
+
+    var section = U.el('div', { class: 'viz-cf-section' });
+    section.appendChild(U.el('div', { class: 'viz-section-head', text: 'CF по аренде' }));
+
+    var row = U.el('div', { class: 'viz-cf-row' });
+
+    var card1 = U.el('div', { class: 'viz-cf-card' });
+    card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (TO BE)' }));
+    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }));
+    var legend1 = tobeOffices.map(function (o) { return { name: o.name, color: officeColorMap[o.id] }; });
+    card1.appendChild(renderChartLegend(legend1));
+
+    var card2 = U.el('div', { class: 'viz-cf-card' });
+    card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам — МР Групп (TO BE)' }));
+    card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }));
+    card2.appendChild(renderChartLegend([{ name: MR_GRUPП_NAME, color: MR_GRUPП_COLOR }]));
+
+    row.appendChild(card1);
+    row.appendChild(card2);
+    section.appendChild(row);
+    return section;
+  }
+
   // ── Money section helpers ────────────────────────────────────────────────
 
   function indexationFactor(office, year) {
@@ -454,6 +604,7 @@ window.App = window.App || {};
     for (var gi = 0; gi < grids.length; gi++) { equalizeCardRows(grids[gi]); }
 
     container.appendChild(renderMoneySection(scenario));
+    container.appendChild(renderCFSection(scenario));
   }
 
   App.render.registerTab('visualization', { label: 'Визуализация', render: render });
