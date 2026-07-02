@@ -420,12 +420,12 @@ window.App = window.App || {};
           svg.appendChild(svgEl('text', {
             x: barX - 6, y: ty,
             'text-anchor': 'end', 'font-size': '8',
-            fill: DARK_PURPLE, 'font-weight': 'bold'
+            fill: '#fff', 'font-weight': 'bold'
           }, labelStr));
           svg.appendChild(svgEl('line', {
             x1: barX - 4, y1: ty - 2,
             x2: barX + 1, y2: rectY + h / 2,
-            stroke: DARK_PURPLE, 'stroke-width': '0.8'
+            stroke: 'rgba(255,255,255,0.6)', 'stroke-width': '0.8'
           }));
         }
 
