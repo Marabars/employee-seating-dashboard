@@ -1014,17 +1014,19 @@ tr.office-drop-below > td {
 .viz-money-col-head { font-size: 0.75em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
 .viz-money-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .viz-money-track { flex: 1; height: 28px; background: rgba(128,128,128,0.12); border-radius: 4px; position: relative; overflow: visible; }
-.viz-money-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; min-width: 4px; overflow: hidden; }
+.viz-money-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; }
 .viz-money-name { color: #fff; font-weight: 700; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
-.viz-money-value { min-width: 72px; text-align: left; font-size: 0.85em; color: var(--text); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.viz-money-value { min-width: 72px; text-align: left; font-size: 0.85em; color: #fff; font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.viz-money-office-row { margin-bottom: 10px; }
+.viz-money-bar-label { font-size: 0.78em; color: var(--text-muted); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
 /* Visualization — CF section */
 .viz-cf-section { margin-top: 8px; }
 .viz-cf-row { display: flex; gap: 24px; flex-wrap: wrap; }
 .viz-cf-card { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-.viz-cf-card svg { max-height: 240px; }
+.viz-cf-card svg { max-height: 380px; }
 .viz-cf-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 12px; }
 .viz-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; }
 .viz-chart-legend-entry { display: flex; align-items: center; gap: 5px; }
 .viz-chart-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.viz-chart-legend-label { font-size: 0.78em; color: var(--text-muted); }
+.viz-chart-legend-label { font-size: 0.78em; color: #fff; font-weight: 600; }
