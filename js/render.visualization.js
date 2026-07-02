@@ -139,6 +139,24 @@ window.App = window.App || {};
     );
   }
 
+  function totalArea(scenario, phase) {
+    var area = 0;
+    (scenario.offices || []).forEach(function (o) {
+      if (o.type !== C.OFFICE_TYPE.PHYSICAL || o.phase !== phase) { return; }
+      area += (o.area || 0);
+    });
+    return Math.round(area);
+  }
+
+  function renderAreaChart(scenario) {
+    return renderPhaseBarChart(
+      'Количество кв.м.',
+      totalArea(scenario, C.OFFICE_PHASE.TOBE),
+      totalArea(scenario, C.OFFICE_PHASE.ASIS),
+      false
+    );
+  }
+
   function teamColor(team, index) {
     return (team.color && team.color !== '#000000') ? team.color : PALETTE[index % PALETTE.length];
   }
@@ -576,6 +594,7 @@ window.App = window.App || {};
 
     var topRow = U.el('div', { class: 'viz-top-row' });
     topRow.appendChild(renderSeatsChart(scenario));
+    topRow.appendChild(renderAreaChart(scenario));
     topRow.appendChild(renderRemoteChart(scenario));
     topRow.appendChild(renderBalanceChart(scenario));
     container.appendChild(topRow);
