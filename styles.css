@@ -1001,3 +1001,19 @@ tr.office-drop-below > td {
 .viz-phase-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; min-width: 44px; }
 .viz-phase-count { color: #fff; font-weight: 700; font-size: 0.88em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
 .viz-phase-diff { min-width: 44px; font-size: 0.88em; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+
+/* Visualization — money section */
+.viz-money-section { margin-top: 8px; }
+.viz-money-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.viz-money-year-label { font-size: 0.88em; font-weight: 600; color: var(--text-muted); }
+.viz-year-select { font-size: 0.88em; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); cursor: pointer; }
+.viz-money-chart { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+.viz-money-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 14px; }
+.viz-money-body { display: flex; gap: 24px; flex-wrap: wrap; }
+.viz-money-col { flex: 1; min-width: 220px; }
+.viz-money-col-head { font-size: 0.75em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.viz-money-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.viz-money-track { flex: 1; height: 28px; background: rgba(128,128,128,0.12); border-radius: 4px; position: relative; overflow: visible; }
+.viz-money-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; min-width: 4px; overflow: hidden; }
+.viz-money-name { color: #fff; font-weight: 700; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+.viz-money-value { min-width: 72px; text-align: left; font-size: 0.85em; color: var(--text); flex-shrink: 0; font-variant-numeric: tabular-nums; }

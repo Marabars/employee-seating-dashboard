@@ -10,6 +10,7 @@ window.App = window.App || {};
 
   var hideVizAsis = false;
   var hideVizTobe = false;
+  var selectedMoneyYear = 2026;
 
   var PALETTE = [
     '#4f8ef7','#f7934f','#4fcc7a','#f74f7a','#c74ff7',
@@ -306,6 +307,120 @@ window.App = window.App || {};
     return wrap;
   }
 
+  // ── Money section helpers ────────────────────────────────────────────────
+
+  function indexationFactor(office, year) {
+    var idx = (office.indexationPct || 0) / 100;
+    var yearsElapsed = 0;
+    if (office.indexationStartDate) {
+      var idxYear = parseInt(String(office.indexationStartDate).substring(0, 4), 10);
+      if (!isNaN(idxYear) && year >= idxYear) { yearsElapsed = year - idxYear + 1; }
+    }
+    return Math.pow(1 + idx, yearsElapsed);
+  }
+
+  function rentCostPerSqm(office, year) {
+    return ((office.rentPerSqm || 0) + (office.opexPerSqm || 0)) * indexationFactor(office, year);
+  }
+
+  function rentCostPerSeat(office, year) {
+    var cap = calc.calculateOfficeCapacity(office);
+    if (!cap || cap === Infinity) { return 0; }
+    return rentCostPerSqm(office, year) * (office.area || 0) / cap;
+  }
+
+  function fmtMoneyVal(val) {
+    var rounded = Math.round(Math.abs(val) * 10 + 1e-9) / 10;
+    return rounded.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  }
+
+  function renderMoneyBars(scenario, phase, valFn, maxVal) {
+    var wrap = U.el('div', {});
+    var offices = (scenario.offices || []).filter(function (o) {
+      return o.type === C.OFFICE_TYPE.PHYSICAL && o.phase === phase;
+    });
+    if (!offices.length) {
+      wrap.appendChild(U.el('div', { class: 'viz-empty', text: 'Нет офисов' }));
+      return wrap;
+    }
+    offices.forEach(function (o) {
+      var val = valFn(o);
+      var pct = maxVal > 0 ? Math.max(3, Math.round((val / maxVal) * 100)) : 3;
+      var color = officeColor(o.name) || (phase === C.OFFICE_PHASE.TOBE ? PHASE_COLORS.tobe : PHASE_COLORS.asis);
+      var fill = U.el('div', { class: 'viz-money-fill' });
+      fill.style.width = pct + '%';
+      fill.style.background = color;
+      fill.appendChild(U.el('span', { class: 'viz-money-name', text: o.name }));
+      var track = U.el('div', { class: 'viz-money-track' });
+      track.appendChild(fill);
+      var row = U.el('div', { class: 'viz-money-bar-row' });
+      row.appendChild(track);
+      row.appendChild(U.el('span', { class: 'viz-money-value', text: fmtMoneyVal(val) }));
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
+  function renderMoneyChart(scenario, title, valFn) {
+    var maxVal = 1;
+    (scenario.offices || []).forEach(function (o) {
+      if (o.type !== C.OFFICE_TYPE.PHYSICAL) { return; }
+      var v = valFn(o);
+      if (v > maxVal) { maxVal = v; }
+    });
+    var card = U.el('div', { class: 'viz-money-chart' });
+    card.appendChild(U.el('div', { class: 'viz-money-chart-title', text: title }));
+    var body = U.el('div', { class: 'viz-money-body' });
+    var asisCol = U.el('div', { class: 'viz-money-col' });
+    asisCol.appendChild(U.el('div', { class: 'viz-money-col-head', text: 'AS IS' }));
+    asisCol.appendChild(renderMoneyBars(scenario, C.OFFICE_PHASE.ASIS, valFn, maxVal));
+    var tobeCol = U.el('div', { class: 'viz-money-col' });
+    tobeCol.appendChild(U.el('div', { class: 'viz-money-col-head', text: 'TO BE' }));
+    tobeCol.appendChild(renderMoneyBars(scenario, C.OFFICE_PHASE.TOBE, valFn, maxVal));
+    body.appendChild(asisCol);
+    body.appendChild(tobeCol);
+    card.appendChild(body);
+    return card;
+  }
+
+  function renderMoneySection(scenario) {
+    var settings = App.state.getSettings();
+    var cfSettings = (settings && settings.cfSettings) || {};
+    var startY = cfSettings.startYear || 2024;
+    var endY = cfSettings.endYear || 2030;
+    var yr = selectedMoneyYear;
+
+    var section = U.el('div', { class: 'viz-money-section' });
+    section.appendChild(U.el('div', { class: 'viz-section-head', text: 'Деньги' }));
+
+    var controls = U.el('div', { class: 'viz-money-controls' });
+    controls.appendChild(U.el('span', { class: 'viz-money-year-label', text: 'Год:' }));
+    var sel = document.createElement('select');
+    sel.className = 'viz-year-select';
+    for (var y = startY; y <= endY; y++) {
+      var opt = document.createElement('option');
+      opt.value = String(y);
+      opt.text = String(y);
+      if (y === yr) { opt.selected = true; }
+      sel.appendChild(opt);
+    }
+    sel.onchange = function () { selectedMoneyYear = parseInt(sel.value, 10); R.render(); };
+    controls.appendChild(sel);
+    section.appendChild(controls);
+
+    section.appendChild(renderMoneyChart(
+      scenario,
+      'Стоимость аренды за кв.м. (ставка + эксплуатация с НДС)',
+      function (o) { return rentCostPerSqm(o, yr); }
+    ));
+    section.appendChild(renderMoneyChart(
+      scenario,
+      'Стоимость аренды на рабочее место',
+      function (o) { return rentCostPerSeat(o, yr); }
+    ));
+    return section;
+  }
+
   function render(container, ctx) {
     var scenario = ctx.scenario;
 
@@ -337,6 +452,8 @@ window.App = window.App || {};
 
     var grids = container.querySelectorAll('.viz-grid');
     for (var gi = 0; gi < grids.length; gi++) { equalizeCardRows(grids[gi]); }
+
+    container.appendChild(renderMoneySection(scenario));
   }
 
   App.render.registerTab('visualization', { label: 'Визуализация', render: render });
