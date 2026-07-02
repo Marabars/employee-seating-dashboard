@@ -990,3 +990,14 @@ tr.office-drop-below > td {
 .viz-battery-track { flex: 1; height: 18px; background: rgba(128,128,128,0.15); border-radius: 4px; position: relative; display: flex; align-items: center; }
 .viz-battery-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; transition: width 0.2s; }
 .viz-battery-text { position: relative; z-index: 1; width: 100%; text-align: center; font-size: 0.78em; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); pointer-events: none; }
+
+/* Visualization — top summary row (summary charts side by side) */
+.viz-top-row { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+.viz-summary-card { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.viz-summary-title { font-size: 0.8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px; }
+.viz-phase-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.viz-phase-label { min-width: 46px; font-size: 0.75em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0; }
+.viz-phase-track { flex: 1; height: 34px; background: rgba(128,128,128,0.12); border-radius: 5px; position: relative; overflow: visible; }
+.viz-phase-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; min-width: 44px; }
+.viz-phase-count { color: #fff; font-weight: 700; font-size: 0.88em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+.viz-phase-diff { min-width: 44px; font-size: 0.88em; font-weight: 700; white-space: nowrap; flex-shrink: 0; }

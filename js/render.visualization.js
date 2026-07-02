@@ -22,6 +22,76 @@ window.App = window.App || {};
     tobe: '#467E5D'
   };
 
+  // Office brand colors (by lowercase office name fragment match)
+  var OFFICE_COLORS = [
+    { key: 'нева 14й этаж 1я', color: '#457F78' },
+    { key: 'нева 14й этаж 2я', color: '#6AAEA6' },
+    { key: 'icity 31',         color: '#89BD9E' },
+    { key: 'icity 8',          color: '#467E5D' },
+    { key: 'савеловск',        color: '#5BCD8C' },
+    { key: 'стекляшк',         color: '#CCECD7' },
+    { key: 'заселени',         color: '#9BC4D5' }
+  ];
+
+  function officeColor(officeName) {
+    var lower = (officeName || '').toLowerCase();
+    for (var i = 0; i < OFFICE_COLORS.length; i++) {
+      if (lower.indexOf(OFFICE_COLORS[i].key) !== -1) { return OFFICE_COLORS[i].color; }
+    }
+    return null;
+  }
+
+  function totalSeats(scenario, phase) {
+    var total = 0;
+    (scenario.offices || []).forEach(function (o) {
+      if (o.type !== C.OFFICE_TYPE.PHYSICAL || o.phase !== phase) { return; }
+      var cap = calc.calculateOfficeCapacity(o);
+      if (cap !== Infinity) { total += cap; }
+    });
+    return total;
+  }
+
+  function renderSeatsChart(scenario) {
+    var tobeTotal = totalSeats(scenario, C.OFFICE_PHASE.TOBE);
+    var asisTotal = totalSeats(scenario, C.OFFICE_PHASE.ASIS);
+    var maxVal = Math.max(tobeTotal, asisTotal, 1);
+    var diff = tobeTotal - asisTotal;
+    var diffStr = (diff > 0 ? '+' : '') + String(diff);
+    var diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--text-muted)';
+
+    var card = U.el('div', { class: 'viz-summary-card' });
+    card.appendChild(U.el('div', { class: 'viz-summary-title', text: 'Количество мест' }));
+
+    var tobePct = Math.max(3, Math.round((tobeTotal / maxVal) * 100));
+    var tobeFill = U.el('div', { class: 'viz-phase-fill' });
+    tobeFill.style.width = tobePct + '%';
+    tobeFill.style.background = PHASE_COLORS.tobe;
+    tobeFill.appendChild(U.el('span', { class: 'viz-phase-count', text: String(tobeTotal) }));
+    var tobeTrack = U.el('div', { class: 'viz-phase-track' });
+    tobeTrack.appendChild(tobeFill);
+    var tobeDiff = U.el('span', { class: 'viz-phase-diff', text: diffStr });
+    tobeDiff.style.color = diffColor;
+    var tobeRow = U.el('div', { class: 'viz-phase-row' });
+    tobeRow.appendChild(U.el('span', { class: 'viz-phase-label', text: 'TO BE' }));
+    tobeRow.appendChild(tobeTrack);
+    tobeRow.appendChild(tobeDiff);
+    card.appendChild(tobeRow);
+
+    var asisPct = Math.max(3, Math.round((asisTotal / maxVal) * 100));
+    var asisFill = U.el('div', { class: 'viz-phase-fill' });
+    asisFill.style.width = asisPct + '%';
+    asisFill.style.background = PHASE_COLORS.asis;
+    asisFill.appendChild(U.el('span', { class: 'viz-phase-count', text: String(asisTotal) }));
+    var asisTrack = U.el('div', { class: 'viz-phase-track' });
+    asisTrack.appendChild(asisFill);
+    var asisRow = U.el('div', { class: 'viz-phase-row' });
+    asisRow.appendChild(U.el('span', { class: 'viz-phase-label', text: 'AS IS' }));
+    asisRow.appendChild(asisTrack);
+    card.appendChild(asisRow);
+
+    return card;
+  }
+
   function teamColor(team, index) {
     return (team.color && team.color !== '#000000') ? team.color : PALETTE[index % PALETTE.length];
   }
@@ -192,6 +262,10 @@ window.App = window.App || {};
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
+
+    var topRow = U.el('div', { class: 'viz-top-row' });
+    topRow.appendChild(renderSeatsChart(scenario));
+    container.appendChild(topRow);
 
     var phaseToggles = U.el('div', { class: 'phase-vis-toggles', style: 'margin-bottom:16px;' });
     var tobeBtn = U.el('button', {
