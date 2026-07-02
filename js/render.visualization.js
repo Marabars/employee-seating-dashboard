@@ -51,45 +51,91 @@ window.App = window.App || {};
     return total;
   }
 
-  function renderSeatsChart(scenario) {
-    var tobeTotal = totalSeats(scenario, C.OFFICE_PHASE.TOBE);
-    var asisTotal = totalSeats(scenario, C.OFFICE_PHASE.ASIS);
-    var maxVal = Math.max(tobeTotal, asisTotal, 1);
-    var diff = tobeTotal - asisTotal;
+  function phaseBalance(scenario, phase) {
+    var capacity = 0;
+    var occupied = 0;
+    (scenario.offices || []).forEach(function (o) {
+      if (o.type !== C.OFFICE_TYPE.PHYSICAL || o.phase !== phase) { return; }
+      var cap = calc.calculateOfficeCapacity(o);
+      if (cap !== Infinity) { capacity += cap; occupied += calc.calculateOfficeOccupancy(scenario, o.id); }
+    });
+    return capacity - occupied;
+  }
+
+  // Generic two-bar summary card used by all top-row charts.
+  // useAbsWidth=true: bar width = abs(value), label shows signed value (balance mode).
+  // useAbsWidth=false: bar width = value directly (counts mode).
+  function renderPhaseBarChart(title, tobeVal, asisVal, useAbsWidth) {
+    var maxAbs = Math.max(
+      useAbsWidth ? Math.abs(tobeVal) : tobeVal,
+      useAbsWidth ? Math.abs(asisVal) : asisVal,
+      1
+    );
+    var diff = tobeVal - asisVal;
     var diffStr = (diff > 0 ? '+' : '') + String(diff);
     var diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--text-muted)';
 
     var card = U.el('div', { class: 'viz-summary-card' });
-    card.appendChild(U.el('div', { class: 'viz-summary-title', text: 'Количество мест' }));
+    card.appendChild(U.el('div', { class: 'viz-summary-title', text: title }));
 
-    var tobePct = Math.max(3, Math.round((tobeTotal / maxVal) * 100));
-    var tobeFill = U.el('div', { class: 'viz-phase-fill' });
-    tobeFill.style.width = tobePct + '%';
-    tobeFill.style.background = PHASE_COLORS.tobe;
-    tobeFill.appendChild(U.el('span', { class: 'viz-phase-count', text: String(tobeTotal) }));
-    var tobeTrack = U.el('div', { class: 'viz-phase-track' });
-    tobeTrack.appendChild(tobeFill);
-    var tobeDiff = U.el('span', { class: 'viz-phase-diff', text: diffStr });
-    tobeDiff.style.color = diffColor;
-    var tobeRow = U.el('div', { class: 'viz-phase-row' });
-    tobeRow.appendChild(U.el('span', { class: 'viz-phase-label', text: 'TO BE' }));
-    tobeRow.appendChild(tobeTrack);
-    tobeRow.appendChild(tobeDiff);
-    card.appendChild(tobeRow);
+    function makeRow(val, isTobe, showDiff) {
+      var absVal = useAbsWidth ? Math.abs(val) : val;
+      var pct = Math.max(3, Math.round((absVal / maxAbs) * 100));
+      var fillColor;
+      if (useAbsWidth) {
+        fillColor = isTobe ? (val >= 0 ? '#22c55e' : '#ef4444')
+                           : (val >= 0 ? PHASE_COLORS.asis : '#ef4444');
+      } else {
+        fillColor = isTobe ? PHASE_COLORS.tobe : PHASE_COLORS.asis;
+      }
+      var countStr = (useAbsWidth && val > 0 ? '+' : '') + String(val);
+      var fill = U.el('div', { class: 'viz-phase-fill' });
+      fill.style.width = pct + '%';
+      fill.style.background = fillColor;
+      fill.appendChild(U.el('span', { class: 'viz-phase-count', text: countStr }));
+      var track = U.el('div', { class: 'viz-phase-track' });
+      track.appendChild(fill);
+      var row = U.el('div', { class: 'viz-phase-row' });
+      row.appendChild(U.el('span', { class: 'viz-phase-label', text: isTobe ? 'TO BE' : 'AS IS' }));
+      row.appendChild(track);
+      if (showDiff) {
+        var dEl = U.el('span', { class: 'viz-phase-diff', text: diffStr });
+        dEl.style.color = diffColor;
+        row.appendChild(dEl);
+      }
+      return row;
+    }
 
-    var asisPct = Math.max(3, Math.round((asisTotal / maxVal) * 100));
-    var asisFill = U.el('div', { class: 'viz-phase-fill' });
-    asisFill.style.width = asisPct + '%';
-    asisFill.style.background = PHASE_COLORS.asis;
-    asisFill.appendChild(U.el('span', { class: 'viz-phase-count', text: String(asisTotal) }));
-    var asisTrack = U.el('div', { class: 'viz-phase-track' });
-    asisTrack.appendChild(asisFill);
-    var asisRow = U.el('div', { class: 'viz-phase-row' });
-    asisRow.appendChild(U.el('span', { class: 'viz-phase-label', text: 'AS IS' }));
-    asisRow.appendChild(asisTrack);
-    card.appendChild(asisRow);
-
+    card.appendChild(makeRow(tobeVal, true, true));
+    card.appendChild(makeRow(asisVal, false, false));
     return card;
+  }
+
+  function renderSeatsChart(scenario) {
+    return renderPhaseBarChart(
+      'Количество мест',
+      totalSeats(scenario, C.OFFICE_PHASE.TOBE),
+      totalSeats(scenario, C.OFFICE_PHASE.ASIS),
+      false
+    );
+  }
+
+  function renderRemoteChart(scenario) {
+    return renderPhaseBarChart(
+      'Удалёнка',
+      calc.calculateRemoteCount(scenario),
+      calc.calculateAsisRemoteCount(scenario),
+      false
+    );
+  }
+
+  function renderBalanceChart(scenario) {
+    return renderPhaseBarChart(
+      'Баланс мест',
+      phaseBalance(scenario, C.OFFICE_PHASE.TOBE),
+      phaseBalance(scenario, C.OFFICE_PHASE.ASIS),
+      true
+    );
   }
 
   function teamColor(team, index) {
@@ -265,6 +311,8 @@ window.App = window.App || {};
 
     var topRow = U.el('div', { class: 'viz-top-row' });
     topRow.appendChild(renderSeatsChart(scenario));
+    topRow.appendChild(renderRemoteChart(scenario));
+    topRow.appendChild(renderBalanceChart(scenario));
     container.appendChild(topRow);
 
     var phaseToggles = U.el('div', { class: 'phase-vis-toggles', style: 'margin-bottom:16px;' });
