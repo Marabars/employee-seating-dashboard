@@ -9468,31 +9468,21 @@ window.App = window.App || {};
         if (seg.value <= 0) { return; }
         var h = (seg.value / maxScale) * chartH;
         var rectY = yBase - yStack - h;
-        svg.appendChild(svgEl('rect', {
+        var rect = svgEl('rect', {
           x: barX, y: rectY, width: barW, height: h,
           fill: colorFn(seg.key), rx: 2
-        }));
+        });
+        var tooltipText = (seg.name || seg.key) + ': ' + seg.value.toFixed(1) + ' млн. руб.';
+        rect.appendChild(svgEl('title', {}, tooltipText));
+        svg.appendChild(rect);
 
-        var labelStr = seg.value.toFixed(1);
         var MIN_H = 16;
         if (h >= MIN_H) {
           svg.appendChild(svgEl('text', {
             x: barX + barW / 2, y: rectY + h / 2 + 3.5,
             'text-anchor': 'middle', 'font-size': '9',
             fill: DARK_PURPLE, 'font-weight': 'bold'
-          }, labelStr));
-        } else {
-          var ty = rectY + h / 2 + 3;
-          svg.appendChild(svgEl('text', {
-            x: barX - 6, y: ty,
-            'text-anchor': 'end', 'font-size': '8',
-            fill: '#fff', 'font-weight': 'bold'
-          }, labelStr));
-          svg.appendChild(svgEl('line', {
-            x1: barX - 4, y1: ty - 2,
-            x2: barX + 1, y2: rectY + h / 2,
-            stroke: 'rgba(255,255,255,0.6)', 'stroke-width': '0.8'
-          }));
+          }, seg.value.toFixed(1)));
         }
 
         yStack += h;
@@ -9551,6 +9541,7 @@ window.App = window.App || {};
         segments: tobeOffices.map(function (o) {
           return {
             key: o.id,
+            name: o.name,
             value: calc.cfForYear(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, yr, o.indexationStartDate)
           };
         })
@@ -9566,7 +9557,7 @@ window.App = window.App || {};
           }
         });
       });
-      return { year: yr, segments: [{ key: MR_GRUPП_NAME, value: total }] };
+      return { year: yr, segments: [{ key: MR_GRUPП_NAME, name: MR_GRUPП_NAME, value: total }] };
     });
 
     var section = U.el('div', { class: 'viz-cf-section' });
