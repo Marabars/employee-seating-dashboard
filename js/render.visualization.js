@@ -355,9 +355,10 @@ window.App = window.App || {};
 
   var DARK_PURPLE = '#1E0A3C';
 
-  function renderStackedBarSVG(yearsData, colorFn) {
+  function renderStackedBarSVG(yearsData, colorFn, opts) {
+    var showTotals = opts && opts.showTotals;
     var svgW = 500; var svgH = 420;
-    var padL = 60; var padR = 14; var padT = 20; var padB = 50;
+    var padL = 60; var padR = 14; var padT = showTotals ? 36 : 20; var padB = 50;
     var chartW = svgW - padL - padR;
     var chartH = svgH - padT - padB;
 
@@ -437,6 +438,16 @@ window.App = window.App || {};
 
         yStack += h;
       });
+
+      // Total label above bar
+      if (showTotals && yStack > 0) {
+        var totalVal = yd.segments.reduce(function (acc, seg) { return acc + (seg.value > 0 ? seg.value : 0); }, 0);
+        svg.appendChild(svgEl('text', {
+          x: barX + barW / 2, y: yBase - yStack - 5,
+          'text-anchor': 'middle', 'font-size': '11',
+          fill: 'rgba(255,255,255,0.92)', 'font-weight': '600'
+        }, totalVal.toFixed(2).replace('.', ',')));
+      }
 
       // X-axis year label
       svg.appendChild(svgEl('text', {
@@ -525,7 +536,7 @@ window.App = window.App || {};
 
     var card1 = U.el('div', { class: 'viz-cf-card' });
     card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (TO BE)' }));
-    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }));
+    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true }));
     var legend1 = tobeOffices.map(function (o) { return { name: o.name, color: officeColorMap[o.id] }; });
     card1.appendChild(renderChartLegend(legend1));
 
