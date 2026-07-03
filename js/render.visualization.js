@@ -618,6 +618,7 @@ window.App = window.App || {};
     var cfSettings = (settings && settings.cfSettings) || {};
     var startY = cfSettings.startYear || 2024;
     var endY = cfSettings.endYear || 2030;
+    if (selectedMoneyYear < startY || selectedMoneyYear > endY) { selectedMoneyYear = startY; }
     var yr = selectedMoneyYear;
 
     var section = U.el('div', { class: 'viz-money-section' });
