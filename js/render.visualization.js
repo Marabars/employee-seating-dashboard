@@ -209,9 +209,25 @@ window.App = window.App || {};
     var zones = (office.zones || []).filter(function (z) { return z.capacity && z.capacity > 0; });
     if (zones.length === 0) { return null; }
 
+    // Pre-check: total zone-specific occupancy across all zones.
+    // If it's 0 but office occupancy > 0, allocations don't specify zones
+    // (only targetOfficeId set). Distribute office occupancy evenly across zones.
+    var totalZoneOcc = 0;
+    zones.forEach(function (z) { totalZoneOcc += calc.calculateZoneOccupancy(scenario, z.id); });
+    var officeOcc = calc.calculateOfficeOccupancy(scenario, office.id);
+    var fallbackToOffice = (totalZoneOcc === 0 && officeOcc > 0);
+
     var section = U.el('div', { class: 'viz-battery-section' });
     zones.forEach(function (zone) {
-      var occ = calc.calculateZoneOccupancy(scenario, zone.id);
+      var occ;
+      if (fallbackToOffice) {
+        var officeCap = calc.calculateOfficeCapacity(office);
+        occ = (isFinite(officeCap) && officeCap > 0)
+          ? Math.round(officeOcc * (zone.capacity / officeCap))
+          : officeOcc;
+      } else {
+        occ = calc.calculateZoneOccupancy(scenario, zone.id);
+      }
       var cap = zone.capacity;
       var pct = Math.round((occ / cap) * 100);
       var color;
@@ -566,8 +582,8 @@ window.App = window.App || {};
       var pct = maxVal > 0 ? Math.max(3, Math.round((val / maxVal) * 100)) : 3;
       var color = phase === C.OFFICE_PHASE.TOBE ? PHASE_COLORS.tobe : PHASE_COLORS.asis;
       // Name fits inside bar when estimated bar px > name width + padding.
-      // Assume track ~220px, char width ~6.5px, 24px padding.
-      var nameInsideBar = (pct / 100 * 220) > (o.name.length * 6.5 + 24);
+      // Assume track ~500px (flex-1 column on typical screen), char width ~6.5px, 24px padding.
+      var nameInsideBar = (pct / 100 * 500) > (o.name.length * 6.5 + 24);
       var fill = U.el('div', { class: 'viz-money-fill' });
       fill.style.width = pct + '%';
       fill.style.background = color;
