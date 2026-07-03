@@ -16,6 +16,8 @@ App.render = (function () {
   var calc = App.calc;
 
   var activeTab = 'dashboard';
+  var tabScrolls = {};    // tabId -> last known scrollY
+  var pendingScrollY = null; // overrides window.pageYOffset on the next render() after a tab switch
 
   var MONTHS_SHORT = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
@@ -28,7 +30,11 @@ App.render = (function () {
 
   function setActiveTab(id) {
     if (tabs[id]) {
+      // Save current tab's scroll before switching.
+      tabScrolls[activeTab] = window.pageYOffset || document.documentElement.scrollTop || 0;
       activeTab = id;
+      // Restore the new tab's last scroll (0 = top for first visit).
+      pendingScrollY = tabScrolls[id] || 0;
     }
     render();
   }
@@ -56,7 +62,11 @@ App.render = (function () {
 
   /** Full re-render of sidebar, top bar, active tab, and view-only banner. */
   function render() {
-    var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    // Tab switch: pendingScrollY is the target scroll for the new tab.
+    // Same-tab re-render: read current window position to preserve it.
+    var isTabSwitch = (pendingScrollY !== null);
+    var scrollY = isTabSwitch ? pendingScrollY : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    pendingScrollY = null;
 
     // Save scroll positions of scrollable sub-containers (e.g. dnd-scroll columns on the distribution tab).
     var container = U.qs('#tab-content');
@@ -79,7 +89,9 @@ App.render = (function () {
       App.dragDrop.refresh();
     }
 
-    if (scrollY > 0) {
+    // Always restore on tab switch (including scroll-to-top for new tabs).
+    // On same-tab re-render restore only if was scrolled.
+    if (isTabSwitch || scrollY > 0) {
       window.scrollTo(0, scrollY);
     }
     // Restore inner-container scrolls by index (same tab template = same element order).
