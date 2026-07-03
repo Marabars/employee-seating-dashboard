@@ -542,24 +542,21 @@ window.App = window.App || {};
 
   // ── Money section helpers ────────────────────────────────────────────────
 
-  function indexationFactor(office, year) {
+  function indexationFactor(office, year, baseYear) {
     var idx = (office.indexationPct || 0) / 100;
-    var yearsElapsed = 0;
-    if (office.indexationStartDate) {
-      var idxYear = parseInt(String(office.indexationStartDate).substring(0, 4), 10);
-      if (!isNaN(idxYear) && year >= idxYear) { yearsElapsed = year - idxYear + 1; }
-    }
-    return Math.pow(1 + idx, yearsElapsed);
+    if (!idx) { return 1; }
+    var relYears = Math.max(0, year - (baseYear || year));
+    return Math.pow(1 + idx, relYears);
   }
 
-  function rentCostPerSqm(office, year) {
-    return ((office.rentPerSqm || 0) + (office.opexPerSqm || 0)) * indexationFactor(office, year);
+  function rentCostPerSqm(office, year, baseYear) {
+    return ((office.rentPerSqm || 0) + (office.opexPerSqm || 0)) * indexationFactor(office, year, baseYear);
   }
 
-  function rentCostPerSeat(office, year) {
+  function rentCostPerSeat(office, year, baseYear) {
     var cap = calc.calculateOfficeCapacity(office);
     if (!cap || cap === Infinity) { return 0; }
-    return rentCostPerSqm(office, year) * (office.area || 0) / cap;
+    return rentCostPerSqm(office, year, baseYear) * (office.area || 0) / cap;
   }
 
   function fmtMoneyVal(val) {
@@ -568,11 +565,12 @@ window.App = window.App || {};
   }
 
   function renderMoneyBars(scenario, phase, valFn, maxVal) {
-    var wrap = U.el('div', {});
+    var wrap = U.el('div', { class: 'viz-money-bars-grid' });
     var offices = (scenario.offices || []).filter(function (o) {
       return o.type === C.OFFICE_TYPE.PHYSICAL && o.phase === phase;
     });
     if (!offices.length) {
+      wrap.style.display = 'block';
       wrap.appendChild(U.el('div', { class: 'viz-empty', text: 'Нет офисов' }));
       return wrap;
     }
@@ -587,7 +585,8 @@ window.App = window.App || {};
       nameLabel.title = o.name;
       var track = U.el('div', { class: 'viz-bar-track' }, [fill, nameLabel]);
       var value = U.el('span', { class: 'viz-money-value', text: fmtMoneyVal(val) });
-      wrap.appendChild(U.el('div', { class: 'viz-bar-row' }, [track, value]));
+      wrap.appendChild(track);
+      wrap.appendChild(value);
     });
     return wrap;
   }
@@ -642,12 +641,12 @@ window.App = window.App || {};
     section.appendChild(renderMoneyChart(
       scenario,
       'Стоимость аренды за кв.м. (ставка + эксплуатация с НДС), руб/м²/год',
-      function (o) { return rentCostPerSqm(o, yr); }
+      function (o) { return rentCostPerSqm(o, yr, startY); }
     ));
     section.appendChild(renderMoneyChart(
       scenario,
       'Стоимость аренды на рабочее место, руб/год',
-      function (o) { return rentCostPerSeat(o, yr); }
+      function (o) { return rentCostPerSeat(o, yr, startY); }
     ));
     return section;
   }
