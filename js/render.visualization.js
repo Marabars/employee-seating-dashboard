@@ -407,7 +407,7 @@ window.App = window.App || {};
           fill: colorFn(seg.key), rx: 2
         }));
 
-        var labelStr = fmtYAxis(seg.value);
+        var labelStr = seg.value.toFixed(1);
         var MIN_H = 16;
         if (h >= MIN_H) {
           svg.appendChild(svgEl('text', {
@@ -565,16 +565,27 @@ window.App = window.App || {};
       var val = valFn(o);
       var pct = maxVal > 0 ? Math.max(3, Math.round((val / maxVal) * 100)) : 3;
       var color = phase === C.OFFICE_PHASE.TOBE ? PHASE_COLORS.tobe : PHASE_COLORS.asis;
+      // Name fits inside bar when estimated bar px > name width + padding.
+      // Assume track ~220px, char width ~6.5px, 24px padding.
+      var nameInsideBar = (pct / 100 * 220) > (o.name.length * 6.5 + 24);
       var fill = U.el('div', { class: 'viz-money-fill' });
       fill.style.width = pct + '%';
       fill.style.background = color;
+      if (nameInsideBar) {
+        fill.style.display = 'flex';
+        fill.style.alignItems = 'center';
+        fill.style.paddingLeft = '8px';
+        fill.appendChild(U.el('span', { class: 'viz-money-bar-name-inner', text: o.name }));
+      }
       var track = U.el('div', { class: 'viz-money-track' });
       track.appendChild(fill);
       var barRow = U.el('div', { class: 'viz-money-bar-row' });
       barRow.appendChild(track);
       barRow.appendChild(U.el('span', { class: 'viz-money-value', text: fmtMoneyVal(val) }));
       var officeRow = U.el('div', { class: 'viz-money-office-row' });
-      officeRow.appendChild(U.el('div', { class: 'viz-money-bar-label', text: o.name }));
+      if (!nameInsideBar) {
+        officeRow.appendChild(U.el('div', { class: 'viz-money-bar-label', text: o.name }));
+      }
       officeRow.appendChild(barRow);
       wrap.appendChild(officeRow);
     });

@@ -18,10 +18,55 @@ App.importExport = (function () {
 
   // ---- JSON --------------------------------------------------------------
 
+  function doExportJson(project, selectedScenarios) {
+    var exportProject = JSON.parse(JSON.stringify(project));
+    exportProject.scenarios = selectedScenarios;
+    var blob = new Blob([JSON.stringify(exportProject, null, 2)], { type: 'application/json' });
+    U.downloadBlob(blob, 'seating-project.json');
+  }
+
   function exportJson() {
     var project = state.getProject();
-    var blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-    U.downloadBlob(blob, 'seating-project.json');
+    var scenarios = project.scenarios || [];
+    if (scenarios.length <= 1) {
+      doExportJson(project, scenarios);
+      return;
+    }
+    var items = scenarios.map(function (s) {
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.style.marginRight = '8px';
+      cb.style.flexShrink = '0';
+      return { scenario: s, checkbox: cb };
+    });
+    var rows = items.map(function (item) {
+      var row = U.el('label', { class: 'import-name-row' });
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '8px';
+      row.style.cursor = 'pointer';
+      row.appendChild(item.checkbox);
+      row.appendChild(U.el('span', { text: item.scenario.name }));
+      return row;
+    });
+    App.modals.open({
+      title: 'Экспорт JSON',
+      body: U.el('div', {}, [
+        U.el('p', { text: 'Выберите сценарии для экспорта:' }),
+        U.el('div', { class: 'import-names-list' }, rows)
+      ]),
+      buttons: [
+        { label: 'Отмена', kind: 'secondary' },
+        { label: 'Экспорт', kind: 'primary', onClick: function () {
+          var selected = items.filter(function (i) { return i.checkbox.checked; })
+                              .map(function (i) { return i.scenario; });
+          if (!selected.length) { App.modals.alert('Выберите хотя бы один сценарий.'); return false; }
+          doExportJson(project, selected);
+          return true;
+        }}
+      ]
+    });
   }
 
   function importJsonDialog() {
@@ -55,15 +100,21 @@ App.importExport = (function () {
         while (existingNames.indexOf(suggested + ' (' + suffix + ')') >= 0) { suffix++; }
         suggested = suggested + ' (' + suffix + ')';
       }
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.style.flexShrink = '0';
       var input = U.el('input', { type: 'text', class: 'import-scenario-name', value: suggested });
-      return { scenario: s, input: input };
+      return { scenario: s, input: input, checkbox: cb };
     });
 
     var rows = nameInputs.map(function (item) {
-      return U.el('div', { class: 'import-name-row' }, [
-        U.el('span', { class: 'import-name-orig', text: item.scenario.name + ' → ' }),
-        item.input
-      ]);
+      var row = U.el('div', { class: 'import-name-row' });
+      row.style.alignItems = 'center';
+      row.appendChild(item.checkbox);
+      row.appendChild(U.el('span', { class: 'import-name-orig', text: item.scenario.name + ' → ' }));
+      row.appendChild(item.input);
+      return row;
     });
 
     App.modals.open({
@@ -77,15 +128,19 @@ App.importExport = (function () {
         { label: 'Добавить', kind: 'primary', onClick: function () {
           App.undoRedo.checkpoint();
           var proj = state.getProject();
+          var added = 0;
           nameInputs.forEach(function (item) {
+            if (!item.checkbox.checked) { return; }
             var name = item.input.value.trim() || item.scenario.name;
             var fresh = reIdScenario(item.scenario, name);
             proj.scenarios.push(fresh);
+            added++;
           });
+          if (!added) { App.modals.alert('Выберите хотя бы один сценарий.'); return false; }
           proj.settings.lastSelectedScenarioId =
             proj.scenarios[proj.scenarios.length - 1].id;
           state.notifyChange('Импорт JSON', { skipHistory: true });
-          App.modals.alert('Добавлено сценариев: ' + nameInputs.length + '.');
+          App.modals.alert('Добавлено сценариев: ' + added + '.');
           return true;
         }}
       ]
@@ -593,24 +648,65 @@ App.importExport = (function () {
 
   // ---- Excel export ------------------------------------------------------
 
+  function doExportExcel(scenarios, includeScenarioCol) {
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildSummary(scenarios, includeScenarioCol)), 'Summary');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildOffices(scenarios, includeScenarioCol)), 'Offices');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildZones(scenarios, includeScenarioCol)), 'Zones');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildTeams(scenarios, includeScenarioCol)), 'Teams');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildEmployees(scenarios, includeScenarioCol)), 'Employees');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildAllocations(scenarios, includeScenarioCol)), 'Allocations');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildWarnings(scenarios, includeScenarioCol)), 'Warnings');
+    XLSX.writeFile(wb, includeScenarioCol ? 'seating-all-scenarios.xlsx' : 'seating-scenario.xlsx');
+  }
+
   function exportExcel(allScenarios) {
-    if (!window.XLSX) {
-      libMissing('xlsx');
+    if (!window.XLSX) { libMissing('xlsx'); return; }
+    var project = state.getProject();
+    if (!allScenarios) {
+      doExportExcel([state.getActiveScenario()], false);
       return;
     }
-    var project = state.getProject();
-    var scenarios = allScenarios ? project.scenarios : [state.getActiveScenario()];
-    var wb = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildSummary(scenarios, allScenarios)), 'Summary');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildOffices(scenarios, allScenarios)), 'Offices');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildZones(scenarios, allScenarios)), 'Zones');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildTeams(scenarios, allScenarios)), 'Teams');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildEmployees(scenarios, allScenarios)), 'Employees');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildAllocations(scenarios, allScenarios)), 'Allocations');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildWarnings(scenarios, allScenarios)), 'Warnings');
-
-    XLSX.writeFile(wb, allScenarios ? 'seating-all-scenarios.xlsx' : 'seating-scenario.xlsx');
+    var scenarios = project.scenarios || [];
+    if (scenarios.length <= 1) {
+      doExportExcel(scenarios, false);
+      return;
+    }
+    var items = scenarios.map(function (s) {
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.style.marginRight = '8px';
+      cb.style.flexShrink = '0';
+      return { scenario: s, checkbox: cb };
+    });
+    var rows = items.map(function (item) {
+      var row = U.el('label', { class: 'import-name-row' });
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '8px';
+      row.style.cursor = 'pointer';
+      row.appendChild(item.checkbox);
+      row.appendChild(U.el('span', { text: item.scenario.name }));
+      return row;
+    });
+    App.modals.open({
+      title: 'Экспорт Excel',
+      body: U.el('div', {}, [
+        U.el('p', { text: 'Выберите сценарии для экспорта:' }),
+        U.el('div', { class: 'import-names-list' }, rows)
+      ]),
+      buttons: [
+        { label: 'Отмена', kind: 'secondary' },
+        { label: 'Экспорт', kind: 'primary', onClick: function () {
+          var selected = items.filter(function (i) { return i.checkbox.checked; })
+                              .map(function (i) { return i.scenario; });
+          if (!selected.length) { App.modals.alert('Выберите хотя бы один сценарий.'); return false; }
+          doExportExcel(selected, selected.length > 1);
+          return true;
+        }}
+      ]
+    });
   }
 
   function withScenarioCol(header, includeScenario) {

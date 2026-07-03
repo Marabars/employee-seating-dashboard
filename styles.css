@@ -994,9 +994,9 @@ tr.office-drop-below > td {
 /* Visualization — top summary row (summary charts side by side) */
 .viz-top-row { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
 .viz-summary-card { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-.viz-summary-title { font-size: 0.8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px; }
+.viz-summary-title { font-size: 0.8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; margin-bottom: 14px; }
 .viz-phase-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.viz-phase-label { min-width: 46px; font-size: 0.75em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0; }
+.viz-phase-label { min-width: 46px; font-size: 0.75em; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0; }
 .viz-phase-track { flex: 1; height: 34px; background: rgba(128,128,128,0.12); border-radius: 5px; position: relative; overflow: visible; }
 .viz-phase-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; min-width: 44px; }
 .viz-phase-count { color: #fff; font-weight: 700; font-size: 0.88em; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
@@ -1011,14 +1011,15 @@ tr.office-drop-below > td {
 .viz-money-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 14px; }
 .viz-money-body { display: flex; gap: 24px; flex-wrap: wrap; }
 .viz-money-col { flex: 1; min-width: 220px; }
-.viz-money-col-head { font-size: 0.75em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.viz-money-col-head { font-size: 0.75em; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
 .viz-money-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .viz-money-track { flex: 1; height: 28px; background: rgba(128,128,128,0.12); border-radius: 4px; position: relative; overflow: visible; }
 .viz-money-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; min-width: 4px; }
 .viz-money-name { color: #fff; font-weight: 700; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
 .viz-money-value { min-width: 72px; text-align: left; font-size: 0.85em; color: #fff; font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .viz-money-office-row { margin-bottom: 10px; }
-.viz-money-bar-label { font-size: 0.78em; color: var(--text-muted); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.viz-money-bar-label { font-size: 0.78em; color: #fff; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.viz-money-bar-name-inner { color: #fff; font-weight: 700; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
 
 /* Visualization — CF section */
 .viz-cf-section { margin-top: 8px; }
