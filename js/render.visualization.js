@@ -575,6 +575,14 @@ window.App = window.App || {};
     return rounded.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   }
 
+  var _measureCanvas = null;
+  function measureLabelWidth(text) {
+    if (!_measureCanvas) { _measureCanvas = document.createElement('canvas'); }
+    var ctx = _measureCanvas.getContext('2d');
+    ctx.font = '500 13px system-ui,-apple-system,sans-serif';
+    return ctx.measureText(text).width;
+  }
+
   function renderMoneyBars(scenario, phase, valFn, maxVal) {
     var wrap = U.el('div', { class: 'viz-money-bars-grid' });
     var offices = (scenario.offices || []).filter(function (o) {
@@ -585,6 +593,14 @@ window.App = window.App || {};
       wrap.appendChild(U.el('div', { class: 'viz-empty', text: 'Нет офисов' }));
       return wrap;
     }
+
+    var maxLabelW = 0;
+    offices.forEach(function (o) {
+      var w = measureLabelWidth(o.name);
+      if (w > maxLabelW) { maxLabelW = w; }
+    });
+    var valLeft = Math.ceil(maxLabelW) + 20;
+
     offices.forEach(function (o) {
       var val = valFn(o);
       var pct = maxVal > 0 ? Math.max(3, Math.round((val / maxVal) * 100)) : 3;
@@ -594,10 +610,10 @@ window.App = window.App || {};
       fill.style.background = color;
       var nameLabel = U.el('span', { class: 'viz-bar-label', text: o.name });
       nameLabel.title = o.name;
-      var track = U.el('div', { class: 'viz-bar-track' }, [fill, nameLabel]);
       var value = U.el('span', { class: 'viz-money-value', text: fmtMoneyVal(val) });
+      value.style.left = valLeft + 'px';
+      var track = U.el('div', { class: 'viz-bar-track' }, [fill, nameLabel, value]);
       wrap.appendChild(track);
-      wrap.appendChild(value);
     });
     return wrap;
   }
