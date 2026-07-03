@@ -368,7 +368,7 @@ window.App = window.App || {};
       if (s > maxTotal) { maxTotal = s; }
     });
 
-    var niceSteps = Math.max(1, Math.ceil(maxTotal / 250));
+    var niceSteps = Math.max(1, Math.ceil((opts && opts.maxScale ? opts.maxScale : maxTotal) / 250));
     var maxScale = niceSteps * 250;
 
     var nBars = yearsData.length || 1;
@@ -529,6 +529,15 @@ window.App = window.App || {};
       return { year: yr, segments: [{ key: MR_GRUPП_NAME, name: MR_GRUPП_NAME, value: total }] };
     });
 
+    // Compute shared Y-axis scale across both charts
+    var sharedMax = 0;
+    [chart1Data, chart2Data].forEach(function (data) {
+      data.forEach(function (yd) {
+        var s = yd.segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
+        if (s > sharedMax) { sharedMax = s; }
+      });
+    });
+
     var section = U.el('div', { class: 'viz-cf-section' });
     section.appendChild(U.el('div', { class: 'viz-section-title', text: 'CF по аренде' }));
 
@@ -536,13 +545,13 @@ window.App = window.App || {};
 
     var card1 = U.el('div', { class: 'viz-cf-card' });
     card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (TO BE)' }));
-    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true }));
+    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: sharedMax }));
     var legend1 = tobeOffices.map(function (o) { return { name: o.name, color: officeColorMap[o.id] }; });
     card1.appendChild(renderChartLegend(legend1));
 
     var card2 = U.el('div', { class: 'viz-cf-card' });
     card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам — МР Групп (TO BE)' }));
-    card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }));
+    card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }, { maxScale: sharedMax }));
     card2.appendChild(renderChartLegend([{ name: MR_GRUPП_NAME, color: MR_GRUPП_COLOR }]));
 
     row.appendChild(card1);
