@@ -356,8 +356,8 @@ window.App = window.App || {};
   var DARK_PURPLE = '#1E0A3C';
 
   function renderStackedBarSVG(yearsData, colorFn) {
-    var svgW = 400; var svgH = 300;
-    var padL = 52; var padR = 10; var padT = 16; var padB = 42;
+    var svgW = 500; var svgH = 420;
+    var padL = 60; var padR = 14; var padT = 20; var padB = 50;
     var chartW = svgW - padL - padR;
     var chartH = svgH - padT - padB;
 
@@ -396,8 +396,8 @@ window.App = window.App || {};
       }));
       if (gi > 0) {
         svg.appendChild(svgEl('text', {
-          x: padL - 4, y: yPx + 3.5,
-          'text-anchor': 'end', 'font-size': '9', fill: 'rgba(210,210,210,0.85)'
+          x: padL - 5, y: yPx + 4,
+          'text-anchor': 'end', 'font-size': '11', fill: 'rgba(210,210,210,0.85)'
         }, String(yVal)));
       }
     }
@@ -405,7 +405,7 @@ window.App = window.App || {};
     // Y-axis label "млн. руб." rotated
     svg.appendChild(svgEl('text', {
       transform: 'translate(11,' + (padT + chartH / 2) + ') rotate(-90)',
-      'text-anchor': 'middle', 'font-size': '8', fill: 'rgba(180,180,180,0.8)'
+      'text-anchor': 'middle', 'font-size': '10', fill: 'rgba(180,180,180,0.8)'
     }, 'млн. руб.'));
 
     // Bars + value labels
@@ -429,8 +429,8 @@ window.App = window.App || {};
         var MIN_H = 16;
         if (h >= MIN_H) {
           svg.appendChild(svgEl('text', {
-            x: barX + barW / 2, y: rectY + h / 2 + 3.5,
-            'text-anchor': 'middle', 'font-size': '9',
+            x: barX + barW / 2, y: rectY + h / 2 + 4,
+            'text-anchor': 'middle', 'font-size': '11',
             fill: DARK_PURPLE, 'font-weight': 'bold'
           }, seg.value.toFixed(1)));
         }
@@ -440,15 +440,15 @@ window.App = window.App || {};
 
       // X-axis year label
       svg.appendChild(svgEl('text', {
-        x: barX + barW / 2, y: yBase + 14,
-        'text-anchor': 'middle', 'font-size': '9', fill: 'rgba(210,210,210,0.85)'
+        x: barX + barW / 2, y: yBase + 16,
+        'text-anchor': 'middle', 'font-size': '11', fill: 'rgba(210,210,210,0.85)'
       }, String(yd.year)));
     });
 
     // X-axis label "Год"
     svg.appendChild(svgEl('text', {
-      x: padL + chartW / 2, y: svgH - 3,
-      'text-anchor': 'middle', 'font-size': '8', fill: 'rgba(180,180,180,0.75)'
+      x: padL + chartW / 2, y: svgH - 4,
+      'text-anchor': 'middle', 'font-size': '10', fill: 'rgba(180,180,180,0.75)'
     }, 'Год'));
 
     return svg;
@@ -485,6 +485,14 @@ window.App = window.App || {};
     var years = [];
     for (var y = startY; y <= endY; y++) { years.push(y); }
 
+    function cfYearTotal(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, indexationStartDate) {
+      var total = 0;
+      for (var m = 1; m <= 12; m++) {
+        total += calc.cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, m, yr, indexationStartDate);
+      }
+      return total;
+    }
+
     var chart1Data = years.map(function (yr) {
       return {
         year: yr,
@@ -492,7 +500,7 @@ window.App = window.App || {};
           return {
             key: o.id,
             name: o.name,
-            value: calc.cfForYear(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, yr, o.indexationStartDate)
+            value: cfYearTotal(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate)
           };
         })
       };
@@ -503,7 +511,7 @@ window.App = window.App || {};
       tobeOffices.forEach(function (o) {
         (o.tenants || []).forEach(function (t) {
           if ((t.name || '').trim().toLowerCase() === MR_GRUPП_NAME.toLowerCase()) {
-            total += calc.cfForYear(t.area || 0, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, yr, o.indexationStartDate);
+            total += cfYearTotal(t.area || 0, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate);
           }
         });
       });
@@ -511,7 +519,7 @@ window.App = window.App || {};
     });
 
     var section = U.el('div', { class: 'viz-cf-section' });
-    section.appendChild(U.el('div', { class: 'viz-section-head', text: 'CF по аренде' }));
+    section.appendChild(U.el('div', { class: 'viz-section-title', text: 'CF по аренде' }));
 
     var row = U.el('div', { class: 'viz-cf-row' });
 
@@ -572,23 +580,14 @@ window.App = window.App || {};
       var val = valFn(o);
       var pct = maxVal > 0 ? Math.max(3, Math.round((val / maxVal) * 100)) : 3;
       var color = phase === C.OFFICE_PHASE.TOBE ? PHASE_COLORS.tobe : PHASE_COLORS.asis;
-      var nameSpan = U.el('span', { class: 'viz-money-bar-name-inner', text: o.name });
-      nameSpan.title = o.name;
-      var fill = U.el('div', { class: 'viz-money-fill' });
+      var fill = U.el('div', { class: 'viz-bar-fill' });
       fill.style.width = pct + '%';
       fill.style.background = color;
-      fill.style.display = 'flex';
-      fill.style.alignItems = 'center';
-      fill.style.paddingLeft = '8px';
-      fill.appendChild(nameSpan);
-      var track = U.el('div', { class: 'viz-money-track' });
-      track.appendChild(fill);
-      var barRow = U.el('div', { class: 'viz-money-bar-row' });
-      barRow.appendChild(track);
-      barRow.appendChild(U.el('span', { class: 'viz-money-value', text: fmtMoneyVal(val) }));
-      var officeRow = U.el('div', { class: 'viz-money-office-row' });
-      officeRow.appendChild(barRow);
-      wrap.appendChild(officeRow);
+      var nameLabel = U.el('span', { class: 'viz-bar-label', text: o.name });
+      nameLabel.title = o.name;
+      var track = U.el('div', { class: 'viz-bar-track' }, [fill, nameLabel]);
+      var value = U.el('span', { class: 'viz-money-value', text: fmtMoneyVal(val) });
+      wrap.appendChild(U.el('div', { class: 'viz-bar-row' }, [track, value]));
     });
     return wrap;
   }
@@ -623,7 +622,7 @@ window.App = window.App || {};
     var yr = selectedMoneyYear;
 
     var section = U.el('div', { class: 'viz-money-section' });
-    section.appendChild(U.el('div', { class: 'viz-section-head', text: 'Деньги' }));
+    section.appendChild(U.el('div', { class: 'viz-section-title', text: 'Финансовые показатели' }));
 
     var controls = U.el('div', { class: 'viz-money-controls' });
     controls.appendChild(U.el('span', { class: 'viz-money-year-label', text: 'Год:' }));
@@ -642,12 +641,12 @@ window.App = window.App || {};
 
     section.appendChild(renderMoneyChart(
       scenario,
-      'Стоимость аренды за кв.м. (ставка + эксплуатация с НДС), млн. руб./год',
+      'Стоимость аренды за кв.м. (ставка + эксплуатация с НДС), руб/м²/год',
       function (o) { return rentCostPerSqm(o, yr); }
     ));
     section.appendChild(renderMoneyChart(
       scenario,
-      'Стоимость аренды на рабочее место, млн. руб./год',
+      'Стоимость аренды на рабочее место, руб/год',
       function (o) { return rentCostPerSeat(o, yr); }
     ));
     return section;
@@ -656,6 +655,7 @@ window.App = window.App || {};
   function render(container, ctx) {
     var scenario = ctx.scenario;
 
+    container.appendChild(U.el('div', { class: 'viz-section-title', text: 'Сравнение сценариев' }));
     var topRow = U.el('div', { class: 'viz-top-row' });
     topRow.appendChild(renderSeatsChart(scenario));
     topRow.appendChild(renderAreaChart(scenario));
@@ -663,6 +663,7 @@ window.App = window.App || {};
     topRow.appendChild(renderBalanceChart(scenario));
     container.appendChild(topRow);
 
+    container.appendChild(U.el('div', { class: 'viz-section-title', text: 'Распределение команд' }));
     var phaseToggles = U.el('div', { class: 'phase-vis-toggles', style: 'margin-bottom:16px;' });
     var tobeBtn = U.el('button', {
       class: 'btn btn-sm ' + (hideVizTobe ? 'btn-secondary' : 'btn-primary') + ' phase-vis-btn',

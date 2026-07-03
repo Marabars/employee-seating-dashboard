@@ -968,6 +968,7 @@ tr.office-drop-below > td {
 .team-color-input { width: 48px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
 
 /* Visualization tab */
+.viz-section-title { font-size: 1.15rem; font-weight: 700; color: #fff; margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.15); }
 .viz-section-head { font-size: 0.8rem; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--text-muted); margin: 20px 0 8px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border); }
@@ -1025,9 +1026,9 @@ tr.office-drop-below > td {
 .viz-cf-section { margin-top: 8px; }
 .viz-cf-row { display: flex; gap: 24px; flex-wrap: wrap; }
 .viz-cf-card { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-.viz-cf-card svg { max-height: 380px; }
+.viz-cf-card svg { max-height: 520px; }
 .viz-cf-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 12px; }
-.viz-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; }
-.viz-chart-legend-entry { display: flex; align-items: center; gap: 5px; }
-.viz-chart-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.viz-chart-legend-label { font-size: 0.78em; color: #fff; font-weight: 600; }
+.viz-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; }
+.viz-chart-legend-entry { display: flex; align-items: center; gap: 6px; }
+.viz-chart-legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+.viz-chart-legend-label { font-size: 0.88em; color: #fff; font-weight: 600; }
