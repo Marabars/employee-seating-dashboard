@@ -1018,7 +1018,7 @@ tr.office-drop-below > td {
 .viz-money-chart { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
 .viz-money-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 14px; }
 .viz-money-body { display: flex; gap: 24px; flex-wrap: wrap; }
-.viz-money-col { flex: 1; min-width: 220px; }
+.viz-money-col { flex: 1; min-width: 220px; max-width: 460px; }
 .viz-money-col-head { font-size: 0.75em; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
 .viz-money-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .viz-money-track { flex: 1; height: 28px; background: rgba(128,128,128,0.12); border-radius: 4px; position: relative; overflow: visible; }
@@ -9663,7 +9663,7 @@ window.App = window.App || {};
       var w = measureLabelWidth(o.name);
       if (w > maxLabelW) { maxLabelW = w; }
     });
-    var valLeft = Math.ceil(maxLabelW) + 20;
+    var valLeft = Math.ceil(maxLabelW) + 70;
 
     offices.forEach(function (o) {
       var val = valFn(o);

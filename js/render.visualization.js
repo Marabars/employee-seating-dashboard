@@ -599,7 +599,7 @@ window.App = window.App || {};
       var w = measureLabelWidth(o.name);
       if (w > maxLabelW) { maxLabelW = w; }
     });
-    var valLeft = Math.ceil(maxLabelW) + 20;
+    var valLeft = Math.ceil(maxLabelW) + 70;
 
     offices.forEach(function (o) {
       var val = valFn(o);
