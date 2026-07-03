@@ -673,8 +673,8 @@ window.App = window.App || {};
     ));
     section.appendChild(renderMoneyChart(
       scenario,
-      'Стоимость аренды на рабочее место, руб/год',
-      function (o) { return rentCostPerSeat(o, yr, startY); }
+      'Стоимость аренды на рабочее место, руб/мес',
+      function (o) { return rentCostPerSeat(o, yr, startY) / 12; }
     ));
     return section;
   }
