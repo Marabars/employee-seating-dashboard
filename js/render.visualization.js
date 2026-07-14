@@ -484,49 +484,40 @@ window.App = window.App || {};
     var startY = cfSettings.startYear || 2026;
     var endY   = cfSettings.endYear   || 2030;
 
-    var tobeOffices = (scenario.offices || []).filter(function (o) {
-      return o.type === C.OFFICE_TYPE.PHYSICAL && o.phase === C.OFFICE_PHASE.TOBE;
-    });
-
-    var officeColorMap = {};
-    tobeOffices.forEach(function (o, idx) {
-      officeColorMap[o.id] = officeColor(o.name) || PALETTE[idx % PALETTE.length];
-    });
-
     var years = [];
     for (var y = startY; y <= endY; y++) { years.push(y); }
 
-    function cfYearTotal(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, indexationStartDate, leaseEndDate) {
-      var total = 0;
-      for (var m = 1; m <= 12; m++) {
-        total += calc.cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, m, yr, indexationStartDate, leaseEndDate);
-      }
-      return total;
-    }
+    var cfData = calc.getScenarioCFData(scenario, startY, endY);
+    function yearIndex(yr) { return cfData.years.indexOf(yr); }
+
+    var tobeOfficeRows = cfData.officeRows.filter(function (r) {
+      return r.phase === C.OFFICE_PHASE.TOBE && !r.isSubtotal;
+    });
+
+    var officeColorMap = {};
+    tobeOfficeRows.forEach(function (r, idx) {
+      officeColorMap[r.id] = officeColor(r.name) || PALETTE[idx % PALETTE.length];
+    });
 
     var chart1Data = years.map(function (yr) {
+      var idx = yearIndex(yr);
       return {
         year: yr,
-        segments: tobeOffices.map(function (o) {
-          return {
-            key: o.id,
-            name: o.name,
-            value: cfYearTotal(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate, o.leaseEndDate)
-          };
+        segments: tobeOfficeRows.map(function (r) {
+          return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 };
         })
       };
     });
 
+    var mrRow = cfData.tenantRows.filter(function (r) {
+      return r.phase === C.OFFICE_PHASE.TOBE && !r.isSubtotal &&
+        (r.name || '').trim().toLowerCase() === MR_GRUPП_NAME.toLowerCase();
+    })[0];
+
     var chart2Data = years.map(function (yr) {
-      var total = 0;
-      tobeOffices.forEach(function (o) {
-        (o.tenants || []).forEach(function (t) {
-          if ((t.name || '').trim().toLowerCase() === MR_GRUPП_NAME.toLowerCase()) {
-            total += cfYearTotal(t.area || 0, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate, o.leaseEndDate);
-          }
-        });
-      });
-      return { year: yr, segments: [{ key: MR_GRUPП_NAME, name: MR_GRUPП_NAME, value: total }] };
+      var idx = yearIndex(yr);
+      var val = (mrRow && idx >= 0) ? (mrRow.values[idx] || 0) : 0;
+      return { year: yr, segments: [{ key: MR_GRUPП_NAME, name: MR_GRUPП_NAME, value: val }] };
     });
 
     // Compute shared Y-axis scale across both charts
@@ -546,7 +537,7 @@ window.App = window.App || {};
     var card1 = U.el('div', { class: 'viz-cf-card' });
     card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (TO BE)' }));
     card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: sharedMax }));
-    var legend1 = tobeOffices.map(function (o) { return { name: o.name, color: officeColorMap[o.id] }; });
+    var legend1 = tobeOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
     card1.appendChild(renderChartLegend(legend1));
 
     var card2 = U.el('div', { class: 'viz-cf-card' });
