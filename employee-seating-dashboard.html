@@ -3894,60 +3894,76 @@ App.calc = (function () {
    * Returns 0 if the month precedes the lease start, otherwise returns cfForYear(...) / 12.
    * Month is 1-based (1=January, 12=December).
    */
-  function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear, indexationStartDate) {
+  function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear, indexationStartDate, leaseEndDate) {
     var a = area || 0;
     var rent = rentPerSqm || 0;
     var opex = opexPerSqm || 0;
     var idx = (indexationPct || 0) / 100;
     var base = a * (rent + opex);
-
-    function monthlyAt(exp) {
-      return base * Math.pow(1 + idx, exp) / 1000000 / 12;
-    }
-
-    var exponent = 0;
-    var idxProrateDay = 0;
-    if (indexationStartDate) {
-      var idxStr = String(indexationStartDate);
-      var idxYear  = parseInt(idxStr.substring(0, 4), 10);
-      var idxMonth = parseInt(idxStr.substring(5, 7), 10);
-      var idxDay   = parseInt(idxStr.substring(8, 10), 10) || 1;
-      if (!isNaN(idxYear) && !isNaN(idxMonth)) {
-        if (year > idxYear || (year === idxYear && month > idxMonth)) {
-          exponent = year - idxYear + 1;
-        } else if (year === idxYear && month === idxMonth) {
-          exponent = 1;
-          idxProrateDay = idxDay;
-        }
-      }
-    }
-
-    var lsYear = null; var lsMonth = null; var lsDay = 1;
-    if (leaseStartDate) {
-      var lsStr = String(leaseStartDate);
-      lsYear  = parseInt(lsStr.substring(0, 4), 10);
-      lsMonth = parseInt(lsStr.substring(5, 7), 10);
-      lsDay   = parseInt(lsStr.substring(8, 10), 10) || 1;
-      if (!isNaN(lsYear) && !isNaN(lsMonth)) {
-        if (year < lsYear || (year === lsYear && month < lsMonth)) { return 0; }
-      }
-    }
-
     var dim = daysInMonth(year, month);
 
-    var monthly;
-    if (idxProrateDay > 1) {
-      var baseDays = idxProrateDay - 1;
-      var idxDays  = dim - baseDays;
-      monthly = (monthlyAt(0) * baseDays + monthlyAt(exponent) * idxDays) / dim;
-    } else {
-      monthly = monthlyAt(exponent);
+    // ---- Active-day bounds within this month ----
+    var firstActiveDay = 1;
+    var lastActiveDay = dim;
+
+    if (leaseStartDate) {
+      var lsStr = String(leaseStartDate);
+      var lsYear  = parseInt(lsStr.substring(0, 4), 10);
+      var lsMonth = parseInt(lsStr.substring(5, 7), 10);
+      var lsDay   = parseInt(lsStr.substring(8, 10), 10) || 1;
+      if (!isNaN(lsYear) && !isNaN(lsMonth)) {
+        if (year < lsYear || (year === lsYear && month < lsMonth)) { return 0; }
+        if (year === lsYear && month === lsMonth) { firstActiveDay = lsDay; }
+      }
     }
 
-    if (lsYear !== null && year === lsYear && month === lsMonth && lsDay > 1) {
-      monthly = monthly * (dim - lsDay + 1) / dim;
+    if (leaseEndDate) {
+      var leStr = String(leaseEndDate);
+      var leYear  = parseInt(leStr.substring(0, 4), 10);
+      var leMonth = parseInt(leStr.substring(5, 7), 10);
+      var leDay   = parseInt(leStr.substring(8, 10), 10) || 1;
+      if (!isNaN(leYear) && !isNaN(leMonth)) {
+        if (year > leYear || (year === leYear && month > leMonth)) { return 0; }
+        if (year === leYear && month === leMonth) { lastActiveDay = leDay; }
+      }
     }
 
+    if (lastActiveDay < firstActiveDay) { return 0; }
+
+    // ---- Indexation start (per-day exponent) ----
+    var idxYear = null, idxMonth = null, idxDay = 1;
+    if (indexationStartDate) {
+      var idxStr = String(indexationStartDate);
+      idxYear  = parseInt(idxStr.substring(0, 4), 10);
+      idxMonth = parseInt(idxStr.substring(5, 7), 10);
+      idxDay   = parseInt(idxStr.substring(8, 10), 10) || 1;
+      if (isNaN(idxYear) || isNaN(idxMonth)) { idxYear = null; }
+    }
+
+    function dayExponent(d) {
+      if (idxYear === null) { return 0; }
+      if (year < idxYear) { return 0; }
+      if (year === idxYear && month < idxMonth) { return 0; }
+      if (year === idxYear && month === idxMonth && d < idxDay) { return 0; }
+      return year - idxYear + 1;
+    }
+
+    // ---- Tally active days by indexation exponent, then combine ----
+    // Grouping by exponent (rather than summing per day) keeps a full month
+    // at a single exponent exact: count/dim === 1.0, so the result equals the
+    // un-prorated monthly amount with no floating-point drift.
+    var counts = {};
+    for (var d = firstActiveDay; d <= lastActiveDay; d++) {
+      var e = dayExponent(d);
+      counts[e] = (counts[e] || 0) + 1;
+    }
+    var monthly = 0;
+    for (var key in counts) {
+      if (counts.hasOwnProperty(key)) {
+        var exp = parseInt(key, 10);
+        monthly += base * Math.pow(1 + idx, exp) / 1000000 / 12 * (counts[key] / dim);
+      }
+    }
     return monthly;
   }
 

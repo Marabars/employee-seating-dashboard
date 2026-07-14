@@ -428,4 +428,33 @@
       expect(result).toBeCloseTo(0.013125, 4);
     });
   });
+
+  describe('cfForMonth — leaseEndDate', function () {
+    it('month entirely after leaseEndDate is 0', function () {
+      // lease ends 2028-08-30; September 2028 => no expense
+      var result = calc.cfForMonth(1000, 100, 50, 10, null, 2028, 9, null, null, '2028-08-30');
+      expect(result).toBe(0);
+    });
+
+    it('lease-end month prorated by day (Aug 2028, 31 days, ends day 30 => 30/31)', function () {
+      var result = calc.cfForMonth(1000, 100, 50, 10, null, 2028, 8, null, null, '2028-08-30');
+      expect(result).toBeCloseTo(0.0125 * 30 / 31, 6);
+    });
+
+    it('lease ends on last day of month => full month, no proration', function () {
+      var result = calc.cfForMonth(1000, 100, 50, 10, null, 2028, 8, null, null, '2028-08-31');
+      expect(result).toBeCloseTo(0.0125, 6);
+    });
+
+    it('lease start and end in the same month => only active days charged', function () {
+      // Aug 2028 (31 days), active days 10..20 = 11 days
+      var result = calc.cfForMonth(1000, 100, 50, 10, '2028-08-10', 2028, 8, null, null, '2028-08-20');
+      expect(result).toBeCloseTo(0.0125 * 11 / 31, 6);
+    });
+
+    it('no leaseEndDate => full month within lease (backward compatible)', function () {
+      var result = calc.cfForMonth(1000, 100, 50, 10, null, 2028, 8, null, null);
+      expect(result).toBeCloseTo(0.0125, 6);
+    });
+  });
 })();
