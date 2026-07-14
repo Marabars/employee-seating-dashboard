@@ -324,35 +324,30 @@ App.calc = (function () {
    * the current state, not the planning target, and must not inflate the
    * "distributed" metric.
    *
-   * Deduplication is done per-office (same approach as calculateOfficeOccupancy):
-   *   per office: max(TEAM seats, EMPLOYEE alloc count)
-   * This prevents double-counting named employees who have both an individual
-   * EMPLOYEE alloc and are covered by a TEAM alloc in the SAME office, while
-   * correctly summing genuinely separate placements across different offices.
+   * Deduplication is global (same approach as calculatePlacedInOffices):
+   *   max(total TEAM seats, distinct named employees)
+   * A named team member counts as one of the team's seats even when placed in
+   * a different office than the TEAM allocation, so dragging one member out
+   * does not create a phantom extra seat.
    */
   function calculateTeamAllocated(scenario, teamId) {
-    var teamSeatsByOffice = {};
-    var namedCountByOffice = {};
+    var teamSeats = 0;
+    var namedIds = {};
 
     (scenario.allocations || []).forEach(function (a) {
       if (a.teamId !== teamId) { return; }
       var office = U.findById(scenario.offices, a.targetOfficeId);
       if (!office || office.phase === C.OFFICE_PHASE.ASIS) { return; }
-      var oId = office.id;
       if (a.type === C.ALLOCATION_TYPE.TEAM) {
-        teamSeatsByOffice[oId] = (teamSeatsByOffice[oId] || 0) + (a.employeesCount || 0);
+        teamSeats += (a.employeesCount || 0);
       } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
-        namedCountByOffice[oId] = (namedCountByOffice[oId] || 0) + 1;
+        namedIds[a.employeeId] = true;
       }
     });
 
-    var allOffices = {};
-    Object.keys(teamSeatsByOffice).forEach(function (id) { allOffices[id] = true; });
-    Object.keys(namedCountByOffice).forEach(function (id) { allOffices[id] = true; });
-
-    return Object.keys(allOffices).reduce(function (sum, oId) {
-      return sum + Math.max(teamSeatsByOffice[oId] || 0, namedCountByOffice[oId] || 0);
-    }, 0);
+    var named = 0;
+    for (var id in namedIds) { if (namedIds.hasOwnProperty(id)) { named += 1; } }
+    return Math.max(teamSeats, named);
   }
 
   /** Remaining unallocated headcount of a team (never below 0 for display). */

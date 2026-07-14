@@ -22,7 +22,7 @@
             { id: 'z_vip', name: 'VIP', type: 'vip', capacity: 5, isVipZone: true }
           ]
         },
-        { id: 'remote', type: 'remote', name: 'Удаленка', isSystem: true, unlimitedCapacity: true }
+        { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка', isSystem: true, unlimitedCapacity: true }
       ],
       teams: [], employees: [], allocations: []
     };

@@ -28,7 +28,7 @@
             { id: 'z_vip', name: 'VIP', type: 'vip', capacity: 10, isVipZone: true }
           ]
         },
-        { id: 'remote', type: 'remote', name: 'Удаленка', isSystem: true, unlimitedCapacity: true }
+        { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка', isSystem: true, unlimitedCapacity: true }
       ],
       teams: [
         { id: 't1', name: 'Finance', employeesCount: 40, isVip: false, canSplit: true }
@@ -175,7 +175,7 @@
           zones: [{ id: 'zA', name: 'Зона A', capacity: 50, isVipZone: false }] },
         { id: 'offB', type: 'physical', phase: 'tobe', name: 'Офис B',
           zones: [{ id: 'zB', name: 'Зона B', capacity: 50, isVipZone: false }] },
-        { id: 'remote', type: 'remote', name: 'Удаленка' }
+        { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка' }
       ],
       teams: [{ id: 't1', name: 'Alpha', employeesCount: 10, canSplit: true }],
       employees: [
@@ -351,7 +351,7 @@
       var s = {
         id: 's', offices: [
           { id: 'new1', type: 'physical', phase: 'tobe', name: 'B', zones: [{ id: 'z1', name: 'O', type: 'open_space', capacity: 10, isVipZone: false }] },
-          { id: 'remote', type: 'remote', name: 'Удаленка', unlimitedCapacity: true }
+          { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true }
         ],
         teams: [{ id: 't1', name: 'A', employeesCount: 10, canSplit: true }],
         employees: [],
@@ -369,7 +369,7 @@
       expect(p.remotePercent).toBe(33);    // 20 / 60
     });
     it('zero workforce yields zeros, not NaN', function () {
-      var s = { id: 's', offices: [{ id: 'r', type: 'remote', unlimitedCapacity: true }], teams: [], employees: [], allocations: [] };
+      var s = { id: 's', offices: [{ id: 'r', type: 'remote', phase: 'tobe', unlimitedCapacity: true }], teams: [], employees: [], allocations: [] };
       var p = calc.calculateMoveProgress(s);
       expect(p.inOfficesPercent).toBe(0);
       expect(p.unplacedPercent).toBe(0);
