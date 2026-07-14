@@ -292,6 +292,8 @@ App.render = (function () {
     var onToggleYear = opts.onToggleYear || function () {};
     var firstColLabel = opts.firstColLabel || 'Офис / Фаза';
     var showPhaseHeaders = opts.showPhaseHeaders !== false;
+    var editable = !!opts.editable;
+    var onEditCell = opts.onEditCell || function () {};
 
     function fmt(v) {
       if (v === null || v === undefined || isNaN(v)) { return '—'; }
@@ -376,7 +378,24 @@ App.render = (function () {
           val = row.rowTotal;
           cellClass = 'cf-val-col cf-bold';
         }
-        cells.push(U.el('td', { class: cellClass, text: fmt(val) }));
+        var isEditableCell = editable && !row.isSubtotal &&
+          (col.type === 'year' || col.type === 'month');
+        if (isEditableCell) {
+          var input = U.el('input', {
+            type: 'number', step: 'any', class: 'cf-edit-input',
+            value: (val === null || val === undefined || isNaN(val)) ? '' : String(Math.round(val * 100) / 100)
+          });
+          input.addEventListener('change', (function (rid, yr, mIdx, inputEl) {
+            return function () {
+              var num = parseFloat(inputEl.value);
+              if (isNaN(num)) { num = 0; }
+              onEditCell(rid, yr, mIdx, num);
+            };
+          })(row.id, col.year, col.type === 'month' ? (col.month - 1) : null, input));
+          cells.push(U.el('td', { class: cellClass }, [input]));
+        } else {
+          cells.push(U.el('td', { class: cellClass, text: fmt(val) }));
+        }
       });
       tbody.appendChild(U.el('tr', { class: row.isSubtotal ? 'cf-subtotal-row' : '' }, cells));
     });

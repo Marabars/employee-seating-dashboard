@@ -1033,3 +1033,20 @@ tr.office-drop-below > td {
 .viz-chart-legend-entry { display: flex; align-items: center; gap: 6px; }
 .viz-chart-legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
 .viz-chart-legend-label { font-size: 0.88em; color: #fff; font-weight: 600; }
+
+.cf-edit-input {
+  width: 68px;
+  padding: 2px 4px;
+  border: 1px solid var(--border, #cbd2d9);
+  border-radius: 4px;
+  font: inherit;
+  text-align: right;
+  background: #fffbe6;
+}
+.cf-edit-actions { display: inline-flex; gap: 6px; margin-left: auto; }
+.cf-override-banner {
+  display: flex; align-items: center; gap: 10px;
+  margin: 8px 0; padding: 6px 10px;
+  background: #eef4ff; border: 1px solid #c7d7f5; border-radius: 6px;
+  font-size: 13px; color: #1f2933;
+}
