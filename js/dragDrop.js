@@ -440,6 +440,15 @@ App.dragDrop = (function () {
 
   // ---- Drop on unallocated panel: remove the allocation ------------------
 
+  function removeAllocationOrTeam(allocationId) {
+    var a = alloc.find(allocationId);
+    if (a && a.teamId) {
+      alloc.removeTeamZone(a.teamId, a.targetOfficeId, a.targetZoneId || null);
+    } else {
+      alloc.remove(allocationId);
+    }
+  }
+
   function bindUnallocatedPanel() {
     U.qsa('[data-drop-panel="unallocated"]').forEach(function (panel) {
       if (panel._dndBound) { return; }
@@ -464,7 +473,7 @@ App.dragDrop = (function () {
         var payload = readPayload(e.dataTransfer);
         if (!payload) { return; }
         if (payload.kind === 'allocation') {
-          App.allocations.remove(payload.id);
+          removeAllocationOrTeam(payload.id);
           announce('Размещение отменено — команда возвращена в нераспределённые');
         }
       });
@@ -472,7 +481,7 @@ App.dragDrop = (function () {
       panel.addEventListener('keydown', function (e) {
         if ((e.key === 'Enter' || e.key === ' ') && grabbed && grabbed.kind === 'allocation') {
           e.preventDefault();
-          App.allocations.remove(grabbed.id);
+          removeAllocationOrTeam(grabbed.id);
           grabbed = null;
           announce('Размещение отменено');
         }

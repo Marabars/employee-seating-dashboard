@@ -4510,6 +4510,28 @@ App.allocations = (function () {
     return true;
   }
 
+  /**
+   * Remove ALL allocations for a team in a given office/zone (mirror of
+   * moveTeamZone). Used when dragging a team back to "нераспределённые" so all
+   * of the team's seats + named employees in that zone return together, not one
+   * allocation at a time.
+   */
+  function removeTeamZone(teamId, officeId, zoneId) {
+    var targets = list().filter(function (a) {
+      return a.teamId === teamId
+        && a.targetOfficeId === officeId
+        && (a.targetZoneId || null) === (zoneId || null);
+    });
+    if (!targets.length) { return false; }
+    var ids = {};
+    targets.forEach(function (a) { ids[a.id] = true; });
+    state.commit('Возврат команды в нераспределённые', function () {
+      var s = scenario();
+      s.allocations = s.allocations.filter(function (x) { return !ids[x.id]; });
+    });
+    return true;
+  }
+
   /** Send a team's remaining unallocated headcount to the TOBE remote office. */
   function sendTeamRemainderToRemote(teamId) {
     var s = scenario();
@@ -4538,6 +4560,7 @@ App.allocations = (function () {
     moveTeamZone: moveTeamZone,
     reduceTeamAllocation: reduceTeamAllocation,
     remove: remove,
+    removeTeamZone: removeTeamZone,
     sendTeamRemainderToRemote: sendTeamRemainderToRemote
   };
 })();
@@ -10472,6 +10495,15 @@ App.dragDrop = (function () {
 
   // ---- Drop on unallocated panel: remove the allocation ------------------
 
+  function removeAllocationOrTeam(allocationId) {
+    var a = alloc.find(allocationId);
+    if (a && a.teamId) {
+      alloc.removeTeamZone(a.teamId, a.targetOfficeId, a.targetZoneId || null);
+    } else {
+      alloc.remove(allocationId);
+    }
+  }
+
   function bindUnallocatedPanel() {
     U.qsa('[data-drop-panel="unallocated"]').forEach(function (panel) {
       if (panel._dndBound) { return; }
@@ -10496,7 +10528,7 @@ App.dragDrop = (function () {
         var payload = readPayload(e.dataTransfer);
         if (!payload) { return; }
         if (payload.kind === 'allocation') {
-          App.allocations.remove(payload.id);
+          removeAllocationOrTeam(payload.id);
           announce('Размещение отменено — команда возвращена в нераспределённые');
         }
       });
@@ -10504,7 +10536,7 @@ App.dragDrop = (function () {
       panel.addEventListener('keydown', function (e) {
         if ((e.key === 'Enter' || e.key === ' ') && grabbed && grabbed.kind === 'allocation') {
           e.preventDefault();
-          App.allocations.remove(grabbed.id);
+          removeAllocationOrTeam(grabbed.id);
           grabbed = null;
           announce('Размещение отменено');
         }

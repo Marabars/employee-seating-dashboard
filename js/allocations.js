@@ -257,6 +257,28 @@ App.allocations = (function () {
     return true;
   }
 
+  /**
+   * Remove ALL allocations for a team in a given office/zone (mirror of
+   * moveTeamZone). Used when dragging a team back to "нераспределённые" so all
+   * of the team's seats + named employees in that zone return together, not one
+   * allocation at a time.
+   */
+  function removeTeamZone(teamId, officeId, zoneId) {
+    var targets = list().filter(function (a) {
+      return a.teamId === teamId
+        && a.targetOfficeId === officeId
+        && (a.targetZoneId || null) === (zoneId || null);
+    });
+    if (!targets.length) { return false; }
+    var ids = {};
+    targets.forEach(function (a) { ids[a.id] = true; });
+    state.commit('Возврат команды в нераспределённые', function () {
+      var s = scenario();
+      s.allocations = s.allocations.filter(function (x) { return !ids[x.id]; });
+    });
+    return true;
+  }
+
   /** Send a team's remaining unallocated headcount to the TOBE remote office. */
   function sendTeamRemainderToRemote(teamId) {
     var s = scenario();
@@ -285,6 +307,7 @@ App.allocations = (function () {
     moveTeamZone: moveTeamZone,
     reduceTeamAllocation: reduceTeamAllocation,
     remove: remove,
+    removeTeamZone: removeTeamZone,
     sendTeamRemainderToRemote: sendTeamRemainderToRemote
   };
 })();

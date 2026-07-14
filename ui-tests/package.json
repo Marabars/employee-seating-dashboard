@@ -1,0 +1,13 @@
+{
+  "name": "esd-ui-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless UI/DnD tests for the seating dashboard (jsdom, no browser).",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node dnd.test.js"
+  },
+  "dependencies": {
+    "jsdom": "^24.0.0"
+  }
+}
