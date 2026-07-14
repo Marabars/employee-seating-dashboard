@@ -30,6 +30,7 @@ window.App = window.App || {};
   var problemOfficesCollapsed = false; // collapsible problem offices section
   var dashCFCollapsed = {};        // { tobe: bool, asis: bool } — office CF collapsed per phase
   var dashTenantCFCollapsed = {};  // { tobe: bool, asis: bool } — tenant CF collapsed per phase
+  var dashCardsCollapsed = {};     // { tobe: bool, asis: bool } — office-cards grid collapsed per phase
 
   function render(container, ctx) {
     var scenario = ctx.scenario;
@@ -201,6 +202,17 @@ window.App = window.App || {};
     return wrap;
   }
 
+  /** Phase heading with a leading toggle that collapses this phase's office-cards grid. */
+  function buildPhaseHead(phaseClass, label, phase) {
+    var collapsed = !!dashCardsCollapsed[phase];
+    var toggle = R.iconBtn(
+      collapsed ? '▸' : '▾',
+      collapsed ? 'Показать карточки' : 'Свернуть карточки',
+      (function (ph) { return function () { dashCardsCollapsed[ph] = !dashCardsCollapsed[ph]; R.render(); }; })(phase)
+    );
+    return U.el('h3', { class: 'phase-head ' + phaseClass }, [toggle, U.el('span', { text: label })]);
+  }
+
   /** Offices block with AS IS / TO BE groups and a money toggle. */
   function renderOfficesBlock(scenario, ctx) {
     var panel = R.section('Офисы');
@@ -250,10 +262,12 @@ window.App = window.App || {};
     }
 
     if (tobe.length && !hideTobe) {
-      panel.appendChild(U.el('h3', { class: 'phase-head phase-tobe', text: 'TO BE — план переезда' }));
-      var gT = U.el('div', { class: 'office-grid' });
-      tobe.forEach(function (o) { gT.appendChild(renderOfficeCard(scenario, o, ctx)); });
-      panel.appendChild(gT);
+      panel.appendChild(buildPhaseHead('phase-tobe', 'TO BE — план переезда', C.OFFICE_PHASE.TOBE));
+      if (!dashCardsCollapsed[C.OFFICE_PHASE.TOBE]) {
+        var gT = U.el('div', { class: 'office-grid' });
+        tobe.forEach(function (o) { gT.appendChild(renderOfficeCard(scenario, o, ctx)); });
+        panel.appendChild(gT);
+      }
       if (moneyMode && cf) {
         var cfDataTobe = buildDashCFTable(scenario, C.OFFICE_PHASE.TOBE, cf.startYear, cf.endYear);
         if (cfDataTobe) { panel.appendChild(cfDataTobe); }
@@ -262,10 +276,12 @@ window.App = window.App || {};
       }
     }
     if (asis.length && !hideAsis) {
-      panel.appendChild(U.el('h3', { class: 'phase-head phase-asis', text: 'AS IS — как есть' }));
-      var gA = U.el('div', { class: 'office-grid' });
-      asis.forEach(function (o) { gA.appendChild(renderOfficeCard(scenario, o, ctx)); });
-      panel.appendChild(gA);
+      panel.appendChild(buildPhaseHead('phase-asis', 'AS IS — как есть', C.OFFICE_PHASE.ASIS));
+      if (!dashCardsCollapsed[C.OFFICE_PHASE.ASIS]) {
+        var gA = U.el('div', { class: 'office-grid' });
+        asis.forEach(function (o) { gA.appendChild(renderOfficeCard(scenario, o, ctx)); });
+        panel.appendChild(gA);
+      }
       if (moneyMode && cf) {
         var cfDataAsis = buildDashCFTable(scenario, C.OFFICE_PHASE.ASIS, cf.startYear, cf.endYear);
         if (cfDataAsis) { panel.appendChild(cfDataAsis); }

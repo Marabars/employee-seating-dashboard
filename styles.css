@@ -1053,3 +1053,5 @@ tr.office-drop-below > td {
 
 .cf-del-row { color: #dc2626; font-size: 0.85em; padding: 0 4px; }
 .cf-add-row-cell { padding: 6px 8px; background: #f7f9fc; }
+
+.phase-head .icon-btn { font-size: 0.75em; opacity: 0.75; margin-right: 6px; vertical-align: middle; }
