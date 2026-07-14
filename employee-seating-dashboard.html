@@ -4534,6 +4534,40 @@ App.allocations = (function () {
     return true;
   }
 
+  /**
+   * Replace ALL TEAM allocations of a team in one phase with the given rows,
+   * in a single commit. rows: [{officeId, zoneId, count}]. EMPLOYEE allocations
+   * and allocations in the other phase are left untouched.
+   */
+  function setTeamPhaseAllocations(teamId, phase, rows) {
+    state.commit('Распределение команды', function () {
+      var s = scenario();
+      s.allocations = s.allocations.filter(function (a) {
+        if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return true; }
+        var o = U.findById(s.offices, a.targetOfficeId);
+        if (!o) { return true; }
+        var inPhase = phase === C.OFFICE_PHASE.ASIS
+          ? o.phase === C.OFFICE_PHASE.ASIS
+          : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
+        return !inPhase;
+      });
+      (rows || []).forEach(function (r) {
+        var count = U.toNonNegativeInt(r.count);
+        if (!r.officeId || count <= 0) { return; }
+        s.allocations.push({
+          id: U.genId('allocation'),
+          type: C.ALLOCATION_TYPE.TEAM,
+          teamId: teamId,
+          employeeId: null,
+          employeesCount: count,
+          targetOfficeId: r.officeId,
+          targetZoneId: r.zoneId || null,
+          comment: ''
+        });
+      });
+    });
+  }
+
   /** Send a team's remaining unallocated headcount to the TOBE remote office. */
   function sendTeamRemainderToRemote(teamId) {
     var s = scenario();
@@ -4563,6 +4597,7 @@ App.allocations = (function () {
     reduceTeamAllocation: reduceTeamAllocation,
     remove: remove,
     removeTeamZone: removeTeamZone,
+    setTeamPhaseAllocations: setTeamPhaseAllocations,
     sendTeamRemainderToRemote: sendTeamRemainderToRemote
   };
 })();
