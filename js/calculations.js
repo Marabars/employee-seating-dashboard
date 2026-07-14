@@ -674,7 +674,7 @@ App.calc = (function () {
           monthlyValues[yr].push(cfForMonth(
             office.area, office.rentPerSqm, office.opexPerSqm,
             office.indexationPct, office.leaseStartDate, yr, m, baseYear,
-            office.indexationStartDate
+            office.indexationStartDate, office.leaseEndDate
           ));
         }
       });
@@ -732,20 +732,20 @@ App.calc = (function () {
         if (tList.length === 0) {
           if (office.area && hasMoney) {
             if (!entries[NO_TENANT]) { entries[NO_TENANT] = []; }
-            entries[NO_TENANT].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+            entries[NO_TENANT].push({ area: office.area, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate, leaseEndDate: office.leaseEndDate });
           }
         } else {
           var assignedArea = 0;
           tList.forEach(function (t) {
             var key = t.name || NO_TENANT;
             if (!entries[key]) { entries[key] = []; }
-            entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+            entries[key].push({ area: t.area || 0, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate, leaseEndDate: office.leaseEndDate });
             assignedArea += (t.area || 0);
           });
           var remaining = (office.area || 0) - assignedArea;
           if (remaining > 0.001 && hasMoney) {
             if (!entries[NO_TENANT]) { entries[NO_TENANT] = []; }
-            entries[NO_TENANT].push({ area: remaining, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate });
+            entries[NO_TENANT].push({ area: remaining, rentPerSqm: office.rentPerSqm, opexPerSqm: office.opexPerSqm, indexationPct: office.indexationPct, leaseStartDate: office.leaseStartDate, indexationStartDate: office.indexationStartDate, leaseEndDate: office.leaseEndDate });
           }
         }
       });
@@ -765,7 +765,7 @@ App.calc = (function () {
               return s + cfForMonth(
                 p.area, p.rentPerSqm, p.opexPerSqm,
                 p.indexationPct, p.leaseStartDate, yr, m, baseYear,
-                p.indexationStartDate
+                p.indexationStartDate, p.leaseEndDate
               );
             }, 0));
           }

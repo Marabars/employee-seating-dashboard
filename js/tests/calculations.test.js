@@ -457,4 +457,23 @@
       expect(result).toBeCloseTo(0.0125, 6);
     });
   });
+
+  describe('getScenarioCFData — leaseEndDate flows through', function () {
+    it('office CF for the lease-end year drops after the end date', function () {
+      var scen = {
+        id: 'sc', name: 'CF', comment: '',
+        offices: [
+          { id: 'o1', type: 'physical', phase: 'tobe', name: 'LeaseEndOffice',
+            area: 1000, rentPerSqm: 100, opexPerSqm: 50, indexationPct: 10,
+            leaseStartDate: null, indexationStartDate: null, leaseEndDate: '2028-08-30',
+            zones: [], tenants: [] }
+        ],
+        teams: [], employees: [], allocations: []
+      };
+      var data = calc.getScenarioCFData(scen, 2028, 2028);
+      var row = data.officeRows.filter(function (r) { return r.name === 'LeaseEndOffice'; })[0];
+      // Jan–Jul full (7 x 0.0125) + Aug prorated (0.0125 x 30/31) + Sep–Dec 0
+      expect(row.values[0]).toBeCloseTo(0.0125 * 7 + 0.0125 * 30 / 31, 4);
+    });
+  });
 })();

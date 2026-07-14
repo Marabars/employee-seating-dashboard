@@ -496,10 +496,10 @@ window.App = window.App || {};
     var years = [];
     for (var y = startY; y <= endY; y++) { years.push(y); }
 
-    function cfYearTotal(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, indexationStartDate) {
+    function cfYearTotal(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, indexationStartDate, leaseEndDate) {
       var total = 0;
       for (var m = 1; m <= 12; m++) {
-        total += calc.cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, m, yr, indexationStartDate);
+        total += calc.cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, yr, m, yr, indexationStartDate, leaseEndDate);
       }
       return total;
     }
@@ -511,7 +511,7 @@ window.App = window.App || {};
           return {
             key: o.id,
             name: o.name,
-            value: cfYearTotal(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate)
+            value: cfYearTotal(o.area, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate, o.leaseEndDate)
           };
         })
       };
@@ -522,7 +522,7 @@ window.App = window.App || {};
       tobeOffices.forEach(function (o) {
         (o.tenants || []).forEach(function (t) {
           if ((t.name || '').trim().toLowerCase() === MR_GRUPП_NAME.toLowerCase()) {
-            total += cfYearTotal(t.area || 0, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate);
+            total += cfYearTotal(t.area || 0, o.rentPerSqm, o.opexPerSqm, o.indexationPct, o.leaseStartDate, yr, o.indexationStartDate, o.leaseEndDate);
           }
         });
       });
