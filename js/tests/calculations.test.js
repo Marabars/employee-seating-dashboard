@@ -476,4 +476,73 @@
       expect(row.values[0]).toBeCloseTo(0.0125 * 7 + 0.0125 * 30 / 31, 4);
     });
   });
+
+  describe('getScenarioCFData — cfOverride', function () {
+    function overrideScenario() {
+      return {
+        id: 'sc', name: 'CF', comment: '',
+        offices: [
+          { id: 'o1', type: 'physical', phase: 'tobe', name: 'Кораблик', area: 100,
+            rentPerSqm: 0, opexPerSqm: 0, indexationPct: 0, zones: [], tenants: [] }
+        ],
+        teams: [], employees: [], allocations: [],
+        cfOverride: {
+          offices: [
+            { id: 'o1', name: 'Кораблик', phase: 'tobe', monthly: { '2026': [1,1,1,1,1,1,1,1,1,1,1,1] } },
+            { id: 'cfrow_x', name: 'Свободная', phase: 'tobe', monthly: { '2026': [2,0,0,0,0,0,0,0,0,0,0,0] } }
+          ],
+          tenants: []
+        }
+      };
+    }
+
+    it('office row reads stored monthly; year value = sum of months', function () {
+      var data = calc.getScenarioCFData(overrideScenario(), 2026, 2026);
+      var row = data.officeRows.filter(function (r) { return r.name === 'Кораблик'; })[0];
+      expect(row.values[0]).toBeCloseTo(12, 6);
+    });
+
+    it('years outside monthly render as 0', function () {
+      var data = calc.getScenarioCFData(overrideScenario(), 2026, 2027);
+      var row = data.officeRows.filter(function (r) { return r.name === 'Кораблик'; })[0];
+      expect(row.values[1]).toBe(0);
+    });
+
+    it('free row appears and TO BE subtotal sums all rows; scenario.offices untouched', function () {
+      var s = overrideScenario();
+      var before = s.offices.length;
+      var data = calc.getScenarioCFData(s, 2026, 2026);
+      var free = data.officeRows.filter(function (r) { return r.name === 'Свободная'; })[0];
+      expect(free.values[0]).toBeCloseTo(2, 6);
+      var sub = data.officeRows.filter(function (r) { return r.isSubtotal && r.phase === 'tobe'; })[0];
+      expect(sub.values[0]).toBeCloseTo(14, 6);
+      expect(s.offices.length).toBe(before);
+    });
+
+    it('no cfOverride → computed path unchanged; rows carry id', function () {
+      var s = fixture();
+      var data = calc.getScenarioCFData(s, 2026, 2026);
+      var row = data.officeRows.filter(function (r) { return r.name === 'Новый B'; })[0];
+      expect(row.id).toBe('new1');
+    });
+
+    it('buildOverrideFromComputed round-trips to identical values', function () {
+      var s = {
+        id: 's', name: 'x', comment: '',
+        offices: [{ id: 'o1', type: 'physical', phase: 'tobe', name: 'A', area: 1000,
+          rentPerSqm: 100, opexPerSqm: 50, indexationPct: 10,
+          leaseStartDate: null, indexationStartDate: null, leaseEndDate: null, zones: [], tenants: [] }],
+        teams: [], employees: [], allocations: [], cfOverride: null
+      };
+      var years = [2026, 2027];
+      var ov = calc.buildOverrideFromComputed(s, years);
+      var s2 = { id: 's2', name: 'x', comment: '', offices: s.offices, teams: [], employees: [], allocations: [], cfOverride: ov };
+      var computed = calc.getScenarioCFData(s, 2026, 2027);
+      var overridden = calc.getScenarioCFData(s2, 2026, 2027);
+      var cRow = computed.officeRows.filter(function (r) { return r.name === 'A'; })[0];
+      var oRow = overridden.officeRows.filter(function (r) { return r.name === 'A'; })[0];
+      expect(oRow.values[0]).toBeCloseTo(cRow.values[0], 6);
+      expect(oRow.values[1]).toBeCloseTo(cRow.values[1], 6);
+    });
+  });
 })();

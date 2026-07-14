@@ -658,6 +658,62 @@ App.calc = (function () {
     var years = [];
     for (var y = startYear; y <= endYear; y++) { years.push(y); }
 
+    // Subtotal row over a set of rows (shared by computed + override paths).
+    function subtotalRowFor(rows, phase, label) {
+      var vals = years.map(function (_, i) {
+        return rows.reduce(function (s, r) { return s + (r.values[i] || 0); }, 0);
+      });
+      var mv = {};
+      years.forEach(function (yr) {
+        mv[yr] = [];
+        for (var m = 0; m < 12; m++) {
+          mv[yr].push(rows.reduce(function (s, r) {
+            return s + ((r.monthlyValues && r.monthlyValues[yr]) ? r.monthlyValues[yr][m] : 0);
+          }, 0));
+        }
+      });
+      return {
+        id: 'subtotal_' + phase, name: label, phase: phase,
+        values: vals, monthlyValues: mv,
+        rowTotal: vals.reduce(function (s, v) { return s + v; }, 0),
+        isSubtotal: true
+      };
+    }
+
+    // ---- Override path: rows come from scenario.cfOverride ----
+    if (scenario.cfOverride) {
+      var zeros12 = function () { return [0,0,0,0,0,0,0,0,0,0,0,0]; };
+      var rowsFromOverride = function (list) {
+        return (list || []).map(function (o) {
+          var monthlyValues = {};
+          years.forEach(function (yr) {
+            var m = o.monthly && o.monthly[String(yr)];
+            monthlyValues[yr] = (m && m.length === 12) ? m.slice() : zeros12();
+          });
+          var values = years.map(function (yr) {
+            return monthlyValues[yr].reduce(function (s, v) { return s + v; }, 0);
+          });
+          return {
+            id: o.id, name: o.name, phase: o.phase,
+            values: values, monthlyValues: monthlyValues,
+            rowTotal: values.reduce(function (s, v) { return s + v; }, 0),
+            isSubtotal: false
+          };
+        });
+      };
+      var groupWithSubtotals = function (rows) {
+        var asis = rows.filter(function (r) { return r.phase === C.OFFICE_PHASE.ASIS; });
+        var tobe = rows.filter(function (r) { return r.phase === C.OFFICE_PHASE.TOBE; });
+        return asis.concat([subtotalRowFor(asis, C.OFFICE_PHASE.ASIS, 'Итого AS IS')])
+          .concat(tobe).concat([subtotalRowFor(tobe, C.OFFICE_PHASE.TOBE, 'Итого TO BE')]);
+      };
+      return {
+        years: years,
+        officeRows: groupWithSubtotals(rowsFromOverride(scenario.cfOverride.offices)),
+        tenantRows: groupWithSubtotals(rowsFromOverride(scenario.cfOverride.tenants))
+      };
+    }
+
     // ---- CF by office ----
     var physicalOffices = (scenario.offices || []).filter(function (o) {
       return o.type === C.OFFICE_TYPE.PHYSICAL;
@@ -680,6 +736,7 @@ App.calc = (function () {
         return monthlyValues[yr].reduce(function (s, v) { return s + v; }, 0);
       });
       return {
+        id: office.id,
         name: office.name,
         phase: office.phase,
         values: values,
@@ -772,6 +829,7 @@ App.calc = (function () {
           return monthlyValues[yr].reduce(function (s, v) { return s + v; }, 0);
         });
         return {
+          id: 'cftenant_' + name,
           name: name,
           phase: phase,
           values: values,
@@ -790,6 +848,26 @@ App.calc = (function () {
       .concat(tobeTenantRows).concat([subtotalRow(tobeTenantRows, C.OFFICE_PHASE.TOBE, 'Итого TO BE')]);
 
     return { years: years, officeRows: officeRows, tenantRows: tenantRows };
+  }
+
+  /**
+   * Snapshot the current computed (or already-overridden) CF into the
+   * cfOverride shape. Only non-subtotal rows are captured. Called when the
+   * user first enters CF edit mode.
+   */
+  function buildOverrideFromComputed(scenario, years) {
+    var data = getScenarioCFData(scenario, years[0], years[years.length - 1]);
+    function toRows(rows) {
+      return rows.filter(function (r) { return !r.isSubtotal; }).map(function (r) {
+        var monthly = {};
+        years.forEach(function (yr) {
+          var mv = r.monthlyValues && r.monthlyValues[yr];
+          monthly[String(yr)] = (mv && mv.length === 12) ? mv.slice() : [0,0,0,0,0,0,0,0,0,0,0,0];
+        });
+        return { id: r.id, name: r.name, phase: r.phase, monthly: monthly };
+      });
+    }
+    return { offices: toRows(data.officeRows), tenants: toRows(data.tenantRows) };
   }
 
   return {
@@ -824,6 +902,7 @@ App.calc = (function () {
     calculateScenarioKpis: calculateScenarioKpis,
     cfForYear: cfForYear,
     cfForMonth: cfForMonth,
-    getScenarioCFData: getScenarioCFData
+    getScenarioCFData: getScenarioCFData,
+    buildOverrideFromComputed: buildOverrideFromComputed
   };
 })();

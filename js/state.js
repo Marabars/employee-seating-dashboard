@@ -306,6 +306,7 @@ App.state = (function () {
       s.teams = s.teams || [];
       s.employees = s.employees || [];
       s.allocations = s.allocations || [];
+      if (s.cfOverride === undefined) { s.cfOverride = null; }
 
       // Ensure each team has a linkedTeamIds array (forward-compat for older
       // saved projects) and that links are symmetric.
