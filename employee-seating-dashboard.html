@@ -3890,8 +3890,11 @@ App.calc = (function () {
   }
 
   /**
-   * Monthly CF for a given area with rent+opex.
-   * Returns 0 if the month precedes the lease start, otherwise returns cfForYear(...) / 12.
+   * Monthly CF (in millions RUB) for a given area with rent+opex.
+   * Sums per-day rates over the month's active days: a day is active while the
+   * lease runs (from leaseStartDate through leaseEndDate inclusive) and carries
+   * the indexation exponent for its date. Returns 0 for months entirely outside
+   * the lease. Days are grouped by exponent so a full month stays exact.
    * Month is 1-based (1=January, 12=December).
    */
   function cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, month, baseYear, indexationStartDate, leaseEndDate) {
