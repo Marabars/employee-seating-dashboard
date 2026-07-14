@@ -1063,6 +1063,12 @@ tr.office-drop-below > td {
 
 .phase-head .icon-btn { font-size: 0.75em; opacity: 0.75; margin-right: 6px; vertical-align: middle; }
 
+.placementrows-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.placementrows-row .pr-count { width: 72px; }
+.placementrows-row .pr-office, .placementrows-row .pr-zone { flex: 1; min-width: 0; }
+.placement-counter { font-size: 12px; color: #52606d; margin-top: 4px; }
+.placement-counter.over { color: #dc2626; font-weight: 600; }
+
 </style>
 </head>
 <body>
@@ -5442,6 +5448,87 @@ App.modals = (function () {
   }
 
   /**
+   * Build a "placementrows" control: repeatable rows of office + zone + count
+   * with a live "distributed N / of M (remainder K)" counter. field.offices is
+   * [{id,name,zones:[{id,name,capacity}]}]; field.headcount sets M; field.value
+   * pre-fills rows [{officeId, zoneId, count}].
+   */
+  function buildPlacementRows(field) {
+    var offices = field.offices || [];
+    var headcount = field.headcount || 0;
+    var container = U.el('div', { class: 'placementrows' });
+    var rowsEl = U.el('div', { class: 'placementrows-rows' });
+    var counter = U.el('div', { class: 'placement-counter' });
+
+    function officeById(id) {
+      var found = null;
+      offices.forEach(function (o) { if (String(o.id) === String(id)) { found = o; } });
+      return found;
+    }
+    function fillZones(sel, officeId, selectedZoneId) {
+      U.clear(sel);
+      sel.appendChild(U.el('option', { value: '' }, '— Вся площадь'));
+      var o = officeById(officeId);
+      if (o && o.zones) {
+        o.zones.forEach(function (z) {
+          var opt = U.el('option', { value: z.id }, z.name + ' (' + (z.capacity || 0) + ' мест)');
+          if (String(z.id) === String(selectedZoneId)) { opt.selected = true; }
+          sel.appendChild(opt);
+        });
+      }
+    }
+    function updateCounter() {
+      var n = 0;
+      U.qsa('.placementrows-row', rowsEl).forEach(function (row) {
+        var c = U.qs('.pr-count', row);
+        var v = c ? parseInt(c.value, 10) : 0;
+        if (v > 0) { n += v; }
+      });
+      counter.textContent = 'Распределено ' + n + ' / всего ' + headcount + ' (остаток ' + (headcount - n) + ')';
+      counter.className = n > headcount ? 'placement-counter over' : 'placement-counter';
+    }
+    function addRow(entry) {
+      entry = entry || {};
+      var row = U.el('div', { class: 'placementrows-row' });
+      var officeSel = U.el('select', { class: 'place-select pr-office' });
+      officeSel.appendChild(U.el('option', { value: '' }, '— офис —'));
+      offices.forEach(function (o) {
+        var opt = U.el('option', { value: o.id }, o.name);
+        if (String(o.id) === String(entry.officeId)) { opt.selected = true; }
+        officeSel.appendChild(opt);
+      });
+      var zoneSel = U.el('select', { class: 'place-select pr-zone' });
+      fillZones(zoneSel, entry.officeId || '', entry.zoneId || '');
+      var countInput = U.el('input', { type: 'number', min: '1', class: 'place-count pr-count' });
+      countInput.value = entry.count ? String(entry.count) : '';
+      var removeBtn = U.el('button', {
+        type: 'button', class: 'btn btn-sm btn-secondary',
+        onclick: function () { rowsEl.removeChild(row); updateCounter(); }
+      }, '✕');
+      officeSel.addEventListener('change', function () { fillZones(zoneSel, officeSel.value, ''); });
+      countInput.addEventListener('input', updateCounter);
+      row.appendChild(officeSel);
+      row.appendChild(zoneSel);
+      row.appendChild(countInput);
+      row.appendChild(removeBtn);
+      rowsEl.appendChild(row);
+    }
+
+    (field.value || []).forEach(addRow);
+
+    var addBtn = U.el('button', {
+      type: 'button', class: 'btn btn-sm btn-secondary',
+      onclick: function () { addRow(); updateCounter(); }
+    }, '＋ строка');
+
+    container.appendChild(rowsEl);
+    container.appendChild(addBtn);
+    container.appendChild(counter);
+    updateCounter();
+    return container;
+  }
+
+  /**
    * Build a form from a field spec and open it in a modal.
    * fields: array of:
    *   { name, label, type: 'text'|'number'|'textarea'|'checkbox'|'select'|
@@ -5471,6 +5558,8 @@ App.modals = (function () {
         // The "control" is the container; rows are added/removed at runtime and
         // collected by reading every text input inside it.
         control = buildNameList(field);
+      } else if (field.type === 'placementrows') {
+        control = buildPlacementRows(field);
       } else if (field.type === 'select') {
         control = U.el('select', { id: inputId, name: field.name });
         (field.options || []).forEach(function (opt) {
@@ -5567,6 +5656,19 @@ App.modals = (function () {
             }
           });
           values[field.name] = rows;
+        } else if (field.type === 'placementrows') {
+          var prRows = [];
+          U.qsa('.placementrows-row', control).forEach(function (row) {
+            var off = U.qs('.pr-office', row);
+            var cnt = U.qs('.pr-count', row);
+            var zn = U.qs('.pr-zone', row);
+            var officeId = off ? off.value : '';
+            var count = cnt ? parseInt(cnt.value, 10) : 0;
+            if (officeId && count > 0) {
+              prRows.push({ officeId: officeId, zoneId: (zn && zn.value) ? zn.value : null, count: count });
+            }
+          });
+          values[field.name] = prRows;
         } else if (field.type === 'checkboxgroup') {
           var picked = [];
           U.qsa('input[type=checkbox]', control).forEach(function (cb) {

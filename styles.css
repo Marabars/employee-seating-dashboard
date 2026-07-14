@@ -1055,3 +1055,9 @@ tr.office-drop-below > td {
 .cf-add-row-cell { padding: 6px 8px; background: #f7f9fc; }
 
 .phase-head .icon-btn { font-size: 0.75em; opacity: 0.75; margin-right: 6px; vertical-align: middle; }
+
+.placementrows-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.placementrows-row .pr-count { width: 72px; }
+.placementrows-row .pr-office, .placementrows-row .pr-zone { flex: 1; min-width: 0; }
+.placement-counter { font-size: 12px; color: #52606d; margin-top: 4px; }
+.placement-counter.over { color: #dc2626; font-weight: 600; }
