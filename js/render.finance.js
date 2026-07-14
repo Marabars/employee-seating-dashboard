@@ -157,6 +157,24 @@ window.App = window.App || {};
         editable: editingTable === tableKey,
         onEditCell: (function (tk) {
           return function (rowId, year, monthIndex, value) { editCell(tk, rowId, year, monthIndex, value); };
+        })(tableKey),
+        onDeleteRow: (function (tk) {
+          return function (rowId) {
+            var list = tk === 'office' ? draft.offices : draft.tenants;
+            for (var i = 0; i < list.length; i++) {
+              if (list[i].id === rowId) { list.splice(i, 1); break; }
+            }
+            R.render();
+          };
+        })(tableKey),
+        onAddRow: (function (tk) {
+          return function (phase) {
+            var name = window.prompt('Название строки:');
+            if (!name) { return; }
+            var list = tk === 'office' ? draft.offices : draft.tenants;
+            list.push({ id: U.genId('cfrow'), name: name, phase: phase, monthly: {} });
+            R.render();
+          };
         })(tableKey)
       }));
       return panel;

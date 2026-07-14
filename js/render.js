@@ -294,6 +294,8 @@ App.render = (function () {
     var showPhaseHeaders = opts.showPhaseHeaders !== false;
     var editable = !!opts.editable;
     var onEditCell = opts.onEditCell || function () {};
+    var onDeleteRow = opts.onDeleteRow || function () {};
+    var onAddRow = opts.onAddRow || function () {};
 
     function fmt(v) {
       if (v === null || v === undefined || isNaN(v)) { return '—'; }
@@ -361,7 +363,15 @@ App.render = (function () {
           U.el('td', { colspan: String(columns.length + 1), text: phaseLabel })
         ]));
       }
-      var cells = [U.el('td', { class: 'cf-name-col' + (row.isSubtotal ? ' cf-bold' : ''), text: row.name })];
+      var nameCell;
+      if (editable && !row.isSubtotal) {
+        var delBtn = U.el('button', { class: 'icon-btn cf-del-row', title: 'Удалить строку' }, '🗑');
+        delBtn.addEventListener('click', (function (rid) { return function () { onDeleteRow(rid); }; })(row.id));
+        nameCell = U.el('td', { class: 'cf-name-col' }, [delBtn, U.el('span', { text: ' ' + row.name })]);
+      } else {
+        nameCell = U.el('td', { class: 'cf-name-col' + (row.isSubtotal ? ' cf-bold' : ''), text: row.name });
+      }
+      var cells = [nameCell];
       columns.forEach(function (col) {
         var val, cellClass;
         if (col.type === 'year') {
@@ -399,6 +409,15 @@ App.render = (function () {
       });
       tbody.appendChild(U.el('tr', { class: row.isSubtotal ? 'cf-subtotal-row' : '' }, cells));
     });
+    if (editable) {
+      [C.OFFICE_PHASE.ASIS, C.OFFICE_PHASE.TOBE].forEach(function (ph) {
+        var label = ph === C.OFFICE_PHASE.ASIS ? '+ строка в AS IS' : '+ строка в TO BE';
+        var addBtn = U.el('button', { class: 'btn btn-secondary btn-sm', text: label });
+        addBtn.addEventListener('click', (function (phase) { return function () { onAddRow(phase); }; })(ph));
+        var td = U.el('td', { class: 'cf-add-row-cell', colspan: String(columns.length + 1) }, [addBtn]);
+        tbody.appendChild(U.el('tr', { class: 'cf-add-row' }, [td]));
+      });
+    }
     table.appendChild(tbody);
     wrap.appendChild(table);
     return wrap;
