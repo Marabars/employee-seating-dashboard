@@ -9406,8 +9406,8 @@ window.App = window.App || {};
 /**
  * render.finance.js
  * "Финансы" tab: editable Cash Flow tables by office and by tenant.
- * Computed from office/tenant data unless scenario.cfOverride is set, in
- * which case the stored values are the source of truth (snapshot + override).
+ * Editing is delegated to the shared App.cfEdit controller (one CF table
+ * editable at a time across the app; edits write scenario.cfOverride).
  */
 window.App = window.App || {};
 
@@ -9421,8 +9421,6 @@ window.App = window.App || {};
   var state = App.state;
 
   var expandedCFYears = {};
-  var editingTable = null; // null | 'office' | 'tenant'
-  var draft = null;        // working cfOverride copy while editing
 
   function yearsArray(cf) {
     var ys = [];
@@ -9430,52 +9428,13 @@ window.App = window.App || {};
     return ys;
   }
 
-  function enterEdit(scenario, cf, tableKey) {
-    editingTable = tableKey;
-    draft = calc.buildOverrideFromComputed(scenario, yearsArray(cf));
-    R.render();
-  }
-
-  function saveEdit(scenario) {
-    var d = draft;
-    state.commit('Правка CF', function () { scenario.cfOverride = d; });
-    editingTable = null; draft = null;
-  }
-
-  function cancelEdit() {
-    editingTable = null; draft = null; R.render();
-  }
-
-  function resetToComputed(scenario) {
-    state.commit('Сброс CF (пересчёт из офисов)', function () { scenario.cfOverride = null; });
-    editingTable = null; draft = null;
-  }
-
-  function editCell(tableKey, rowId, year, monthIndex, value) {
-    var list = tableKey === 'office' ? draft.offices : draft.tenants;
-    var row = null;
-    list.forEach(function (r) { if (r.id === rowId) { row = r; } });
-    if (!row) { return; }
-    var ys = String(year);
-    if (!row.monthly[ys] || row.monthly[ys].length !== 12) {
-      row.monthly[ys] = [0,0,0,0,0,0,0,0,0,0,0,0];
-    }
-    if (monthIndex === null) {
-      var per = value / 12;
-      for (var m = 0; m < 12; m++) { row.monthly[ys][m] = per; }
-    } else {
-      row.monthly[ys][monthIndex] = value;
-    }
-    R.render();
-  }
-
   function render(container, ctx) {
     var scenario = ctx.scenario;
+    var CE = App.cfEdit;
     var settings = state.getSettings();
     var cfRaw = settings.cfSettings || { startYear: 2026, endYear: 2030 };
     var cf = { startYear: cfRaw.startYear, endYear: cfRaw.endYear };
 
-    // ---- Year range controls ----
     var controlsPanel = R.section('Параметры прогноза');
     var controlsRow = U.el('div', { class: 'cf-controls' });
 
@@ -9495,9 +9454,7 @@ window.App = window.App || {};
       }
       dec.addEventListener('click', function () { step(-1); });
       inc.addEventListener('click', function () { step(1); });
-      return U.el('div', { class: 'cf-stepper' }, [
-        U.el('span', { class: 'cf-stepper-label', text: label }), dec, display, inc
-      ]);
+      return U.el('div', { class: 'cf-stepper' }, [U.el('span', { class: 'cf-stepper-label', text: label }), dec, display, inc]);
     }
 
     controlsRow.appendChild(yearStepper('С года:', 'startYear'));
@@ -9505,45 +9462,38 @@ window.App = window.App || {};
     controlsPanel.appendChild(controlsRow);
     container.appendChild(controlsPanel);
 
-    // ---- CF Data (draft while editing, else scenario) ----
-    var srcScenario = scenario;
-    if (editingTable && draft) {
-      srcScenario = {};
-      for (var k in scenario) { if (scenario.hasOwnProperty(k)) { srcScenario[k] = scenario[k]; } }
-      srcScenario.cfOverride = draft;
-    }
-    var data = calc.getScenarioCFData(srcScenario, cf.startYear, cf.endYear);
+    var data = calc.getScenarioCFData(CE.effectiveScenario(scenario), cf.startYear, cf.endYear);
     if (data.years.length === 0) {
       container.appendChild(U.el('p', { class: 'muted', text: 'Некорректный диапазон лет' }));
       return;
     }
 
     function renderCFTable(title, tableKey, rows, years) {
+      var key = 'finance-' + tableKey;
+      var listKey = tableKey === 'tenant' ? 'tenants' : 'offices';
       var panel = R.section(title);
-      var head = panel.firstChild; // .section-head
+      var head = panel.firstChild;
       var viewOnly = state.isViewOnly();
 
-      if (editingTable === tableKey) {
+      if (CE.isEditing(key)) {
         var saveBtn = U.el('button', { class: 'btn btn-primary btn-sm', text: 'Сохранить' });
-        saveBtn.addEventListener('click', function () { saveEdit(scenario); });
+        saveBtn.addEventListener('click', function () { CE.save(scenario); });
         var cancelBtn = U.el('button', { class: 'btn btn-secondary btn-sm', text: 'Отмена' });
-        cancelBtn.addEventListener('click', function () { cancelEdit(); });
+        cancelBtn.addEventListener('click', function () { CE.cancel(); });
         var recalcBtn = U.el('button', { class: 'btn btn-secondary btn-sm', text: 'Пересчитать из офисов' });
-        recalcBtn.addEventListener('click', function () { resetToComputed(scenario); });
+        recalcBtn.addEventListener('click', function () { CE.reset(scenario); });
         head.appendChild(U.el('div', { class: 'cf-edit-actions' }, [saveBtn, cancelBtn, recalcBtn]));
-      } else if (!viewOnly && !editingTable) {
-        head.appendChild(R.iconBtn('✎', 'Редактировать таблицу', (function (tk) {
-          return function () { enterEdit(scenario, cf, tk); };
-        })(tableKey)));
+      } else if (!viewOnly && !CE.anyEditing()) {
+        head.appendChild(R.iconBtn('✎', 'Редактировать таблицу', (function (k, yy) {
+          return function () { CE.enterEdit(scenario, yy, k); };
+        })(key, yearsArray(cf))));
       }
 
-      if (scenario.cfOverride && editingTable !== tableKey) {
-        var banner = U.el('div', { class: 'cf-override-banner' }, [
-          U.el('span', { text: 'Данные CF переопределены вручную' })
-        ]);
-        if (!viewOnly && !editingTable) {
+      if (scenario.cfOverride && !CE.isEditing(key)) {
+        var banner = U.el('div', { class: 'cf-override-banner' }, [U.el('span', { text: 'Данные CF переопределены вручную' })]);
+        if (!viewOnly && !CE.anyEditing()) {
           var b = U.el('button', { class: 'btn btn-secondary btn-sm', text: 'Пересчитать из офисов' });
-          b.addEventListener('click', function () { resetToComputed(scenario); });
+          b.addEventListener('click', function () { CE.reset(scenario); });
           banner.appendChild(b);
         }
         panel.appendChild(banner);
@@ -9559,28 +9509,10 @@ window.App = window.App || {};
         expandedYears: expandedCFYears,
         onToggleYear: function (yr) { expandedCFYears[yr] = !expandedCFYears[yr]; R.render(); },
         firstColLabel: tableKey === 'tenant' ? 'Арендатор' : 'Офис / Фаза',
-        editable: editingTable === tableKey,
-        onEditCell: (function (tk) {
-          return function (rowId, year, monthIndex, value) { editCell(tk, rowId, year, monthIndex, value); };
-        })(tableKey),
-        onDeleteRow: (function (tk) {
-          return function (rowId) {
-            var list = tk === 'office' ? draft.offices : draft.tenants;
-            for (var i = 0; i < list.length; i++) {
-              if (list[i].id === rowId) { list.splice(i, 1); break; }
-            }
-            R.render();
-          };
-        })(tableKey),
-        onAddRow: (function (tk) {
-          return function (phase) {
-            var name = window.prompt('Название строки:');
-            if (!name) { return; }
-            var list = tk === 'office' ? draft.offices : draft.tenants;
-            list.push({ id: U.genId('cfrow'), name: name, phase: phase, monthly: {} });
-            R.render();
-          };
-        })(tableKey)
+        editable: CE.isEditing(key),
+        onEditCell: function (rowId, year, monthIndex, value) { CE.editCell(listKey, rowId, year, monthIndex, value); },
+        onDeleteRow: function (rowId) { CE.deleteRow(listKey, rowId); },
+        onAddRow: function (phase) { var name = window.prompt('Название строки:'); CE.addRow(listKey, name, phase); }
       }));
       return panel;
     }
