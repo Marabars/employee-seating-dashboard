@@ -357,23 +357,26 @@ window.App = window.App || {};
 
   function renderStackedBarSVG(yearsData, colorFn, opts) {
     var showTotals = opts && opts.showTotals;
+
+    function groupsOf(yd) { return yd.groups ? yd.groups : [{ label: null, segments: yd.segments || [] }]; }
+    function stackSum(segs) { return segs.reduce(function (a, s) { return a + (s.value > 0 ? s.value : 0); }, 0); }
+    var hasLabels = yearsData.length && groupsOf(yearsData[0])[0].label != null;
+
     var svgW = 500; var svgH = 420;
-    var padL = 60; var padR = 14; var padT = showTotals ? 36 : 20; var padB = 50;
+    var padL = 60; var padR = 14; var padT = showTotals ? 36 : 20; var padB = hasLabels ? 64 : 50;
     var chartW = svgW - padL - padR;
     var chartH = svgH - padT - padB;
 
     var maxTotal = 0;
     yearsData.forEach(function (yd) {
-      var s = yd.segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
-      if (s > maxTotal) { maxTotal = s; }
+      groupsOf(yd).forEach(function (g) { var s = stackSum(g.segments); if (s > maxTotal) { maxTotal = s; } });
     });
 
     var niceSteps = Math.max(1, Math.ceil((opts && opts.maxScale ? opts.maxScale : maxTotal) / 250));
     var maxScale = niceSteps * 250;
 
-    var nBars = yearsData.length || 1;
-    var colW = chartW / nBars;
-    var barW = colW * 0.6;
+    var nCols = yearsData.length || 1;
+    var colW = chartW / nCols;
 
     var NS = 'http://www.w3.org/2000/svg';
     function svgEl(tag, attrs, text) {
@@ -386,7 +389,6 @@ window.App = window.App || {};
     var svg = svgEl('svg', { viewBox: '0 0 ' + svgW + ' ' + svgH, width: '100%' });
     svg.style.display = 'block'; svg.style.overflow = 'visible';
 
-    // Gridlines + Y-axis scale labels
     for (var gi = 0; gi <= niceSteps; gi++) {
       var yVal = gi * 250;
       var yPx = padT + chartH * (1 - yVal / maxScale);
@@ -396,70 +398,65 @@ window.App = window.App || {};
         'stroke-dasharray': gi > 0 ? '4,3' : 'none'
       }));
       if (gi > 0) {
-        svg.appendChild(svgEl('text', {
-          x: padL - 5, y: yPx + 4,
-          'text-anchor': 'end', 'font-size': '11', fill: 'rgba(210,210,210,0.85)'
-        }, String(yVal)));
+        svg.appendChild(svgEl('text', { x: padL - 5, y: yPx + 4, 'text-anchor': 'end', 'font-size': '11', fill: 'rgba(210,210,210,0.85)' }, String(yVal)));
       }
     }
 
-    // Y-axis label "млн. руб." rotated
     svg.appendChild(svgEl('text', {
       transform: 'translate(11,' + (padT + chartH / 2) + ') rotate(-90)',
       'text-anchor': 'middle', 'font-size': '10', fill: 'rgba(180,180,180,0.8)'
     }, 'млн. руб.'));
 
-    // Bars + value labels
+    var yBase = padT + chartH;
     yearsData.forEach(function (yd, bi) {
-      var barX = padL + bi * colW + (colW - barW) / 2;
-      var yBase = padT + chartH;
-      var yStack = 0;
+      var groups = groupsOf(yd);
+      var nG = groups.length || 1;
+      var groupAreaW = colW * 0.78;
+      var gap = nG > 1 ? groupAreaW * 0.12 : 0;
+      var barW = (groupAreaW - gap * (nG - 1)) / nG;
+      var colStart = padL + bi * colW + (colW - groupAreaW) / 2;
 
-      yd.segments.forEach(function (seg) {
-        if (seg.value <= 0) { return; }
-        var h = (seg.value / maxScale) * chartH;
-        var rectY = yBase - yStack - h;
-        var rect = svgEl('rect', {
-          x: barX, y: rectY, width: barW, height: h,
-          fill: colorFn(seg.key), rx: 2
+      groups.forEach(function (grp, gj) {
+        var barX = colStart + gj * (barW + gap);
+        var yStack = 0;
+        grp.segments.forEach(function (seg) {
+          if (seg.value <= 0) { return; }
+          var h = (seg.value / maxScale) * chartH;
+          var rectY = yBase - yStack - h;
+          var rect = svgEl('rect', { x: barX, y: rectY, width: barW, height: h, fill: colorFn(seg.key), rx: 2 });
+          rect.appendChild(svgEl('title', {}, (seg.name || seg.key) + ': ' + seg.value.toFixed(1) + ' млн. руб.'));
+          svg.appendChild(rect);
+          if (h >= 16) {
+            svg.appendChild(svgEl('text', {
+              x: barX + barW / 2, y: rectY + h / 2 + 4, 'text-anchor': 'middle',
+              'font-size': '11', fill: DARK_PURPLE, 'font-weight': 'bold'
+            }, seg.value.toFixed(1)));
+          }
+          yStack += h;
         });
-        var tooltipText = (seg.name || seg.key) + ': ' + seg.value.toFixed(1) + ' млн. руб.';
-        rect.appendChild(svgEl('title', {}, tooltipText));
-        svg.appendChild(rect);
-
-        var MIN_H = 16;
-        if (h >= MIN_H) {
+        if (showTotals && yStack > 0) {
           svg.appendChild(svgEl('text', {
-            x: barX + barW / 2, y: rectY + h / 2 + 4,
-            'text-anchor': 'middle', 'font-size': '11',
-            fill: DARK_PURPLE, 'font-weight': 'bold'
-          }, seg.value.toFixed(1)));
+            x: barX + barW / 2, y: yBase - yStack - 5, 'text-anchor': 'middle',
+            'font-size': '11', fill: 'rgba(255,255,255,0.92)', 'font-weight': '600'
+          }, stackSum(grp.segments).toFixed(2).replace('.', ',')));
         }
-
-        yStack += h;
+        if (grp.label) {
+          svg.appendChild(svgEl('text', {
+            x: barX + barW / 2, y: yBase + 14, 'text-anchor': 'middle',
+            'font-size': '10', fill: 'rgba(210,210,210,0.85)'
+          }, grp.label));
+        }
       });
 
-      // Total label above bar
-      if (showTotals && yStack > 0) {
-        var totalVal = yd.segments.reduce(function (acc, seg) { return acc + (seg.value > 0 ? seg.value : 0); }, 0);
-        svg.appendChild(svgEl('text', {
-          x: barX + barW / 2, y: yBase - yStack - 5,
-          'text-anchor': 'middle', 'font-size': '11',
-          fill: 'rgba(255,255,255,0.92)', 'font-weight': '600'
-        }, totalVal.toFixed(2).replace('.', ',')));
-      }
-
-      // X-axis year label
       svg.appendChild(svgEl('text', {
-        x: barX + barW / 2, y: yBase + 16,
+        x: padL + bi * colW + colW / 2, y: yBase + (hasLabels ? 30 : 16),
         'text-anchor': 'middle', 'font-size': '11', fill: 'rgba(210,210,210,0.85)'
       }, String(yd.year)));
     });
 
-    // X-axis label "Год"
     svg.appendChild(svgEl('text', {
-      x: padL + chartW / 2, y: svgH - 4,
-      'text-anchor': 'middle', 'font-size': '10', fill: 'rgba(180,180,180,0.75)'
+      x: padL + chartW / 2, y: svgH - 4, 'text-anchor': 'middle',
+      'font-size': '10', fill: 'rgba(180,180,180,0.75)'
     }, 'Год'));
 
     return svg;
@@ -482,92 +479,70 @@ window.App = window.App || {};
     var settings = App.state.getSettings();
     var cfSettings = (settings && settings.cfSettings) || {};
     var startY = cfSettings.startYear || 2026;
-    var endY   = cfSettings.endYear   || 2030;
-
+    var endY = cfSettings.endYear || 2030;
     var years = [];
     for (var y = startY; y <= endY; y++) { years.push(y); }
 
     var cfData = calc.getScenarioCFData(scenario, startY, endY);
     function yearIndex(yr) { return cfData.years.indexOf(yr); }
+    function rowsOf(list, phase) {
+      return list.filter(function (r) { return r.phase === phase && !r.isSubtotal; });
+    }
+    var tobeOfficeRows = rowsOf(cfData.officeRows, C.OFFICE_PHASE.TOBE);
+    var asisOfficeRows = rowsOf(cfData.officeRows, C.OFFICE_PHASE.ASIS);
+    var tobeTenantRows = rowsOf(cfData.tenantRows, C.OFFICE_PHASE.TOBE);
+    var asisTenantRows = rowsOf(cfData.tenantRows, C.OFFICE_PHASE.ASIS);
 
-    var tobeOfficeRows = cfData.officeRows.filter(function (r) {
-      return r.phase === C.OFFICE_PHASE.TOBE && !r.isSubtotal;
-    });
-    var asisOfficeRows = cfData.officeRows.filter(function (r) {
-      return r.phase === C.OFFICE_PHASE.ASIS && !r.isSubtotal;
-    });
-
-    var officeColorMap = {};
-    tobeOfficeRows.concat(asisOfficeRows).forEach(function (r, idx) {
-      officeColorMap[r.id] = officeColor(r.name) || PALETTE[idx % PALETTE.length];
-    });
-
-    var chart1Data = years.map(function (yr) {
-      var idx = yearIndex(yr);
-      return {
-        year: yr,
-        segments: tobeOfficeRows.map(function (r) {
-          return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 };
-        })
-      };
-    });
-
-    var chart1bData = years.map(function (yr) {
-      var idx = yearIndex(yr);
-      return {
-        year: yr,
-        segments: asisOfficeRows.map(function (r) {
-          return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 };
-        })
-      };
-    });
-
-    var mrRow = cfData.tenantRows.filter(function (r) {
-      return r.phase === C.OFFICE_PHASE.TOBE && !r.isSubtotal &&
-        (r.name || '').trim().toLowerCase() === MR_GRUPП_NAME.toLowerCase();
-    })[0];
-
-    var chart2Data = years.map(function (yr) {
-      var idx = yearIndex(yr);
-      var val = (mrRow && idx >= 0) ? (mrRow.values[idx] || 0) : 0;
-      return { year: yr, segments: [{ key: MR_GRUPП_NAME, name: MR_GRUPП_NAME, value: val }] };
-    });
-
-    // Shared Y-axis scale for the two OFFICE charts (TO BE vs AS IS comparable).
-    // МР Групп uses its own scale so its (much smaller) bars stay readable
-    // instead of collapsing against the large office totals.
-    var officeMax = 0;
-    [chart1Data, chart1bData].forEach(function (data) {
-      data.forEach(function (yd) {
-        var s = yd.segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
-        if (s > officeMax) { officeMax = s; }
+    function buildColorMap(rowsArrays) {
+      var map = {}; var i = 0;
+      rowsArrays.forEach(function (rows) {
+        rows.forEach(function (r) {
+          if (map[r.id] === undefined) { map[r.id] = officeColor(r.name) || PALETTE[i % PALETTE.length]; i++; }
+        });
       });
-    });
+      return map;
+    }
+    var officeColorMap = buildColorMap([tobeOfficeRows, asisOfficeRows]);
+    var tenantColorMap = buildColorMap([tobeTenantRows, asisTenantRows]);
+
+    function segsFor(rows, idx) {
+      return rows.map(function (r) { return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 }; });
+    }
+    function groupedData(asisRows, tobeRows) {
+      return years.map(function (yr) {
+        var idx = yearIndex(yr);
+        return { year: yr, groups: [
+          { label: 'AS IS', segments: segsFor(asisRows, idx) },
+          { label: 'TO BE', segments: segsFor(tobeRows, idx) }
+        ] };
+      });
+    }
+    function legendOf(rowsArrays, colorMap) {
+      var seen = {}; var items = [];
+      rowsArrays.forEach(function (rows) {
+        rows.forEach(function (r) {
+          var k = (r.name || '').toLowerCase();
+          if (!seen[k]) { seen[k] = true; items.push({ name: r.name, color: colorMap[r.id] }); }
+        });
+      });
+      return items;
+    }
 
     var section = U.el('div', { class: 'viz-cf-section' });
     section.appendChild(U.el('div', { class: 'viz-section-title', text: 'CF по аренде' }));
-
     var row = U.el('div', { class: 'viz-cf-row' });
 
     var card1 = U.el('div', { class: 'viz-cf-card' });
-    card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (TO BE)' }));
-    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: officeMax }));
-    var legend1 = tobeOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
-    card1.appendChild(renderChartLegend(legend1));
-
-    var card1b = U.el('div', { class: 'viz-cf-card' });
-    card1b.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (AS IS)' }));
-    card1b.appendChild(renderStackedBarSVG(chart1bData, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: officeMax }));
-    var legend1b = asisOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
-    card1b.appendChild(renderChartLegend(legend1b));
+    card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (AS IS / TO BE)' }));
+    card1.appendChild(renderStackedBarSVG(groupedData(asisOfficeRows, tobeOfficeRows), function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true }));
+    card1.appendChild(renderChartLegend(legendOf([tobeOfficeRows, asisOfficeRows], officeColorMap)));
 
     var card2 = U.el('div', { class: 'viz-cf-card' });
-    card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам — МР Групп (TO BE)' }));
-    card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }, { showTotals: true }));
-    card2.appendChild(renderChartLegend([{ name: MR_GRUPП_NAME, color: MR_GRUPП_COLOR }]));
+    card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по арендаторам (AS IS / TO BE)' }));
+    card2.appendChild(renderStackedBarSVG(groupedData(asisTenantRows, tobeTenantRows), function (key) { return tenantColorMap[key] || '#aaa'; }, { showTotals: true }));
+    card2.appendChild(renderChartLegend(legendOf([tobeTenantRows, asisTenantRows], tenantColorMap)));
 
     row.appendChild(card1);
-    row.appendChild(card1b);
     row.appendChild(card2);
     section.appendChild(row);
     return section;
