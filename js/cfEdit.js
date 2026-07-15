@@ -31,13 +31,15 @@ App.cfEdit = (function () {
   }
   function save(scenario) {
     var d = draft;
-    state.commit('Правка CF', function () { scenario.cfOverride = d; });
+    // Clear edit state BEFORE commit: commit -> notifyChange renders synchronously,
+    // so the state must already be cleared for that render to show view mode.
     editingKey = null; draft = null;
+    state.commit('Правка CF', function () { scenario.cfOverride = d; });
   }
   function cancel() { editingKey = null; draft = null; render(); }
   function reset(scenario) {
-    state.commit('Сброс CF (пересчёт из офисов)', function () { scenario.cfOverride = null; });
     editingKey = null; draft = null;
+    state.commit('Сброс CF (пересчёт из офисов)', function () { scenario.cfOverride = null; });
   }
   function editCell(listKey, rowId, year, monthIndex, value) {
     if (!draft) { return; }

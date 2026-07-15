@@ -459,6 +459,39 @@ App.importExport = (function () {
       });
     });
 
+    // Team placement from the Teams sheet office columns — only when no explicit
+    // Allocations sheet was provided (which is authoritative and handles splits).
+    // Mirrors the employee current_office behaviour so a hand-filled Teams sheet
+    // actually places teams. A comma-listed (split) cell won't resolve to a single
+    // office and is intentionally left to the Allocations sheet.
+    if (!parsed.allocations.length) {
+      parsed.teams.forEach(function (data) {
+        var team = teamByName[data.name.toLowerCase()];
+        if (!team) { return; }
+        [[data.currentOfficeName, 'asis'], [data.toBeOfficeName, 'tobe']].forEach(function (pair) {
+          var officeName = pair[0];
+          if (!officeName) { return; }
+          var office = findOffice(officeName, pair[1]);
+          if (!office) { return; }
+          var zone = null;
+          if (data.cabinetName) {
+            var cab = data.cabinetName.toLowerCase();
+            (office.zones || []).forEach(function (z) { if (z.name.toLowerCase() === cab) { zone = z; } });
+          }
+          scenario.allocations.push({
+            id: U.genId('alloc'),
+            type: C.ALLOCATION_TYPE.TEAM,
+            teamId: team.id,
+            employeeId: null,
+            employeesCount: team.employeesCount || 1,
+            targetOfficeId: office.id,
+            targetZoneId: zone ? zone.id : null,
+            comment: ''
+          });
+        });
+      });
+    }
+
     // Auto-create teams referenced by employees but missing from the Teams sheet.
     var autoCreatedTeams = 0;
     parsed.employees.forEach(function (data) {
@@ -827,20 +860,42 @@ App.importExport = (function () {
     return aoa;
   }
 
+  /**
+   * Distinct office names where a team is actually placed (via TEAM allocations)
+   * in the given phase, comma-joined. AS-IS = asis-phase offices; TO-BE =
+   * tobe-phase or remote offices (mirrors setTeamPhaseAllocations). Falls back to
+   * the legacy declared office (t.currentOfficeId / t.toBeOfficeId) when the team
+   * has no allocation in that phase, so single-office declarations still export.
+   */
+  function teamPhaseOffices(s, team, phase, legacyOfficeId) {
+    var names = [];
+    var seen = {};
+    (s.allocations || []).forEach(function (a) {
+      if (a.type !== C.ALLOCATION_TYPE.TEAM || a.teamId !== team.id) { return; }
+      var o = U.findById(s.offices, a.targetOfficeId);
+      if (!o) { return; }
+      var inPhase = phase === C.OFFICE_PHASE.ASIS
+        ? o.phase === C.OFFICE_PHASE.ASIS
+        : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
+      if (inPhase && !seen[o.id]) { seen[o.id] = true; names.push(o.name); }
+    });
+    if (names.length) { return names.join(', '); }
+    var legacy = U.findById(s.offices, legacyOfficeId);
+    return legacy ? legacy.name : '';
+  }
+
   function buildTeams(scenarios, inc) {
     var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'can_split', 'linked_teams', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
-        var currentOffice = U.findById(s.offices, t.currentOfficeId);
-        var toBeOffice = U.findById(s.offices, t.toBeOfficeId);
         var linkedNames = (t.linkedTeamIds || []).map(function (id) {
           var lt = U.findById(s.teams, id);
           return lt ? lt.name : '';
         }).filter(Boolean).join(', ');
         aoa.push(rowWithScenario(s, [
           t.name, t.employeesCount || 0,
-          currentOffice ? currentOffice.name : '',
-          toBeOffice ? toBeOffice.name : '',
+          teamPhaseOffices(s, t, C.OFFICE_PHASE.ASIS, t.currentOfficeId),
+          teamPhaseOffices(s, t, C.OFFICE_PHASE.TOBE, t.toBeOfficeId),
           t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да',
           linkedNames, t.comment || ''
         ], inc));
@@ -859,9 +914,12 @@ App.importExport = (function () {
         var placementOffice = placement.officeId ? U.findById(s.offices, placement.officeId) : null;
         var placementZone = (placement.zoneId && placementOffice)
           ? U.findById(placementOffice.zones || [], placement.zoneId) : null;
+        // Office column reflects the employee's actual placement (matches the
+        // cabinet column); fall back to the legacy declared "текущий офис".
+        var officeCell = placementOffice ? placementOffice.name : (currentOffice ? currentOffice.name : '');
         aoa.push(rowWithScenario(s, [
           e.fullName, e.position || '', team ? team.name : '',
-          currentOffice ? currentOffice.name : '',
+          officeCell,
           placementZone ? placementZone.name : '',
           e.isVip ? 'да' : 'нет',
           C.WORK_FORMAT_LABEL[e.workFormat] || e.workFormat,
