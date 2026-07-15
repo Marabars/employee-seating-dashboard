@@ -202,15 +202,19 @@ window.App = window.App || {};
     return wrap;
   }
 
-  /** Phase heading with a leading toggle that collapses this phase's office-cards grid. */
+  /**
+   * Phase heading with a clearly-labeled toggle that collapses ONLY this phase's
+   * office-cards grid (the CF tables in money mode stay visible). Distinct from
+   * the top-right "Скрыть TO BE/AS IS" buttons, which hide the whole phase.
+   */
   function buildPhaseHead(phaseClass, label, phase) {
     var collapsed = !!dashCardsCollapsed[phase];
-    var toggle = R.iconBtn(
-      collapsed ? '▸' : '▾',
-      collapsed ? 'Показать карточки' : 'Свернуть карточки',
-      (function (ph) { return function () { dashCardsCollapsed[ph] = !dashCardsCollapsed[ph]; R.render(); }; })(phase)
-    );
-    return U.el('h3', { class: 'phase-head ' + phaseClass }, [toggle, U.el('span', { text: label })]);
+    var toggle = U.el('button', {
+      class: 'btn btn-sm btn-secondary phase-cards-toggle',
+      title: collapsed ? 'Показать карточки офисов' : 'Скрыть карточки офисов (таблица CF останется)',
+      onclick: (function (ph) { return function () { dashCardsCollapsed[ph] = !dashCardsCollapsed[ph]; R.render(); }; })(phase)
+    }, (collapsed ? '▸' : '▾') + ' Карточки');
+    return U.el('h3', { class: 'phase-head ' + phaseClass }, [U.el('span', { text: label }), toggle]);
   }
 
   /** Offices block with AS IS / TO BE groups and a money toggle. */

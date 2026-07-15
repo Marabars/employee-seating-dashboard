@@ -1061,3 +1061,5 @@ tr.office-drop-below > td {
 .placementrows-row .pr-office, .placementrows-row .pr-zone { flex: 1; min-width: 0; }
 .placement-counter { font-size: 12px; color: #52606d; margin-top: 4px; }
 .placement-counter.over { color: #dc2626; font-weight: 600; }
+
+.phase-cards-toggle { font-size: 12px; font-weight: 400; margin-left: 10px; vertical-align: middle; }
