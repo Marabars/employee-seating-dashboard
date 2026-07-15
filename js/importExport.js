@@ -213,11 +213,13 @@ App.importExport = (function () {
     }
     var wb = XLSX.utils.book_new();
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
-    addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Черновик', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Дата начала аренды', 'Дата окончания аренды', 'Дата начала индексации', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Фаза офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
     addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Можно делить', 'Связанные команды', 'Комментарий']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'AS-IS офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Количество', 'Офис', 'Зона', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Tenants', ['Название офиса', 'Фаза офиса', 'Арендатор', 'Площадь']);
+    addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Фаза', 'Количество', 'Офис', 'Зона', 'Комментарий']);
+    addSheetFromHeaders(wb, 'CF', ['Тип', 'Фаза', 'Название', 'Год', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
   }
 
@@ -244,7 +246,9 @@ App.importExport = (function () {
             zones: sheetToAoa(wb, 'Zones'),
             teams: sheetToAoa(wb, 'Teams'),
             employees: sheetToAoa(wb, 'Employees'),
-            allocations: sheetToAoa(wb, 'Allocations')
+            tenants: sheetToAoa(wb, 'Tenants'),
+            allocations: sheetToAoa(wb, 'Allocations'),
+            cf: sheetToAoa(wb, 'CF')
           };
           var parsed = App.importValidation.parseWorkbook(sheets);
           chooseImportMode(parsed);
@@ -648,16 +652,22 @@ App.importExport = (function () {
 
   // ---- Excel export ------------------------------------------------------
 
-  function doExportExcel(scenarios, includeScenarioCol) {
+  function buildWorkbook(scenarios, includeScenarioCol) {
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildSummary(scenarios, includeScenarioCol)), 'Summary');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildOffices(scenarios, includeScenarioCol)), 'Offices');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildZones(scenarios, includeScenarioCol)), 'Zones');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildTeams(scenarios, includeScenarioCol)), 'Teams');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildEmployees(scenarios, includeScenarioCol)), 'Employees');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildTenants(scenarios, includeScenarioCol)), 'Tenants');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildAllocations(scenarios, includeScenarioCol)), 'Allocations');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildCF(scenarios, includeScenarioCol)), 'CF');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildWarnings(scenarios, includeScenarioCol)), 'Warnings');
-    XLSX.writeFile(wb, includeScenarioCol ? 'seating-all-scenarios.xlsx' : 'seating-scenario.xlsx');
+    return wb;
+  }
+
+  function doExportExcel(scenarios, includeScenarioCol) {
+    XLSX.writeFile(buildWorkbook(scenarios, includeScenarioCol), includeScenarioCol ? 'seating-all-scenarios.xlsx' : 'seating-scenario.xlsx');
   }
 
   function exportExcel(allScenarios) {
@@ -741,7 +751,7 @@ App.importExport = (function () {
   }
 
   function buildOffices(scenarios, inc) {
-    var aoa = [withScenarioCol(['office_name', 'office_type', 'area', 'rent_per_sqm', 'opex_per_sqm', 'indexation_pct', 'is_draft', 'comment'], inc)];
+    var aoa = [withScenarioCol(['office_name', 'office_type', 'area', 'rent_per_sqm', 'opex_per_sqm', 'indexation_pct', 'lease_start_date', 'lease_end_date', 'indexation_start_date', 'is_draft', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.offices.forEach(function (o) {
         var phaseOut = o.type === C.OFFICE_TYPE.REMOTE ? 'remote' : (o.phase || '');
@@ -750,6 +760,7 @@ App.importExport = (function () {
           (o.rentPerSqm !== null && o.rentPerSqm !== undefined) ? o.rentPerSqm : '',
           (o.opexPerSqm !== null && o.opexPerSqm !== undefined) ? o.opexPerSqm : '',
           (o.indexationPct !== null && o.indexationPct !== undefined) ? o.indexationPct : '',
+          o.leaseStartDate || '', o.leaseEndDate || '', o.indexationStartDate || '',
           o.isDraft ? 'да' : 'нет', o.comment || ''
         ], inc));
       });
@@ -819,7 +830,7 @@ App.importExport = (function () {
   }
 
   function buildAllocations(scenarios, inc) {
-    var aoa = [withScenarioCol(['type', 'entity', 'count', 'office', 'zone', 'comment'], inc)];
+    var aoa = [withScenarioCol(['type', 'entity', 'phase', 'count', 'office', 'zone', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.allocations.forEach(function (a) {
         var office = U.findById(s.offices, a.targetOfficeId);
@@ -832,10 +843,43 @@ App.importExport = (function () {
           var team = U.findById(s.teams, a.teamId);
           entity = team ? team.name : '';
         }
+        var phaseOut = office ? (office.type === C.OFFICE_TYPE.REMOTE ? 'remote' : (office.phase || '')) : '';
         aoa.push(rowWithScenario(s, [
-          a.type, entity, a.employeesCount,
+          a.type, entity, phaseOut, a.employeesCount,
           office ? office.name : '', zone ? zone.name : '', a.comment || ''
         ], inc));
+      });
+    });
+    return aoa;
+  }
+
+  function buildTenants(scenarios, inc) {
+    var aoa = [withScenarioCol(['office_name', 'office_phase', 'tenant_name', 'area'], inc)];
+    scenarios.forEach(function (s) {
+      s.offices.filter(function (o) { return o.type === C.OFFICE_TYPE.PHYSICAL; }).forEach(function (o) {
+        (o.tenants || []).forEach(function (t) {
+          aoa.push(rowWithScenario(s, [o.name, o.phase || 'tobe', t.name || '', t.area || 0], inc));
+        });
+      });
+    });
+    return aoa;
+  }
+
+  function buildCF(scenarios, inc) {
+    var aoa = [withScenarioCol(['kind', 'phase', 'name', 'year', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12'], inc)];
+    scenarios.forEach(function (s) {
+      var ov = s.cfOverride;
+      if (!ov) { return; }
+      ['offices', 'tenants'].forEach(function (listKey) {
+        var kind = listKey === 'tenants' ? 'tenant' : 'office';
+        (ov[listKey] || []).forEach(function (r) {
+          Object.keys(r.monthly || {}).forEach(function (yr) {
+            var m = r.monthly[yr] || [];
+            var row = [kind, r.phase, r.name, parseInt(yr, 10)];
+            for (var i = 0; i < 12; i++) { row.push(m[i] || 0); }
+            aoa.push(rowWithScenario(s, row, inc));
+          });
+        });
       });
     });
     return aoa;
@@ -1017,6 +1061,7 @@ App.importExport = (function () {
     downloadExcelTemplate: downloadExcelTemplate,
     importExcelDialog: importExcelDialog,
     exportExcel: exportExcel,
+    buildWorkbook: buildWorkbook,
     exportPdf: exportPdf,
     exportPng: exportPng,
     exportOfficeFragment: exportOfficeFragment
