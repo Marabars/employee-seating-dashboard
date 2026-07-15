@@ -369,6 +369,10 @@ App.importExport = (function () {
       var office = existing || makeOffice(data);
       if (!existing) {
         scenario.offices.push(office);
+      } else {
+        if (data.lease_start_date !== undefined) { existing.leaseStartDate = dateOrNull(data.lease_start_date); }
+        if (data.lease_end_date !== undefined) { existing.leaseEndDate = dateOrNull(data.lease_end_date); }
+        if (data.indexation_start_date !== undefined) { existing.indexationStartDate = dateOrNull(data.indexation_start_date); }
       }
       registerOffice(office);
       // Inline zone capacities (cabinet/open_space/vip columns).
@@ -404,6 +408,19 @@ App.importExport = (function () {
           comment: z.comment
         });
       }
+    });
+
+    // Tenants (office tenant list).
+    (parsed.tenants || []).forEach(function (t) {
+      var office = findOffice(t.officeName, t.officePhase);
+      if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) {
+        parsed.report.warnings.push('Арендатор «' + t.name + '»: офис «' + t.officeName + '» не найден');
+        return;
+      }
+      office.tenants = office.tenants || [];
+      var exT = office.tenants.filter(function (x) { return (x.name || '').toLowerCase() === t.name.toLowerCase(); })[0];
+      if (exT) { exT.area = t.area; }
+      else { office.tenants.push({ id: U.genId('tenant'), name: t.name, area: t.area }); }
     });
 
     // Teams.
@@ -511,7 +528,7 @@ App.importExport = (function () {
       var empByName = {};
       scenario.employees.forEach(function (e) { empByName[e.fullName.toLowerCase()] = e; });
       parsed.allocations.forEach(function (data) {
-        var office = findOffice(data.officeName, null);
+        var office = findOffice(data.officeName, data.phase);
         if (!office) {
           parsed.report.warnings.push('Размещение «' + data.entity + '»: офис «' + data.officeName + '» не найден — пропущено');
           return;
@@ -560,8 +577,31 @@ App.importExport = (function () {
       if (team.employeesCount < named) { team.employeesCount = named; }
     });
 
+    // CF manual override (only when a non-empty CF sheet was provided).
+    if (parsed.cf && parsed.cf.length) {
+      var ov = { offices: [], tenants: [] };
+      var cfByKey = {};
+      parsed.cf.forEach(function (r) {
+        var listKey = r.kind === 'tenant' ? 'tenants' : 'offices';
+        var k = listKey + '|' + r.phase + '|' + r.name.toLowerCase();
+        var crow = cfByKey[k];
+        if (!crow) {
+          crow = { id: U.genId('cfrow'), name: r.name, phase: r.phase, monthly: {} };
+          cfByKey[k] = crow;
+          ov[listKey].push(crow);
+        }
+        crow.monthly[String(r.year)] = r.monthly.slice();
+      });
+      scenario.cfOverride = ov;
+    }
+
     state.notifyChange('Импорт Excel', { skipHistory: true });
     showImportReport(parsed.report);
+  }
+
+  function dateOrNull(v) {
+    var s = (v === undefined || v === null) ? '' : String(v).trim();
+    return s || null;
   }
 
   function makeOffice(data) {
@@ -573,7 +613,10 @@ App.importExport = (function () {
       comment: data.comment,
       rentPerSqm: numericOrNull(data.rent_per_sqm),
       opexPerSqm: numericOrNull(data.opex_per_sqm),
-      indexationPct: numericOrNull(data.indexation_pct)
+      indexationPct: numericOrNull(data.indexation_pct),
+      leaseStartDate: dateOrNull(data.lease_start_date),
+      leaseEndDate: dateOrNull(data.lease_end_date),
+      indexationStartDate: dateOrNull(data.indexation_start_date)
     });
   }
 
@@ -1062,6 +1105,7 @@ App.importExport = (function () {
     importExcelDialog: importExcelDialog,
     exportExcel: exportExcel,
     buildWorkbook: buildWorkbook,
+    applyImportParsed: applyImport,
     exportPdf: exportPdf,
     exportPng: exportPng,
     exportOfficeFragment: exportOfficeFragment
