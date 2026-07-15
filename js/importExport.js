@@ -871,7 +871,9 @@ App.importExport = (function () {
     var names = [];
     var seen = {};
     (s.allocations || []).forEach(function (a) {
-      if (a.type !== C.ALLOCATION_TYPE.TEAM || a.teamId !== team.id) { return; }
+      // Any allocation referencing this team (bulk TEAM seats OR individual
+      // named-employee placements), matching the Teams-tab columns.
+      if (a.teamId !== team.id) { return; }
       var o = U.findById(s.offices, a.targetOfficeId);
       if (!o) { return; }
       var inPhase = phase === C.OFFICE_PHASE.ASIS

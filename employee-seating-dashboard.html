@@ -8855,13 +8855,19 @@ window.App = window.App || {};
     });
   }
 
-  /** Existing TEAM allocations of a team in a phase -> [{officeId, zoneId, count}]. */
+  /**
+   * A team's actual placement in a phase -> [{officeId, zoneId, count}], grouped
+   * by office/zone. Aggregates BOTH bulk TEAM allocations and individual named-
+   * employee allocations (count = max(teamSeats, namedCount) per office/zone),
+   * matching the Teams-table columns and the occupancy calc. Editing these rows
+   * sets the bulk team seats; named employees remain placed (they dedupe by max).
+   */
   function teamPhaseRows(scenario, team, phase) {
     if (!team) { return []; }
     var byKey = {};
     var order = [];
     (scenario.allocations || []).forEach(function (a) {
-      if (a.teamId !== team.id || a.type !== C.ALLOCATION_TYPE.TEAM) { return; }
+      if (a.teamId !== team.id) { return; }
       var o = U.findById(scenario.offices, a.targetOfficeId);
       if (!o) { return; }
       var inPhase = phase === C.OFFICE_PHASE.ASIS
@@ -8870,10 +8876,17 @@ window.App = window.App || {};
       if (!inPhase) { return; }
       var zoneId = a.targetZoneId || '';
       var key = a.targetOfficeId + '|' + zoneId;
-      if (!byKey[key]) { byKey[key] = { officeId: a.targetOfficeId, zoneId: a.targetZoneId || null, count: 0 }; order.push(key); }
-      byKey[key].count += (a.employeesCount || 0);
+      if (!byKey[key]) { byKey[key] = { officeId: a.targetOfficeId, zoneId: a.targetZoneId || null, teamSeats: 0, namedCount: 0 }; order.push(key); }
+      if (a.type === C.ALLOCATION_TYPE.TEAM) {
+        byKey[key].teamSeats += (a.employeesCount || 0);
+      } else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) {
+        byKey[key].namedCount += 1;
+      }
     });
-    return order.map(function (k) { return byKey[k]; });
+    return order.map(function (k) {
+      var e = byKey[k];
+      return { officeId: e.officeId, zoneId: e.zoneId, count: Math.max(e.teamSeats, e.namedCount) };
+    });
   }
 
   function openTeamForm(team) {
@@ -11807,7 +11820,9 @@ App.importExport = (function () {
     var names = [];
     var seen = {};
     (s.allocations || []).forEach(function (a) {
-      if (a.type !== C.ALLOCATION_TYPE.TEAM || a.teamId !== team.id) { return; }
+      // Any allocation referencing this team (bulk TEAM seats OR individual
+      // named-employee placements), matching the Teams-tab columns.
+      if (a.teamId !== team.id) { return; }
       var o = U.findById(s.offices, a.targetOfficeId);
       if (!o) { return; }
       var inPhase = phase === C.OFFICE_PHASE.ASIS

@@ -92,5 +92,20 @@ assert(teamAllocs3.length === 2, 'exactly 2 team allocations after round-trip (n
 var counts = teamAllocs3.map(function (a) { return a.employeesCount; }).sort();
 assert(counts[0] === 3 && counts[1] === 5, 'per-office counts preserved (3 + 5) — got ' + counts.join('+'));
 
+// ---- Test 4: export reflects placement made via NAMED-EMPLOYEE allocations ----
+var namedProj = baseProject();
+var scn4 = namedProj.scenarios[0];
+scn4.allocations = [
+  { id: 'ne1', type: 'employee', teamId: 'tm1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'asisO', targetZoneId: 'za', comment: '' }
+];
+scn4.teams[0].toBeOfficeId = null; scn4.teams[0].currentOfficeId = null;
+App.state.setProject(namedProj);
+App.state.setActiveScenario('s1');
+var wb4 = App.importExport.buildWorkbook([App.state.getActiveScenario()], false);
+var t4 = aoa(wb4, 'Teams');
+var h4 = t4[0], r4 = t4[1];
+console.log('export reflects named-employee placement');
+assert(/Старый офис/.test(r4[h4.indexOf('current_office')]), 'current_office shows office of named-employee placement — got "' + r4[h4.indexOf('current_office')] + '"');
+
 console.log('\nPassed ' + results.pass + ', failed ' + results.fail);
 process.exit(results.fail === 0 ? 0 : 1);
