@@ -533,12 +533,14 @@ window.App = window.App || {};
       return { year: yr, segments: [{ key: MR_GRUPП_NAME, name: MR_GRUPП_NAME, value: val }] };
     });
 
-    // Compute shared Y-axis scale across both charts
-    var sharedMax = 0;
-    [chart1Data, chart1bData, chart2Data].forEach(function (data) {
+    // Shared Y-axis scale for the two OFFICE charts (TO BE vs AS IS comparable).
+    // МР Групп uses its own scale so its (much smaller) bars stay readable
+    // instead of collapsing against the large office totals.
+    var officeMax = 0;
+    [chart1Data, chart1bData].forEach(function (data) {
       data.forEach(function (yd) {
         var s = yd.segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
-        if (s > sharedMax) { sharedMax = s; }
+        if (s > officeMax) { officeMax = s; }
       });
     });
 
@@ -549,19 +551,19 @@ window.App = window.App || {};
 
     var card1 = U.el('div', { class: 'viz-cf-card' });
     card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (TO BE)' }));
-    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: sharedMax }));
+    card1.appendChild(renderStackedBarSVG(chart1Data, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: officeMax }));
     var legend1 = tobeOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
     card1.appendChild(renderChartLegend(legend1));
 
     var card1b = U.el('div', { class: 'viz-cf-card' });
     card1b.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (AS IS)' }));
-    card1b.appendChild(renderStackedBarSVG(chart1bData, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: sharedMax }));
+    card1b.appendChild(renderStackedBarSVG(chart1bData, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: officeMax }));
     var legend1b = asisOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
     card1b.appendChild(renderChartLegend(legend1b));
 
     var card2 = U.el('div', { class: 'viz-cf-card' });
     card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам — МР Групп (TO BE)' }));
-    card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }, { maxScale: sharedMax }));
+    card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }, { showTotals: true }));
     card2.appendChild(renderChartLegend([{ name: MR_GRUPП_NAME, color: MR_GRUPП_COLOR }]));
 
     row.appendChild(card1);
