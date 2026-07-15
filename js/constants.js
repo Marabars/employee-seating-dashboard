@@ -176,6 +176,8 @@ App.constants = (function () {
       opex_per_sqm: ['opex_per_sqm', 'эксплуатация', 'эксплуатация руб/м2', 'эксплуатация, ₽/м²'],
       indexation_pct: ['indexation_pct', 'индексация', 'индексация %'],
       lease_start_date: ['lease_start_date', 'дата начала аренды'],
+      lease_end_date: ['lease_end_date', 'дата окончания аренды', 'окончание аренды'],
+      indexation_start_date: ['indexation_start_date', 'дата начала индексации'],
       is_draft: ['is_draft', 'черновик'],
       comment: ['comment', 'комментарий']
     },
@@ -201,6 +203,7 @@ App.constants = (function () {
     allocations: {
       type:    ['type',    'тип'],
       entity:  ['entity',  'название'],
+      phase:   ['phase',   'фаза'],
       count:   ['count',   'количество'],
       office:  ['office',  'офис'],
       zone:    ['zone',    'зона'],
@@ -215,6 +218,23 @@ App.constants = (function () {
       is_vip: ['is_vip', 'vip'],
       work_format: ['work_format', 'формат работы'],
       comment: ['comment', 'комментарий']
+    },
+    tenants: {
+      office_name: ['office_name', 'название офиса'],
+      office_phase: ['office_phase', 'фаза офиса', 'фаза'],
+      tenant_name: ['tenant_name', 'арендатор', 'название арендатора'],
+      area: ['area', 'площадь', 'площадь, м²'],
+      comment: ['comment', 'комментарий']
+    },
+    cf: {
+      kind: ['kind', 'тип'],
+      phase: ['phase', 'фаза'],
+      name: ['name', 'название', 'офис/арендатор'],
+      year: ['year', 'год'],
+      m1: ['m1', 'янв', 'jan'], m2: ['m2', 'фев', 'feb'], m3: ['m3', 'мар', 'mar'],
+      m4: ['m4', 'апр', 'apr'], m5: ['m5', 'май', 'may'], m6: ['m6', 'июн', 'jun'],
+      m7: ['m7', 'июл', 'jul'], m8: ['m8', 'авг', 'aug'], m9: ['m9', 'сен', 'sep'],
+      m10: ['m10', 'окт', 'oct'], m11: ['m11', 'ноя', 'nov'], m12: ['m12', 'дек', 'dec']
     }
   };
 

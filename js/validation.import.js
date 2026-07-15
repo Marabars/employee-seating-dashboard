@@ -58,8 +58,10 @@ App.importValidation = (function () {
       teams: [],
       employees: [],
       allocations: [],
+      tenants: [],
+      cf: [],
       report: {
-        imported: { offices: 0, zones: 0, teams: 0, employees: 0, allocations: 0 },
+        imported: { offices: 0, zones: 0, teams: 0, employees: 0, allocations: 0, tenants: 0, cf: 0 },
         errors: [],
         warnings: []
       }
@@ -70,6 +72,8 @@ App.importValidation = (function () {
     parseTeams(sheets.teams, result);
     parseEmployees(sheets.employees, result);
     parseAllocations(sheets.allocations, result);
+    parseTenants(sheets.tenants, result);
+    parseCF(sheets.cf, result);
 
     return result;
   }
@@ -128,7 +132,10 @@ App.importValidation = (function () {
         // optional money fields
         rent_per_sqm: cell(row, idx, 'rent_per_sqm'),
         opex_per_sqm: cell(row, idx, 'opex_per_sqm'),
-        indexation_pct: cell(row, idx, 'indexation_pct')
+        indexation_pct: cell(row, idx, 'indexation_pct'),
+        lease_start_date: cell(row, idx, 'lease_start_date'),
+        lease_end_date: cell(row, idx, 'lease_end_date'),
+        indexation_start_date: cell(row, idx, 'indexation_start_date')
       };
       result.offices.push(office);
       result.report.imported.offices += 1;
@@ -251,15 +258,58 @@ App.importValidation = (function () {
       if (!entity) { return; }
       var type = (typeRaw === 'employee' || typeRaw === C.ALLOCATION_TYPE.EMPLOYEE)
         ? C.ALLOCATION_TYPE.EMPLOYEE : C.ALLOCATION_TYPE.TEAM;
+      var allocPhaseRaw = String(cell(row, idx, 'phase') || '').trim().toLowerCase();
       result.allocations.push({
         type:       type,
         entity:     entity,
+        phase:      allocPhaseRaw ? (C.OFFICE_PHASE_ALIASES[allocPhaseRaw] || null) : null,
         count:      U.toNonNegativeInt(cell(row, idx, 'count')) || 1,
         officeName: String(cell(row, idx, 'office') || '').trim(),
         zoneName:   String(cell(row, idx, 'zone')   || '').trim(),
         comment:    String(cell(row, idx, 'comment') || '')
       });
       result.report.imported.allocations += 1;
+    });
+  }
+
+  function parseTenants(sheet, result) {
+    var data = rowsAfterHeader(sheet);
+    if (!data.rows.length) { return; }
+    var idx = mapHeaders('tenants', data.header);
+    data.rows.forEach(function (row) {
+      if (isEmptyRow(row)) { return; }
+      var officeName = String(cell(row, idx, 'office_name') || '').trim();
+      var name = String(cell(row, idx, 'tenant_name') || '').trim();
+      if (!officeName || !name) { return; }
+      var phaseRaw = String(cell(row, idx, 'office_phase') || '').trim().toLowerCase();
+      result.tenants.push({
+        officeName: officeName,
+        officePhase: phaseRaw ? (C.OFFICE_PHASE_ALIASES[phaseRaw] || null) : null,
+        name: name,
+        area: Math.max(0, parseFloat(cell(row, idx, 'area')) || 0)
+      });
+      result.report.imported.tenants += 1;
+    });
+  }
+
+  function parseCF(sheet, result) {
+    var data = rowsAfterHeader(sheet);
+    if (!data.rows.length) { return; }
+    var idx = mapHeaders('cf', data.header);
+    var mkeys = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12'];
+    data.rows.forEach(function (row) {
+      if (isEmptyRow(row)) { return; }
+      var name = String(cell(row, idx, 'name') || '').trim();
+      var year = parseInt(cell(row, idx, 'year'), 10);
+      if (!name || isNaN(year)) { return; }
+      var kindRaw = String(cell(row, idx, 'kind') || 'office').trim().toLowerCase();
+      var kind = (kindRaw.indexOf('tenant') > -1 || kindRaw.indexOf('аренда') > -1) ? 'tenant' : 'office';
+      var phaseRaw = String(cell(row, idx, 'phase') || 'tobe').trim().toLowerCase();
+      var phase = C.OFFICE_PHASE_ALIASES[phaseRaw] || C.OFFICE_PHASE.TOBE;
+      var monthly = [];
+      for (var mi = 0; mi < 12; mi++) { monthly.push(parseFloat(cell(row, idx, mkeys[mi])) || 0); }
+      result.cf.push({ kind: kind, phase: phase, name: name, year: year, monthly: monthly });
+      result.report.imported.cf += 1;
     });
   }
 
