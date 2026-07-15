@@ -493,9 +493,12 @@ window.App = window.App || {};
     var tobeOfficeRows = cfData.officeRows.filter(function (r) {
       return r.phase === C.OFFICE_PHASE.TOBE && !r.isSubtotal;
     });
+    var asisOfficeRows = cfData.officeRows.filter(function (r) {
+      return r.phase === C.OFFICE_PHASE.ASIS && !r.isSubtotal;
+    });
 
     var officeColorMap = {};
-    tobeOfficeRows.forEach(function (r, idx) {
+    tobeOfficeRows.concat(asisOfficeRows).forEach(function (r, idx) {
       officeColorMap[r.id] = officeColor(r.name) || PALETTE[idx % PALETTE.length];
     });
 
@@ -504,6 +507,16 @@ window.App = window.App || {};
       return {
         year: yr,
         segments: tobeOfficeRows.map(function (r) {
+          return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 };
+        })
+      };
+    });
+
+    var chart1bData = years.map(function (yr) {
+      var idx = yearIndex(yr);
+      return {
+        year: yr,
+        segments: asisOfficeRows.map(function (r) {
           return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 };
         })
       };
@@ -522,7 +535,7 @@ window.App = window.App || {};
 
     // Compute shared Y-axis scale across both charts
     var sharedMax = 0;
-    [chart1Data, chart2Data].forEach(function (data) {
+    [chart1Data, chart1bData, chart2Data].forEach(function (data) {
       data.forEach(function (yd) {
         var s = yd.segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
         if (s > sharedMax) { sharedMax = s; }
@@ -540,12 +553,19 @@ window.App = window.App || {};
     var legend1 = tobeOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
     card1.appendChild(renderChartLegend(legend1));
 
+    var card1b = U.el('div', { class: 'viz-cf-card' });
+    card1b.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (AS IS)' }));
+    card1b.appendChild(renderStackedBarSVG(chart1bData, function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true, maxScale: sharedMax }));
+    var legend1b = asisOfficeRows.map(function (r) { return { name: r.name, color: officeColorMap[r.id] }; });
+    card1b.appendChild(renderChartLegend(legend1b));
+
     var card2 = U.el('div', { class: 'viz-cf-card' });
     card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам — МР Групп (TO BE)' }));
     card2.appendChild(renderStackedBarSVG(chart2Data, function () { return MR_GRUPП_COLOR; }, { maxScale: sharedMax }));
     card2.appendChild(renderChartLegend([{ name: MR_GRUPП_NAME, color: MR_GRUPП_COLOR }]));
 
     row.appendChild(card1);
+    row.appendChild(card1b);
     row.appendChild(card2);
     section.appendChild(row);
     return section;
