@@ -410,7 +410,7 @@ App.render = (function () {
       tbody.appendChild(U.el('tr', { class: row.isSubtotal ? 'cf-subtotal-row' : '' }, cells));
     });
     if (editable) {
-      [C.OFFICE_PHASE.ASIS, C.OFFICE_PHASE.TOBE].forEach(function (ph) {
+      (opts.addRowPhases || [C.OFFICE_PHASE.ASIS, C.OFFICE_PHASE.TOBE]).forEach(function (ph) {
         var label = ph === C.OFFICE_PHASE.ASIS ? '+ строка в AS IS' : '+ строка в TO BE';
         var addBtn = U.el('button', { class: 'btn btn-secondary btn-sm', text: label });
         addBtn.addEventListener('click', (function (phase) { return function () { onAddRow(phase); }; })(ph));

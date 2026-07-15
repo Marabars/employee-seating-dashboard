@@ -138,33 +138,77 @@ window.App = window.App || {};
     return strip;
   }
 
+  /** Edit controls (pencil OR Save/Cancel/Recalc) for a dashboard CF table. */
+  function dashCFEditControls(scenario, years, key) {
+    var CE = App.cfEdit;
+    if (CE.isEditing(key)) {
+      var save = U.el('button', { class: 'btn btn-sm btn-primary', text: 'Сохранить' });
+      save.addEventListener('click', function () { CE.save(scenario); });
+      var cancel = U.el('button', { class: 'btn btn-sm btn-secondary', text: 'Отмена' });
+      cancel.addEventListener('click', function () { CE.cancel(); });
+      var recalc = U.el('button', { class: 'btn btn-sm btn-secondary', text: 'Пересчитать' });
+      recalc.addEventListener('click', function () { CE.reset(scenario); });
+      return U.el('div', { class: 'cf-edit-actions' }, [save, cancel, recalc]);
+    }
+    if (!state.isViewOnly() && !CE.anyEditing()) {
+      return R.iconBtn('✎', 'Редактировать CF', (function (yy, k) {
+        return function () { CE.enterEdit(scenario, yy, k); };
+      })(years, key));
+    }
+    return null;
+  }
+
+  /** "Overridden manually" banner for a dashboard CF table. */
+  function dashCFBanner(scenario, key) {
+    var CE = App.cfEdit;
+    if (!scenario.cfOverride || CE.isEditing(key)) { return null; }
+    var banner = U.el('div', { class: 'cf-override-banner' }, [U.el('span', { text: 'Данные CF переопределены вручную' })]);
+    if (!state.isViewOnly() && !CE.anyEditing()) {
+      var b = U.el('button', { class: 'btn btn-sm btn-secondary', text: 'Пересчитать из офисов' });
+      b.addEventListener('click', function () { CE.reset(scenario); });
+      banner.appendChild(b);
+    }
+    return banner;
+  }
+
   /** CF table block for one phase, embedded below office grid in money mode. */
   function buildDashCFTable(scenario, phase, startYear, endYear) {
-    var data = calc.getScenarioCFData(scenario, startYear, endYear);
+    var CE = App.cfEdit;
+    var years = []; for (var y = startYear; y <= endYear; y++) { years.push(y); }
+    var data = calc.getScenarioCFData(CE.effectiveScenario(scenario), startYear, endYear);
     if (data.years.length === 0) { return null; }
     var phaseRows = data.officeRows.filter(function (r) { return r.phase === phase; });
     if (phaseRows.length === 0) { return null; }
     var phaseLabel = phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
+    var key = 'dash-office-' + phase;
     var isCollapsed = !!dashCFCollapsed[phase];
     var wrap = U.el('div', { class: 'dash-cf-block' });
-    wrap.appendChild(U.el('div', { class: 'cf-block-head' }, [
-      U.el('div', { class: 'section-title', text: 'Cash Flow ' + phaseLabel + ' (млн руб./год)' }),
-      U.el('button', {
-        class: 'btn btn-sm btn-secondary cf-collapse-btn',
-        onclick: (function (ph) { return function () { dashCFCollapsed[ph] = !dashCFCollapsed[ph]; R.render(); }; })(phase)
-      }, isCollapsed ? '▸ Развернуть' : '▾ Свернуть')
-    ]));
-    if (!isCollapsed) {
+
+    var headKids = [U.el('div', { class: 'section-title', text: 'Cash Flow ' + phaseLabel + ' (млн руб./год)' })];
+    var controls = dashCFEditControls(scenario, years, key);
+    if (controls) { headKids.push(controls); }
+    headKids.push(U.el('button', {
+      class: 'btn btn-sm btn-secondary cf-collapse-btn',
+      onclick: (function (ph) { return function () { dashCFCollapsed[ph] = !dashCFCollapsed[ph]; R.render(); }; })(phase)
+    }, isCollapsed ? '▸ Развернуть' : '▾ Свернуть'));
+    wrap.appendChild(U.el('div', { class: 'cf-block-head' }, headKids));
+
+    var banner = dashCFBanner(scenario, key);
+    if (banner) { wrap.appendChild(banner); }
+
+    if (!isCollapsed || CE.isEditing(key)) {
       wrap.appendChild(R.cfTable({
         rows: phaseRows,
         years: data.years,
         expandedYears: dashExpandedCFYears,
-        onToggleYear: function (yr) {
-          dashExpandedCFYears[yr] = !dashExpandedCFYears[yr];
-          R.render();
-        },
+        onToggleYear: function (yr) { dashExpandedCFYears[yr] = !dashExpandedCFYears[yr]; R.render(); },
         firstColLabel: 'Офис',
-        showPhaseHeaders: false
+        showPhaseHeaders: false,
+        editable: CE.isEditing(key),
+        addRowPhases: [phase],
+        onEditCell: function (rowId, year, mIdx, val) { CE.editCell('offices', rowId, year, mIdx, val); },
+        onDeleteRow: function (rowId) { CE.deleteRow('offices', rowId); },
+        onAddRow: function (ph) { var name = window.prompt('Название строки:'); CE.addRow('offices', name, ph); }
       }));
     }
     return wrap;
@@ -172,31 +216,42 @@ window.App = window.App || {};
 
   /** Tenant CF table block for one phase, embedded below office CF table in money mode. */
   function buildDashTenantCFTable(scenario, phase, startYear, endYear) {
-    var data = calc.getScenarioCFData(scenario, startYear, endYear);
+    var CE = App.cfEdit;
+    var years = []; for (var y = startYear; y <= endYear; y++) { years.push(y); }
+    var data = calc.getScenarioCFData(CE.effectiveScenario(scenario), startYear, endYear);
     if (data.years.length === 0) { return null; }
     var phaseRows = data.tenantRows.filter(function (r) { return r.phase === phase; });
     if (phaseRows.length === 0) { return null; }
     var phaseLabel = phase === C.OFFICE_PHASE.ASIS ? 'AS IS' : 'TO BE';
+    var key = 'dash-tenant-' + phase;
     var isCollapsed = !!dashTenantCFCollapsed[phase];
     var wrap = U.el('div', { class: 'dash-cf-block' });
-    wrap.appendChild(U.el('div', { class: 'cf-block-head' }, [
-      U.el('div', { class: 'section-title', text: 'CF по арендаторам ' + phaseLabel + ' (млн руб./год)' }),
-      U.el('button', {
-        class: 'btn btn-sm btn-secondary cf-collapse-btn',
-        onclick: (function (ph) { return function () { dashTenantCFCollapsed[ph] = !dashTenantCFCollapsed[ph]; R.render(); }; })(phase)
-      }, isCollapsed ? '▸ Развернуть' : '▾ Свернуть')
-    ]));
-    if (!isCollapsed) {
+
+    var headKids = [U.el('div', { class: 'section-title', text: 'CF по арендаторам ' + phaseLabel + ' (млн руб./год)' })];
+    var controls = dashCFEditControls(scenario, years, key);
+    if (controls) { headKids.push(controls); }
+    headKids.push(U.el('button', {
+      class: 'btn btn-sm btn-secondary cf-collapse-btn',
+      onclick: (function (ph) { return function () { dashTenantCFCollapsed[ph] = !dashTenantCFCollapsed[ph]; R.render(); }; })(phase)
+    }, isCollapsed ? '▸ Развернуть' : '▾ Свернуть'));
+    wrap.appendChild(U.el('div', { class: 'cf-block-head' }, headKids));
+
+    var banner = dashCFBanner(scenario, key);
+    if (banner) { wrap.appendChild(banner); }
+
+    if (!isCollapsed || CE.isEditing(key)) {
       wrap.appendChild(R.cfTable({
         rows: phaseRows,
         years: data.years,
         expandedYears: dashExpandedTenantCFYears,
-        onToggleYear: function (yr) {
-          dashExpandedTenantCFYears[yr] = !dashExpandedTenantCFYears[yr];
-          R.render();
-        },
+        onToggleYear: function (yr) { dashExpandedTenantCFYears[yr] = !dashExpandedTenantCFYears[yr]; R.render(); },
         firstColLabel: 'Арендатор',
-        showPhaseHeaders: false
+        showPhaseHeaders: false,
+        editable: CE.isEditing(key),
+        addRowPhases: [phase],
+        onEditCell: function (rowId, year, mIdx, val) { CE.editCell('tenants', rowId, year, mIdx, val); },
+        onDeleteRow: function (rowId) { CE.deleteRow('tenants', rowId); },
+        onAddRow: function (ph) { var name = window.prompt('Название строки:'); CE.addRow('tenants', name, ph); }
       }));
     }
     return wrap;

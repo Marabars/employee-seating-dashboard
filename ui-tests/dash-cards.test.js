@@ -18,7 +18,7 @@ var dom = new JSDOM(shell, { url: 'http://localhost/', runScripts: 'dangerously'
 var w = dom.window; w.scrollTo = function () {};
 if (w.HTMLCanvasElement) { w.HTMLCanvasElement.prototype.getContext = function () { return { font: '', measureText: function (t) { return { width: t.length * 7 }; } }; }; }
 ['js/constants.js', 'js/utils.js', 'js/state.js', 'js/scenarios.js', 'js/offices.js', 'js/teams.js', 'js/employees.js',
- 'js/calculations.js', 'js/allocations.js', 'js/validation.js', 'js/modals.js', 'js/render.js',
+ 'js/calculations.js', 'js/allocations.js', 'js/cfEdit.js', 'js/validation.js', 'js/modals.js', 'js/render.js',
  'js/render.dashboard.js', 'js/undoRedo.js'].forEach(function (f) {
   var s = w.document.createElement('script'); s.textContent = fs.readFileSync(path.join(REPO, f), 'utf8'); w.document.body.appendChild(s);
 });
