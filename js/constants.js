@@ -74,7 +74,6 @@ App.constants = (function () {
     NON_VIP_IN_VIP: 'NON_VIP_IN_VIP',
     VIP_NOT_IN_VIP: 'VIP_NOT_IN_VIP',
     DRAFT_ZERO_CAPACITY: 'DRAFT_ZERO_CAPACITY',
-    TEAM_SPLIT_FORBIDDEN: 'TEAM_SPLIT_FORBIDDEN',
     LINKED_TEAMS_SEPARATED: 'LINKED_TEAMS_SEPARATED',
     EMPLOYEE_REMOTE: 'EMPLOYEE_REMOTE',
     HAS_REMOTE: 'HAS_REMOTE'
@@ -196,7 +195,6 @@ App.constants = (function () {
       current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
       to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис'],
       is_vip: ['is_vip', 'vip'],
-      can_split: ['can_split', 'можно делить'],
       linked_teams: ['linked_teams', 'связанные команды'],
       comment: ['comment', 'комментарий']
     },

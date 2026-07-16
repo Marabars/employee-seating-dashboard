@@ -60,8 +60,8 @@ function makeProject() {
         { id: 'rem_asis', type: 'remote', phase: 'asis', name: 'Удаленка AS', unlimitedCapacity: true, isSystem: true }
       ],
       teams: [
-        { id: 't1', name: 'Alpha', employeesCount: 10, canSplit: true, linkedTeamIds: [], isVip: false },
-        { id: 't2', name: 'Beta', employeesCount: 10, canSplit: true, linkedTeamIds: [], isVip: false }
+        { id: 't1', name: 'Alpha', employeesCount: 10, linkedTeamIds: [], isVip: false },
+        { id: 't2', name: 'Beta', employeesCount: 10, linkedTeamIds: [], isVip: false }
       ],
       employees: [{ id: 'e1', fullName: 'Иван Иванов', teamId: 't1' }],
       // Team 't1' occupies zone z1 via TWO allocations (TEAM block + one named employee).

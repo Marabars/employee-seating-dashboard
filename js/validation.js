@@ -164,26 +164,6 @@ App.validation = (function () {
           team.id
         ));
       }
-
-      // Illegal split: a non-splittable team spread across >1 target.
-      if (team.canSplit === false) {
-        var targets = {};
-        (scenario.allocations || []).forEach(function (a) {
-          if (a.teamId === team.id) {
-            var key = (a.targetOfficeId || '') + ':' + (a.targetZoneId || '');
-            targets[key] = true;
-          }
-        });
-        if (Object.keys(targets).length > 1) {
-          out.push(msg(
-            C.LEVEL.WARNING,
-            C.CODE.TEAM_SPLIT_FORBIDDEN,
-            'Команда «' + team.name + '» отмечена как неделимая, но разделена между несколькими местами',
-            'team',
-            team.id
-          ));
-        }
-      }
     });
   }
 

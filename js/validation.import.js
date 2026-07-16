@@ -206,7 +206,6 @@ App.importValidation = (function () {
         toBeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim(),
         cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
         isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
-        canSplit: cell(row, idx, 'can_split') === undefined ? true : U.parseBoolean(cell(row, idx, 'can_split')),
         linkedTeamNames: String(cell(row, idx, 'linked_teams') || '').trim(),
         comment: String(cell(row, idx, 'comment') || '')
       });

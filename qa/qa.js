@@ -76,8 +76,8 @@ async function shot(page, name) {
       { name: 'Кабинеты', type: 'cabinet', capacity: 40 },
       { name: 'VIP-кабинеты', type: 'vip', capacity: 10 }
     ]});
-    App.teams.add({ name: 'Finance', employeesCount: 40, canSplit: true });
-    App.teams.add({ name: 'Sales', employeesCount: 25, canSplit: true });
+    App.teams.add({ name: 'Finance', employeesCount: 40 });
+    App.teams.add({ name: 'Sales', employeesCount: 25 });
     const team = App.teams.list()[0];
     for (let i = 1; i <= 6; i++) {
       App.employees.add({ fullName: 'Сотрудник ' + i + ' Финансовый', teamId: team.id, position: 'Аналитик' });

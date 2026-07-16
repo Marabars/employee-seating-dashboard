@@ -25,7 +25,7 @@ function baseProject() {
         { id: 'tobeO', type: 'physical', phase: 'tobe', name: 'Новый офис', area: 300, zones: [{ id: 'zt', name: 'Опенспейс', capacity: 150, isVipZone: false }], tenants: [] },
         { id: 'rem', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true, isSystem: true }
       ],
-      teams: [{ id: 'tm1', name: 'Финансы', employeesCount: 8, currentOfficeId: null, toBeOfficeId: null, canSplit: true, linkedTeamIds: [], isVip: false, comment: '' }],
+      teams: [{ id: 'tm1', name: 'Финансы', employeesCount: 8, currentOfficeId: null, toBeOfficeId: null, linkedTeamIds: [], isVip: false, comment: '' }],
       employees: [{ id: 'e1', fullName: 'Иванов И.И.', position: 'CFO', teamId: 'tm1', currentOfficeId: null, isVip: false, workFormat: 'office', comment: '' }],
       allocations: [
         { id: 'al1', type: 'team', teamId: 'tm1', employeeId: null, employeesCount: 3, targetOfficeId: 'asisO', targetZoneId: 'za', comment: '' },

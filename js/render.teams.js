@@ -97,7 +97,7 @@ window.App = window.App || {};
     var table = U.el('table', { class: 'data-table' });
     table.appendChild(U.el('thead', {}, U.el('tr', {}, [
       th(''), th('Команда'), th('Численность'), th('AS-IS офис'), th('TO-BE офис'),
-      th('VIP'), th('Делимая'), th('Распределено'), th('Остаток'), th('')
+      th('VIP'), th('Распределено'), th('Остаток'), th('')
     ])));
     var tbody = U.el('tbody');
 
@@ -156,14 +156,13 @@ window.App = window.App || {};
           return td;
         }()),
         U.el('td', { text: team.isVip ? 'Да' : '—' }),
-        U.el('td', { text: team.canSplit === false ? 'Нет' : 'Да' }),
         U.el('td', { text: String(allocated) }),
         U.el('td', { text: String(remainder), class: remainder < 0 ? 'cell-error' : (remainder > 0 ? 'cell-warn' : '') }),
         actionsCell
       ]));
 
       if (isExpanded) {
-        tbody.appendChild(U.el('tr', { class: 'expand-row' }, U.el('td', { colspan: '10' }, [
+        tbody.appendChild(U.el('tr', { class: 'expand-row' }, U.el('td', { colspan: '9' }, [
           renderTeamDetail(scenario, team)
         ])));
       }
@@ -552,7 +551,6 @@ window.App = window.App || {};
       employeesCount: team.employeesCount,
       currentOfficeId: team.currentOfficeId || null,
       isVip: team.isVip,
-      canSplit: team.canSplit !== false,
       linkedTeamIds: [],
       comment: team.comment || ''
     });
@@ -678,7 +676,6 @@ window.App = window.App || {};
           offices: tobeOffices, headcount: headcountNow, value: teamPhaseRows(scenario, team, C.OFFICE_PHASE.TOBE),
           help: 'План переезда. Удалёнку тоже можно выбрать. Сумма не больше численности.' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: team ? team.isVip : false },
-        { name: 'canSplit', label: 'Можно делить', type: 'checkbox', value: team ? team.canSplit !== false : true },
         { name: 'linkedTeamIds', label: 'Связанные команды (переезжают вместе, в одном офисе)',
           type: 'checkboxgroup', options: linkOptions, value: team ? (team.linkedTeamIds || []) : [],
           help: 'Связанные команды должны размещаться в одном офисе (зоны могут отличаться). Иначе — ошибка.' },

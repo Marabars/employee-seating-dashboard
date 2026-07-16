@@ -219,7 +219,7 @@ App.importExport = (function () {
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
     addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Дата начала аренды', 'Дата окончания аренды', 'Дата начала индексации', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Фаза офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Можно делить', 'Связанные команды', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Связанные команды', 'Комментарий']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'AS-IS офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
     addSheetFromHeaders(wb, 'Tenants', ['Название офиса', 'Фаза офиса', 'Арендатор', 'Площадь']);
     addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Фаза', 'Количество', 'Офис', 'Зона', 'Комментарий']);
@@ -442,7 +442,6 @@ App.importExport = (function () {
         currentOfficeId: currentOfficeLookup ? currentOfficeLookup.id : null,
         toBeOfficeId: toBeOfficeLookup ? toBeOfficeLookup.id : null,
         isVip: data.isVip,
-        canSplit: data.canSplit,
         linkedTeamIds: [],
         comment: data.comment
       };
@@ -465,39 +464,6 @@ App.importExport = (function () {
       });
     });
 
-    // Team placement from the Teams sheet office columns — only when no explicit
-    // Allocations sheet was provided (which is authoritative and handles splits).
-    // Mirrors the employee current_office behaviour so a hand-filled Teams sheet
-    // actually places teams. A comma-listed (split) cell won't resolve to a single
-    // office and is intentionally left to the Allocations sheet.
-    if (!parsed.allocations.length) {
-      parsed.teams.forEach(function (data) {
-        var team = teamByName[data.name.toLowerCase()];
-        if (!team) { return; }
-        [[data.currentOfficeName, 'asis'], [data.toBeOfficeName, 'tobe']].forEach(function (pair) {
-          var officeName = pair[0];
-          if (!officeName) { return; }
-          var office = findOffice(officeName, pair[1]);
-          if (!office) { return; }
-          var zone = null;
-          if (data.cabinetName) {
-            var cab = data.cabinetName.toLowerCase();
-            (office.zones || []).forEach(function (z) { if (z.name.toLowerCase() === cab) { zone = z; } });
-          }
-          scenario.allocations.push({
-            id: U.genId('alloc'),
-            type: C.ALLOCATION_TYPE.TEAM,
-            teamId: team.id,
-            employeeId: null,
-            employeesCount: team.employeesCount || 1,
-            targetOfficeId: office.id,
-            targetZoneId: zone ? zone.id : null,
-            comment: ''
-          });
-        });
-      });
-    }
-
     // Auto-create teams referenced by employees but missing from the Teams sheet.
     var autoCreatedTeams = 0;
     parsed.employees.forEach(function (data) {
@@ -510,7 +476,6 @@ App.importExport = (function () {
           employeesCount: 0,
           currentOfficeId: null,
           isVip: false,
-          canSplit: true,
           linkedTeamIds: [],
           comment: ''
         };
@@ -610,6 +575,55 @@ App.importExport = (function () {
       });
     }
 
+    // Team distribution from the Teams sheet AS-IS/TO-BE columns ("Офис / Зона (N)"
+    // per line). When a column is non-empty it is authoritative for that team's
+    // TEAM allocations in that phase: existing team rows in the phase (incl. any
+    // from the Allocations sheet) are replaced. Named-employee allocations are
+    // left untouched. Empty column → keep whatever the Allocations sheet placed.
+    parsed.teams.forEach(function (data) {
+      var team = teamByName[data.name.toLowerCase()];
+      if (!team) { return; }
+      [['currentOfficeName', C.OFFICE_PHASE.ASIS], ['toBeOfficeName', C.OFFICE_PHASE.TOBE]].forEach(function (pair) {
+        var places = parsePlacementCell(data[pair[0]]);
+        if (!places.length) { return; }
+        var phase = pair[1];
+        // Remove this team's existing TEAM allocations in the phase.
+        scenario.allocations = scenario.allocations.filter(function (a) {
+          if (a.teamId !== team.id || a.type !== C.ALLOCATION_TYPE.TEAM) { return true; }
+          var o = U.findById(scenario.offices, a.targetOfficeId);
+          if (!o) { return true; }
+          var inPhase = phase === C.OFFICE_PHASE.ASIS
+            ? o.phase === C.OFFICE_PHASE.ASIS
+            : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
+          return !inPhase;
+        });
+        places.forEach(function (p) {
+          var office = findOffice(p.officeName, phase);
+          if (!office) {
+            parsed.report.warnings.push('Распределение «' + team.name + '»: офис «' + p.officeName + '» не найден — пропущено');
+            return;
+          }
+          var zone = null;
+          if (p.zoneName) {
+            var zl = p.zoneName.toLowerCase();
+            (office.zones || []).forEach(function (z) { if (z.name.toLowerCase() === zl) { zone = z; } });
+          }
+          var count = (p.count !== null) ? p.count : (team.employeesCount || 1);
+          if (count <= 0) { return; }
+          scenario.allocations.push({
+            id: U.genId('alloc'),
+            type: C.ALLOCATION_TYPE.TEAM,
+            teamId: team.id,
+            employeeId: null,
+            employeesCount: count,
+            targetOfficeId: office.id,
+            targetZoneId: zone ? zone.id : null,
+            comment: ''
+          });
+        });
+      });
+    });
+
     // Ensure employeesCount >= named count (import bypasses App.employees.add).
     scenario.teams.forEach(function (team) {
       var named = scenario.employees.filter(function (e) { return e.teamId === team.id; }).length;
@@ -641,6 +655,28 @@ App.importExport = (function () {
   function dateOrNull(v) {
     var s = (v === undefined || v === null) ? '' : String(v).trim();
     return s || null;
+  }
+
+  /**
+   * Parse a Teams-sheet distribution cell into placement rows. Each line is
+   * "Офис / Зона (N)"; zone and "(N)" are optional. Returns
+   * [{ officeName, zoneName|null, count|null }]. count null → caller decides
+   * (whole team). A plain "Офис" line (hand-filled) still resolves.
+   */
+  function parsePlacementCell(raw) {
+    var out = [];
+    String(raw === undefined || raw === null ? '' : raw).split(/\r?\n/).forEach(function (line) {
+      var t = line.trim();
+      if (!t) { return; }
+      var count = null;
+      var m = t.match(/\((\d+)\)\s*$/);
+      if (m) { count = parseInt(m[1], 10); t = t.slice(0, m.index).trim(); }
+      var parts = t.split(' / ');
+      var officeName = (parts.shift() || '').trim();
+      var zoneName = parts.length ? parts.join(' / ').trim() : null;
+      if (officeName) { out.push({ officeName: officeName, zoneName: zoneName || null, count: count }); }
+    });
+    return out;
   }
 
   function makeOffice(data) {
@@ -867,33 +903,46 @@ App.importExport = (function () {
   }
 
   /**
-   * Distinct office names where a team is actually placed (via TEAM allocations)
-   * in the given phase, comma-joined. AS-IS = asis-phase offices; TO-BE =
-   * tobe-phase or remote offices (mirrors setTeamPhaseAllocations). Falls back to
-   * the legacy declared office (t.currentOfficeId / t.toBeOfficeId) when the team
-   * has no allocation in that phase, so single-office declarations still export.
+   * A team's actual placement in a phase as human-readable lines
+   * "Офис / Зона (N)" (one per office+zone), newline-joined — mirrors the
+   * "Команды" tab. Count = max(bulk TEAM seats, named employees) per office/zone.
+   * AS-IS = asis offices; TO-BE = tobe or remote offices. Falls back to the
+   * legacy declared office name when the team has no allocation in that phase.
    */
-  function teamPhaseOffices(s, team, phase, legacyOfficeId) {
-    var names = [];
-    var seen = {};
+  function teamPhasePlacements(s, team, phase, legacyOfficeId) {
+    var byKey = {};
+    var order = [];
     (s.allocations || []).forEach(function (a) {
-      // Any allocation referencing this team (bulk TEAM seats OR individual
-      // named-employee placements), matching the Teams-tab columns.
       if (a.teamId !== team.id) { return; }
       var o = U.findById(s.offices, a.targetOfficeId);
       if (!o) { return; }
       var inPhase = phase === C.OFFICE_PHASE.ASIS
         ? o.phase === C.OFFICE_PHASE.ASIS
         : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
-      if (inPhase && !seen[o.id]) { seen[o.id] = true; names.push(o.name); }
+      if (!inPhase) { return; }
+      var zoneId = a.targetZoneId || '';
+      var key = a.targetOfficeId + '|' + zoneId;
+      if (!byKey[key]) {
+        var zone = zoneId ? U.findById(o.zones || [], zoneId) : null;
+        byKey[key] = { officeName: o.name, zoneName: zone ? zone.name : null, teamSeats: 0, named: 0 };
+        order.push(key);
+      }
+      if (a.type === C.ALLOCATION_TYPE.TEAM) { byKey[key].teamSeats += (a.employeesCount || 0); }
+      else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) { byKey[key].named += 1; }
     });
-    if (names.length) { return names.join(', '); }
+    if (order.length) {
+      return order.map(function (k) {
+        var e = byKey[k];
+        var count = Math.max(e.teamSeats, e.named);
+        return e.officeName + (e.zoneName ? ' / ' + e.zoneName : '') + ' (' + count + ')';
+      }).join('\n');
+    }
     var legacy = U.findById(s.offices, legacyOfficeId);
     return legacy ? legacy.name : '';
   }
 
   function buildTeams(scenarios, inc) {
-    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'can_split', 'linked_teams', 'comment'], inc)];
+    var aoa = [withScenarioCol(['team_name', 'employees_count', 'current_office', 'to_be_office', 'is_vip', 'linked_teams', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
         var linkedNames = (t.linkedTeamIds || []).map(function (id) {
@@ -902,9 +951,9 @@ App.importExport = (function () {
         }).filter(Boolean).join(', ');
         aoa.push(rowWithScenario(s, [
           t.name, t.employeesCount || 0,
-          teamPhaseOffices(s, t, C.OFFICE_PHASE.ASIS, t.currentOfficeId),
-          teamPhaseOffices(s, t, C.OFFICE_PHASE.TOBE, t.toBeOfficeId),
-          t.isVip ? 'да' : 'нет', t.canSplit === false ? 'нет' : 'да',
+          teamPhasePlacements(s, t, C.OFFICE_PHASE.ASIS, t.currentOfficeId),
+          teamPhasePlacements(s, t, C.OFFICE_PHASE.TOBE, t.toBeOfficeId),
+          t.isVip ? 'да' : 'нет',
           linkedNames, t.comment || ''
         ], inc));
       });

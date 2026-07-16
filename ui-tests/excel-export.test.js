@@ -14,7 +14,7 @@ var App = w.App, XLSX = w.XLSX;
 
 var scen = { id: 's1', name: 'S', comment: '', cfOverride: { offices: [{ id: 'c1', name: 'A', phase: 'tobe', monthly: { '2026': [2,2,2,2,2,2,2,2,2,2,2,2] } }], tenants: [] },
   offices: [{ id: 'o1', type: 'physical', phase: 'tobe', name: 'A', area: 100, rentPerSqm: 1000, opexPerSqm: 50, indexationPct: 10, leaseStartDate: '2026-01-01', leaseEndDate: '2028-08-30', indexationStartDate: '2026-06-01', zones: [{ id: 'z', name: 'Z', capacity: 50, isVipZone: false }], tenants: [{ id: 't', name: 'МР Групп', area: 40 }] }],
-  teams: [{ id: 'tm', name: 'Alpha', employeesCount: 10, canSplit: true, linkedTeamIds: [], isVip: false }],
+  teams: [{ id: 'tm', name: 'Alpha', employeesCount: 10, linkedTeamIds: [], isVip: false }],
   employees: [],
   allocations: [{ id: 'a', type: 'team', teamId: 'tm', employeeId: null, employeesCount: 5, targetOfficeId: 'o1', targetZoneId: 'z' }] };
 

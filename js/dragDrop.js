@@ -346,18 +346,10 @@ App.dragDrop = (function () {
       suggested = team.employeesCount || 1;
     }
 
-    // Non-splittable team already placed elsewhere -> warn before opening popup.
-    var alreadyPlaced = scenario.allocations.some(function (a) {
-      return a.teamId === teamId;
-    });
-    var splitWarn = (team.canSplit === false && alreadyPlaced)
-      ? 'Команда отмечена как неделимая и уже частично размещена.'
-      : null;
-
     // For physical offices the placement must target a zone. If the team was
     // dropped on the office body, the popup includes a zone selector.
     var needZone = !isRemote;
-    openCountPopup(team, suggested, splitWarn, office, zone, needZone, function (count, comment, zoneId) {
+    openCountPopup(team, suggested, null, office, zone, needZone, function (count, comment, zoneId) {
       var z = zoneId ? alloc.findZone(scenario, zoneId) : null;
       if (!isRemote && z) {
         var conflict = alloc.vipConflict(!!team.isVip, z);

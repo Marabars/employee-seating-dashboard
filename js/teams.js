@@ -34,7 +34,6 @@ App.teams = (function () {
       currentOfficeId: data.currentOfficeId || null,
       toBeOfficeId: data.toBeOfficeId || null,
       isVip: !!data.isVip,
-      canSplit: data.canSplit !== false, // default: splittable
       linkedTeamIds: [],
       comment: data.comment || '',
       color: data.color || ''
@@ -68,9 +67,6 @@ App.teams = (function () {
       }
       if (data.isVip !== undefined) {
         team.isVip = !!data.isVip;
-      }
-      if (data.canSplit !== undefined) {
-        team.canSplit = !!data.canSplit;
       }
       if (data.comment !== undefined) {
         team.comment = data.comment;

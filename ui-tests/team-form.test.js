@@ -46,7 +46,7 @@ function project() {
         { id: 't2o', type: 'physical', phase: 'tobe', name: 'TobeB', area: 100, zones: [{ id: 'tz2', name: 'Z2', capacity: 50, isVipZone: false }], tenants: [] },
         { id: 'rem', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true, isSystem: true }
       ],
-      teams: [{ id: 'tm', name: 'Alpha', employeesCount: 10, canSplit: true, linkedTeamIds: [], isVip: false }],
+      teams: [{ id: 'tm', name: 'Alpha', employeesCount: 10, linkedTeamIds: [], isVip: false }],
       employees: [], allocations: []
     }]
   };

@@ -39,7 +39,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       zones: [{ name: 'Опенспейс', type: 'open_space', capacity: 90 }, { name: 'Кабинеты', type: 'cabinet', capacity: 20 }, { name: 'VIP', type: 'vip', capacity: 7 }] });
     App.offices.addOffice('asis', { name: 'Нева 17', area: 1500, rentPerSqm: 25000, opexPerSqm: 5000, indexationPct: 5,
       zones: [{ name: 'Опенспейс', type: 'open_space', capacity: 120 }] });
-    App.teams.add({ name: 'Finance', employeesCount: 40, canSplit: true });
+    App.teams.add({ name: 'Finance', employeesCount: 40 });
     var off = App.calc.getTobeOffices(App.state.getActiveScenario())[0];
     var team = App.teams.list()[0];
     App.allocations.addTeamAllocation(team.id, 30, off.id, off.zones[0].id, '');

@@ -31,7 +31,7 @@
         { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка', isSystem: true, unlimitedCapacity: true }
       ],
       teams: [
-        { id: 't1', name: 'Finance', employeesCount: 40, isVip: false, canSplit: true }
+        { id: 't1', name: 'Finance', employeesCount: 40, isVip: false }
       ],
       employees: [],
       allocations: [
@@ -177,7 +177,7 @@
           zones: [{ id: 'zB', name: 'Зона B', capacity: 50, isVipZone: false }] },
         { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка' }
       ],
-      teams: [{ id: 't1', name: 'Alpha', employeesCount: 10, canSplit: true }],
+      teams: [{ id: 't1', name: 'Alpha', employeesCount: 10 }],
       employees: [
         { id: 'e1', fullName: 'Иван Иванов', teamId: 't1' },
         { id: 'e2', fullName: 'Мария Петрова', teamId: 't1' }
@@ -353,7 +353,7 @@
           { id: 'new1', type: 'physical', phase: 'tobe', name: 'B', zones: [{ id: 'z1', name: 'O', type: 'open_space', capacity: 10, isVipZone: false }] },
           { id: 'remote', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true }
         ],
-        teams: [{ id: 't1', name: 'A', employeesCount: 10, canSplit: true }],
+        teams: [{ id: 't1', name: 'A', employeesCount: 10 }],
         employees: [],
         allocations: [
           { id: 'a1', type: 'team', teamId: 't1', employeesCount: 40, targetOfficeId: 'new1', targetZoneId: 'z1' },

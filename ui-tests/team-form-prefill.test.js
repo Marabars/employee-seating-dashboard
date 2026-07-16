@@ -36,7 +36,7 @@ App.state.setProject({
       { id: 't1o', type: 'physical', phase: 'tobe', name: 'Стекляшка', area: 100, zones: [{ id: 'tz', name: '3й этаж', capacity: 50, isVipZone: false }], tenants: [] },
       { id: 'rem', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true, isSystem: true }
     ],
-    teams: [{ id: 'tm', name: 'MR Private', employeesCount: 10, canSplit: false, linkedTeamIds: [], isVip: false, currentOfficeId: null, toBeOfficeId: 't1o' }],
+    teams: [{ id: 'tm', name: 'MR Private', employeesCount: 10, linkedTeamIds: [], isVip: false, currentOfficeId: null, toBeOfficeId: 't1o' }],
     employees: [
       { id: 'e1', fullName: 'Атанасиу К.', teamId: 'tm', currentOfficeId: null, isVip: false, workFormat: 'office' },
       { id: 'e2', fullName: 'Зуева Е.', teamId: 'tm', currentOfficeId: null, isVip: false, workFormat: 'office' }

@@ -21,7 +21,7 @@ App.state.setProject({ projectVersion: '1.0.0', appName: 't',
       { id: 'r1', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true, isSystem: true },
       { id: 'r0', type: 'remote', phase: 'asis', name: 'Удаленка AS', unlimitedCapacity: true, isSystem: true }
     ],
-    teams: [{ id: 'tm', name: 'Alpha', employeesCount: 10, canSplit: true, linkedTeamIds: [], isVip: false, currentOfficeId: null, toBeOfficeId: 'o1' }],
+    teams: [{ id: 'tm', name: 'Alpha', employeesCount: 10, linkedTeamIds: [], isVip: false, currentOfficeId: null, toBeOfficeId: 'o1' }],
     employees: [],
     allocations: [{ id: 'a', type: 'team', teamId: 'tm', employeeId: null, employeesCount: 5, targetOfficeId: 'o1', targetZoneId: 'z' }] }] });
 App.state.setActiveScenario('src');
