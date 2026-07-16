@@ -42,6 +42,46 @@ window.App = window.App || {};
     return null;
   }
 
+  // Phase-specific palette for the CF section (block 4), from
+  // "Цвета для визуализации.xlsx": TO BE greens, AS IS purples, offices and
+  // tenants keyed separately. Substring match on the lowercased name so office
+  // suffixes like "(МР Групп)" still resolve.
+  var CF_OFFICE_COLORS = {
+    tobe: [
+      { k: 'нева 14й этаж 1я', c: '#457F78' }, { k: 'нева 14й этаж 2я', c: '#6AAEA6' },
+      { k: 'нева 8й этаж', c: '#518F4F' }, { k: 'нева 17й этаж', c: '#467E5D' },
+      { k: 'нева 16й этаж', c: '#9BC4D5' }, { k: 'icity 31', c: '#89BD9E' },
+      { k: 'савеловск', c: '#5BCD8C' }, { k: 'стекляшк', c: '#CCECD7' }, { k: 'заселени', c: '#7AE2BF' }
+    ],
+    asis: [
+      { k: 'нева 14й этаж 1я', c: '#7549E8' }, { k: 'нева 14й этаж 2я', c: '#AC92F1' },
+      { k: 'нева 8й этаж', c: '#E3DBFA' }, { k: 'нева 17й этаж', c: '#CCC8D8' },
+      { k: 'нева 16й этаж', c: '#9BC4D5' }, { k: 'icity 31', c: '#6A6087' },
+      { k: 'савеловск', c: '#88499F' }, { k: 'стекляшк', c: '#D4B8DE' }, { k: 'заселени', c: '#9999FF' }
+    ]
+  };
+  var CF_TENANT_COLORS = {
+    tobe: [
+      { k: 'верейск', c: '#457F78' }, { k: 'стройкапитал', c: '#6AAEA6' }, { k: 'эпсилон', c: '#467E5D' },
+      { k: 'мр клаб', c: '#89BD9E' }, { k: 'мр групп', c: '#5BCD8C' }, { k: 'т2 девелоп', c: '#CCECD7' }
+    ],
+    asis: [
+      { k: 'мр групп', c: '#7549E8' }, { k: 'мр клаб', c: '#AC92F1' }, { k: 'эпсилон', c: '#E3DBFA' },
+      { k: 'верейск', c: '#CCC8D8' }, { k: 'стройкапитал', c: '#6A6087' }, { k: 'т2 девелоп', c: '#D4B8DE' }
+    ]
+  };
+
+  function cfColorFrom(table, name, phase) {
+    var list = table[phase] || table.tobe;
+    var lower = (name || '').toLowerCase();
+    for (var i = 0; i < list.length; i++) {
+      if (lower.indexOf(list[i].k) !== -1) { return list[i].c; }
+    }
+    return null;
+  }
+  function cfOfficeColor(name, phase) { return cfColorFrom(CF_OFFICE_COLORS, name, phase); }
+  function cfTenantColor(name, phase) { return cfColorFrom(CF_TENANT_COLORS, name, phase); }
+
   function totalSeats(scenario, phase) {
     var total = 0;
     (scenario.offices || []).forEach(function (o) {
@@ -493,20 +533,24 @@ window.App = window.App || {};
     var tobeTenantRows = rowsOf(cfData.tenantRows, C.OFFICE_PHASE.TOBE);
     var asisTenantRows = rowsOf(cfData.tenantRows, C.OFFICE_PHASE.ASIS);
 
-    function buildColorMap(rowsArrays) {
+    function buildColorMap(rowsArrays, colorFn) {
       var map = {}; var i = 0;
       rowsArrays.forEach(function (rows) {
         rows.forEach(function (r) {
-          if (map[r.id] === undefined) { map[r.id] = officeColor(r.name) || PALETTE[i % PALETTE.length]; i++; }
+          var key = rowKey(r);
+          if (map[key] === undefined) { map[key] = colorFn(r.name, r.phase) || PALETTE[i % PALETTE.length]; i++; }
         });
       });
       return map;
     }
-    var officeColorMap = buildColorMap([tobeOfficeRows, asisOfficeRows]);
-    var tenantColorMap = buildColorMap([tobeTenantRows, asisTenantRows]);
+    // Tenant rows reuse the same id across phases (id = 'cftenant_'+name), so key
+    // colors by phase+id to keep AS IS and TO BE distinct.
+    function rowKey(r) { return r.phase + '|' + r.id; }
+    var officeColorMap = buildColorMap([tobeOfficeRows, asisOfficeRows], cfOfficeColor);
+    var tenantColorMap = buildColorMap([tobeTenantRows, asisTenantRows], cfTenantColor);
 
     function segsFor(rows, idx) {
-      return rows.map(function (r) { return { key: r.id, name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 }; });
+      return rows.map(function (r) { return { key: rowKey(r), name: r.name, value: idx >= 0 ? (r.values[idx] || 0) : 0 }; });
     }
     function groupedData(asisRows, tobeRows) {
       return years.map(function (yr) {
@@ -517,12 +561,13 @@ window.App = window.App || {};
         ] };
       });
     }
-    function legendOf(rowsArrays, colorMap) {
+    // Colors differ by phase, so the legend labels each entry with its phase.
+    function legendOf(labeledArrays, colorMap) {
       var seen = {}; var items = [];
-      rowsArrays.forEach(function (rows) {
-        rows.forEach(function (r) {
-          var k = (r.name || '').toLowerCase();
-          if (!seen[k]) { seen[k] = true; items.push({ name: r.name, color: colorMap[r.id] }); }
+      labeledArrays.forEach(function (la) {
+        la.rows.forEach(function (r) {
+          var k = la.label + '|' + (r.name || '').toLowerCase();
+          if (!seen[k]) { seen[k] = true; items.push({ name: r.name + ' — ' + la.label, color: colorMap[rowKey(r)] }); }
         });
       });
       return items;
@@ -535,12 +580,12 @@ window.App = window.App || {};
     var card1 = U.el('div', { class: 'viz-cf-card' });
     card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (AS IS / TO BE)' }));
     card1.appendChild(renderStackedBarSVG(groupedData(asisOfficeRows, tobeOfficeRows), function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true }));
-    card1.appendChild(renderChartLegend(legendOf([tobeOfficeRows, asisOfficeRows], officeColorMap)));
+    card1.appendChild(renderChartLegend(legendOf([{ rows: asisOfficeRows, label: 'AS IS' }, { rows: tobeOfficeRows, label: 'TO BE' }], officeColorMap)));
 
     var card2 = U.el('div', { class: 'viz-cf-card' });
     card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по арендаторам (AS IS / TO BE)' }));
     card2.appendChild(renderStackedBarSVG(groupedData(asisTenantRows, tobeTenantRows), function (key) { return tenantColorMap[key] || '#aaa'; }, { showTotals: true }));
-    card2.appendChild(renderChartLegend(legendOf([tobeTenantRows, asisTenantRows], tenantColorMap)));
+    card2.appendChild(renderChartLegend(legendOf([{ rows: asisTenantRows, label: 'AS IS' }, { rows: tobeTenantRows, label: 'TO BE' }], tenantColorMap)));
 
     row.appendChild(card1);
     row.appendChild(card2);

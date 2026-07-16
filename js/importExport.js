@@ -16,6 +16,10 @@ App.importExport = (function () {
   var state = App.state;
   var calc = App.calc;
 
+  // Synthetic tenant label for un-let office area (mirrors calculations.js CF-by-tenant).
+  // Exported for readability; skipped on import so it never becomes a real tenant.
+  var NO_TENANT_LABEL = 'Без арендатора';
+
   // ---- JSON --------------------------------------------------------------
 
   function doExportJson(project, selectedScenarios) {
@@ -412,6 +416,8 @@ App.importExport = (function () {
 
     // Tenants (office tenant list).
     (parsed.tenants || []).forEach(function (t) {
+      // Synthetic "Без арендатора" is a computed export artifact — never a real tenant.
+      if ((t.name || '').trim().toLowerCase() === NO_TENANT_LABEL.toLowerCase()) { return; }
       var office = findOffice(t.officeName, t.officePhase);
       if (!office || office.type !== C.OFFICE_TYPE.PHYSICAL) {
         parsed.report.warnings.push('Арендатор «' + t.name + '»: офис «' + t.officeName + '» не найден');
@@ -960,9 +966,20 @@ App.importExport = (function () {
     var aoa = [withScenarioCol(['office_name', 'office_phase', 'tenant_name', 'area'], inc)];
     scenarios.forEach(function (s) {
       s.offices.filter(function (o) { return o.type === C.OFFICE_TYPE.PHYSICAL; }).forEach(function (o) {
-        (o.tenants || []).forEach(function (t) {
-          aoa.push(rowWithScenario(s, [o.name, o.phase || 'tobe', t.name || '', t.area || 0], inc));
+        var phaseOut = o.phase || 'tobe';
+        var hasMoney = o.rentPerSqm || o.opexPerSqm;
+        var tList = o.tenants || [];
+        var assigned = 0;
+        tList.forEach(function (t) {
+          aoa.push(rowWithScenario(s, [o.name, phaseOut, t.name || '', t.area || 0], inc));
+          assigned += (t.area || 0);
         });
+        // Remaining (or whole) office area as the computed "Без арендатора" row,
+        // matching the CF-by-tenant breakdown. Only when the office carries rent/opex.
+        var remaining = (o.area || 0) - assigned;
+        if (hasMoney && remaining > 0.001) {
+          aoa.push(rowWithScenario(s, [o.name, phaseOut, NO_TENANT_LABEL, remaining], inc));
+        }
       });
     });
     return aoa;
@@ -970,8 +987,16 @@ App.importExport = (function () {
 
   function buildCF(scenarios, inc) {
     var aoa = [withScenarioCol(['kind', 'phase', 'name', 'year', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12'], inc)];
+    var cfS = {};
+    try { var st = state.getSettings(); cfS = (st && st.cfSettings) || {}; } catch (e) { cfS = {}; }
+    var startY = cfS.startYear || 2026;
+    var endY = cfS.endYear || 2030;
+    var cfYears = [];
+    for (var yy = startY; yy <= endY; yy++) { cfYears.push(yy); }
     scenarios.forEach(function (s) {
-      var ov = s.cfOverride;
+      // Manual override when present; otherwise the computed CF (same numbers the
+      // Финансы/Визуализация tabs show), so the sheet is never empty.
+      var ov = s.cfOverride || calc.buildOverrideFromComputed(s, cfYears);
       if (!ov) { return; }
       ['offices', 'tenants'].forEach(function (listKey) {
         var kind = listKey === 'tenants' ? 'tenant' : 'office';
