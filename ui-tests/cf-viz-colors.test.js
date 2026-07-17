@@ -21,7 +21,8 @@ var App = w.App, U = App.utils;
 function office(id, phase, name) {
   return { id: id, type: 'physical', phase: phase, name: name, area: 100, rentPerSqm: 1000, opexPerSqm: 0, indexationPct: 0,
     leaseStartDate: null, leaseEndDate: null, indexationStartDate: null,
-    zones: [{ id: id + 'z', name: 'Z', capacity: 50, isVipZone: false }], tenants: [{ id: id + 't', name: 'МР Групп', area: 100 }] };
+    zones: [{ id: id + 'z', name: 'Z', capacity: 50, isVipZone: false }],
+    tenants: [{ id: id + 't', name: 'МР Групп', area: 60 }, { id: id + 't2', name: 'СЗ T2 Девелопмент', area: 40 }] };
 }
 App.state.setProject({ projectVersion: '1.0.0', appName: 't',
   settings: { thresholds: { greenMaxPercent: 85, yellowMaxPercent: 100 }, viewOnlyMode: false, lastSelectedScenarioId: 's1', cfSettings: { startYear: 2026, endYear: 2026 } },
@@ -45,6 +46,8 @@ assert(officeFills.indexOf('#E3DBFA') > -1, 'office AS IS "Нева 8й этаж
 var tenantFills = fills(cards[1]);
 assert(tenantFills.indexOf('#5BCD8C') > -1, 'tenant TO BE "МР Групп" = #5BCD8C — got ' + JSON.stringify(tenantFills));
 assert(tenantFills.indexOf('#7549E8') > -1, 'tenant AS IS "МР Групп" = #7549E8');
+assert(tenantFills.indexOf('#CCECD7') > -1, 'tenant TO BE "СЗ T2 Девелопмент" = #CCECD7 — got ' + JSON.stringify(tenantFills));
+assert(tenantFills.indexOf('#D4B8DE') > -1, 'tenant AS IS "СЗ T2 Девелопмент" = #D4B8DE');
 var lg = legendText(cards[0]);
 assert(lg.some(function (t) { return /AS IS/.test(t); }) && lg.some(function (t) { return /TO BE/.test(t); }), 'office legend is phase-aware — got ' + JSON.stringify(lg));
 

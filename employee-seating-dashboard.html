@@ -1032,14 +1032,14 @@ tr.office-drop-below > td {
 
 /* Visualization — CF section */
 .viz-cf-section { margin-top: 8px; }
-.viz-cf-row { display: flex; gap: 24px; flex-wrap: wrap; }
-.viz-cf-card { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-.viz-cf-card svg { max-height: 520px; }
-.viz-cf-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 12px; }
-.viz-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; }
-.viz-chart-legend-entry { display: flex; align-items: center; gap: 6px; }
-.viz-chart-legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
-.viz-chart-legend-label { font-size: 0.88em; color: #fff; font-weight: 600; }
+.viz-cf-row { display: flex; flex-direction: column; gap: 28px; }
+.viz-cf-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+.viz-cf-card svg { max-height: 680px; }
+.viz-cf-chart-title { font-weight: 600; font-size: 1.05em; margin-bottom: 12px; }
+.viz-chart-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; }
+.viz-chart-legend-entry { display: flex; align-items: center; gap: 8px; }
+.viz-chart-legend-dot { width: 15px; height: 15px; border-radius: 2px; flex-shrink: 0; }
+.viz-chart-legend-label { font-size: 1em; color: #fff; font-weight: 600; }
 
 .cf-edit-input {
   width: 68px;
@@ -9701,11 +9701,11 @@ window.App = window.App || {};
   var CF_TENANT_COLORS = {
     tobe: [
       { k: 'верейск', c: '#457F78' }, { k: 'стройкапитал', c: '#6AAEA6' }, { k: 'эпсилон', c: '#467E5D' },
-      { k: 'мр клаб', c: '#89BD9E' }, { k: 'мр групп', c: '#5BCD8C' }, { k: 'т2 девелоп', c: '#CCECD7' }
+      { k: 'мр клаб', c: '#89BD9E' }, { k: 'мр групп', c: '#5BCD8C' }, { k: 'девелоп', c: '#CCECD7' }
     ],
     asis: [
       { k: 'мр групп', c: '#7549E8' }, { k: 'мр клаб', c: '#AC92F1' }, { k: 'эпсилон', c: '#E3DBFA' },
-      { k: 'верейск', c: '#CCC8D8' }, { k: 'стройкапитал', c: '#6A6087' }, { k: 'т2 девелоп', c: '#D4B8DE' }
+      { k: 'верейск', c: '#CCC8D8' }, { k: 'стройкапитал', c: '#6A6087' }, { k: 'девелоп', c: '#D4B8DE' }
     ]
   };
 
@@ -10040,8 +10040,8 @@ window.App = window.App || {};
     function stackSum(segs) { return segs.reduce(function (a, s) { return a + (s.value > 0 ? s.value : 0); }, 0); }
     var hasLabels = yearsData.length && groupsOf(yearsData[0])[0].label != null;
 
-    var svgW = 500; var svgH = 420;
-    var padL = 60; var padR = 14; var padT = showTotals ? 36 : 20; var padB = hasLabels ? 64 : 50;
+    var svgW = 500; var svgH = 450;
+    var padL = 64; var padR = 14; var padT = showTotals ? 40 : 24; var padB = hasLabels ? 74 : 54;
     var chartW = svgW - padL - padR;
     var chartH = svgH - padT - padB;
 
@@ -10076,20 +10076,20 @@ window.App = window.App || {};
         'stroke-dasharray': gi > 0 ? '4,3' : 'none'
       }));
       if (gi > 0) {
-        svg.appendChild(svgEl('text', { x: padL - 5, y: yPx + 4, 'text-anchor': 'end', 'font-size': '11', fill: 'rgba(210,210,210,0.85)' }, String(yVal)));
+        svg.appendChild(svgEl('text', { x: padL - 6, y: yPx + 4, 'text-anchor': 'end', 'font-size': '13', fill: 'rgba(210,210,210,0.85)' }, String(yVal)));
       }
     }
 
     svg.appendChild(svgEl('text', {
-      transform: 'translate(11,' + (padT + chartH / 2) + ') rotate(-90)',
-      'text-anchor': 'middle', 'font-size': '10', fill: 'rgba(180,180,180,0.8)'
+      transform: 'translate(13,' + (padT + chartH / 2) + ') rotate(-90)',
+      'text-anchor': 'middle', 'font-size': '12', fill: 'rgba(180,180,180,0.8)'
     }, 'млн. руб.'));
 
     var yBase = padT + chartH;
     yearsData.forEach(function (yd, bi) {
       var groups = groupsOf(yd);
       var nG = groups.length || 1;
-      var groupAreaW = colW * 0.78;
+      var groupAreaW = colW * 0.60;
       var gap = nG > 1 ? groupAreaW * 0.12 : 0;
       var barW = (groupAreaW - gap * (nG - 1)) / nG;
       var colStart = padL + bi * colW + (colW - groupAreaW) / 2;
@@ -10104,37 +10104,37 @@ window.App = window.App || {};
           var rect = svgEl('rect', { x: barX, y: rectY, width: barW, height: h, fill: colorFn(seg.key), rx: 2 });
           rect.appendChild(svgEl('title', {}, (seg.name || seg.key) + ': ' + seg.value.toFixed(1) + ' млн. руб.'));
           svg.appendChild(rect);
-          if (h >= 16) {
+          if (h >= 18) {
             svg.appendChild(svgEl('text', {
-              x: barX + barW / 2, y: rectY + h / 2 + 4, 'text-anchor': 'middle',
-              'font-size': '11', fill: DARK_PURPLE, 'font-weight': 'bold'
+              x: barX + barW / 2, y: rectY + h / 2 + 5, 'text-anchor': 'middle',
+              'font-size': '13', fill: DARK_PURPLE, 'font-weight': 'bold'
             }, seg.value.toFixed(1)));
           }
           yStack += h;
         });
         if (showTotals && yStack > 0) {
           svg.appendChild(svgEl('text', {
-            x: barX + barW / 2, y: yBase - yStack - 5, 'text-anchor': 'middle',
-            'font-size': '11', fill: 'rgba(255,255,255,0.92)', 'font-weight': '600'
+            x: barX + barW / 2, y: yBase - yStack - 6, 'text-anchor': 'middle',
+            'font-size': '14', fill: 'rgba(255,255,255,0.92)', 'font-weight': '600'
           }, stackSum(grp.segments).toFixed(2).replace('.', ',')));
         }
         if (grp.label) {
           svg.appendChild(svgEl('text', {
-            x: barX + barW / 2, y: yBase + 14, 'text-anchor': 'middle',
-            'font-size': '10', fill: 'rgba(210,210,210,0.85)'
+            x: barX + barW / 2, y: yBase + 17, 'text-anchor': 'middle',
+            'font-size': '12', fill: 'rgba(210,210,210,0.85)'
           }, grp.label));
         }
       });
 
       svg.appendChild(svgEl('text', {
-        x: padL + bi * colW + colW / 2, y: yBase + (hasLabels ? 30 : 16),
-        'text-anchor': 'middle', 'font-size': '11', fill: 'rgba(210,210,210,0.85)'
+        x: padL + bi * colW + colW / 2, y: yBase + (hasLabels ? 37 : 18),
+        'text-anchor': 'middle', 'font-size': '15', fill: 'rgba(210,210,210,0.95)', 'font-weight': '600'
       }, String(yd.year)));
     });
 
     svg.appendChild(svgEl('text', {
       x: padL + chartW / 2, y: svgH - 4, 'text-anchor': 'middle',
-      'font-size': '10', fill: 'rgba(180,180,180,0.75)'
+      'font-size': '12', fill: 'rgba(180,180,180,0.75)'
     }, 'Год'));
 
     return svg;

@@ -1025,14 +1025,14 @@ tr.office-drop-below > td {
 
 /* Visualization — CF section */
 .viz-cf-section { margin-top: 8px; }
-.viz-cf-row { display: flex; gap: 24px; flex-wrap: wrap; }
-.viz-cf-card { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-.viz-cf-card svg { max-height: 520px; }
-.viz-cf-chart-title { font-weight: 600; font-size: 0.9em; margin-bottom: 12px; }
-.viz-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; }
-.viz-chart-legend-entry { display: flex; align-items: center; gap: 6px; }
-.viz-chart-legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
-.viz-chart-legend-label { font-size: 0.88em; color: #fff; font-weight: 600; }
+.viz-cf-row { display: flex; flex-direction: column; gap: 28px; }
+.viz-cf-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+.viz-cf-card svg { max-height: 680px; }
+.viz-cf-chart-title { font-weight: 600; font-size: 1.05em; margin-bottom: 12px; }
+.viz-chart-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; }
+.viz-chart-legend-entry { display: flex; align-items: center; gap: 8px; }
+.viz-chart-legend-dot { width: 15px; height: 15px; border-radius: 2px; flex-shrink: 0; }
+.viz-chart-legend-label { font-size: 1em; color: #fff; font-weight: 600; }
 
 .cf-edit-input {
   width: 68px;
