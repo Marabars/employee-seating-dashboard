@@ -222,7 +222,7 @@ App.importExport = (function () {
     addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'AS-IS офис', 'TO-BE офис', 'VIP', 'Связанные команды', 'Комментарий']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'AS-IS офис', 'Кабинет', 'VIP', 'Формат работы', 'Комментарий']);
     addSheetFromHeaders(wb, 'Tenants', ['Название офиса', 'Фаза офиса', 'Арендатор', 'Площадь']);
-    addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'Фаза', 'Количество', 'Офис', 'Зона', 'Комментарий']);
+    addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'AS-IS (офис/зона)', 'TO-BE (офис/зона)']);
     addSheetFromHeaders(wb, 'CF', ['Тип', 'Фаза', 'Название', 'Год', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']);
     XLSX.writeFile(wb, 'seating-template.xlsx');
   }
@@ -531,7 +531,59 @@ App.importExport = (function () {
     if (parsed.allocations && parsed.allocations.length) {
       var empByName = {};
       scenario.employees.forEach(function (e) { empByName[e.fullName.toLowerCase()] = e; });
+
+      // Set an employee's individual allocation in a phase from a "Офис / Зона"
+      // cell: removes the existing employee allocation in that phase, then adds
+      // the parsed one (empty cell → left unplaced in that phase).
+      function applyEmpPhase(emp, phase, raw) {
+        scenario.allocations = scenario.allocations.filter(function (a) {
+          if (!(a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id)) { return true; }
+          var eo = U.findById(scenario.offices, a.targetOfficeId);
+          if (!eo) { return true; }
+          var inPhase = phase === C.OFFICE_PHASE.ASIS
+            ? eo.phase === C.OFFICE_PHASE.ASIS
+            : (eo.phase === C.OFFICE_PHASE.TOBE || eo.type === C.OFFICE_TYPE.REMOTE);
+          return !inPhase;
+        });
+        var p = parsePlacementCell(raw)[0];
+        if (!p) { return; }
+        var office = findOffice(p.officeName, phase);
+        if (!office) {
+          parsed.report.warnings.push('Размещение «' + emp.fullName + '»: офис «' + p.officeName + '» не найден — пропущено');
+          return;
+        }
+        var zone = null;
+        if (p.zoneName) {
+          var zl = p.zoneName.toLowerCase();
+          (office.zones || []).forEach(function (z) { if (z.name.toLowerCase() === zl) { zone = z; } });
+        }
+        scenario.allocations.push({
+          id: U.genId('alloc'),
+          type: C.ALLOCATION_TYPE.EMPLOYEE,
+          teamId: emp.teamId || null,
+          employeeId: emp.id,
+          employeesCount: 1,
+          targetOfficeId: office.id,
+          targetZoneId: zone ? zone.id : null,
+          comment: ''
+        });
+      }
+
       parsed.allocations.forEach(function (data) {
+        if (data.kind === 'entity') {
+          // Per-entity format: employees applied here; teams are informational
+          // (the Teams sheet is authoritative and applied below).
+          if (data.type !== C.ALLOCATION_TYPE.EMPLOYEE) { return; }
+          var empE = empByName[(data.entity || '').toLowerCase()];
+          if (!empE) {
+            parsed.report.warnings.push('Размещение сотрудника «' + data.entity + '»: не найден — пропущено');
+            return;
+          }
+          applyEmpPhase(empE, C.OFFICE_PHASE.ASIS, data.asIs);
+          applyEmpPhase(empE, C.OFFICE_PHASE.TOBE, data.toBe);
+          return;
+        }
+        // Legacy per-allocation format.
         var office = findOffice(data.officeName, data.phase);
         if (!office) {
           parsed.report.warnings.push('Размещение «' + data.entity + '»: офис «' + data.officeName + '» не найден — пропущено');
@@ -987,24 +1039,38 @@ App.importExport = (function () {
     return aoa;
   }
 
+  /** An employee's placement in a phase as "Офис / Зона" (effective, incl. team
+   * fallback). Empty when unplaced in that phase. */
+  function empPhasePlacement(s, e, phase) {
+    var pl = App.employees.placementOf(s, e);
+    var ph = phase === C.OFFICE_PHASE.ASIS ? pl.asIs : pl.tobe;
+    if (!ph || !ph.officeId) { return ''; }
+    var o = U.findById(s.offices, ph.officeId);
+    if (!o) { return ''; }
+    var z = ph.zoneId ? U.findById(o.zones || [], ph.zoneId) : null;
+    return o.name + (z ? ' / ' + z.name : '');
+  }
+
+  /**
+   * One row per entity (team + employee) with AS-IS / TO-BE placement columns
+   * ("Офис / Зона"; teams add "(N)"). On import, employee rows are applied per
+   * phase; team rows are informational (the Teams sheet is authoritative).
+   */
   function buildAllocations(scenarios, inc) {
-    var aoa = [withScenarioCol(['type', 'entity', 'phase', 'count', 'office', 'zone', 'comment'], inc)];
+    var aoa = [withScenarioCol(['type', 'entity', 'as_is', 'to_be'], inc)];
     scenarios.forEach(function (s) {
-      s.allocations.forEach(function (a) {
-        var office = U.findById(s.offices, a.targetOfficeId);
-        var zone = office && office.zones ? U.findById(office.zones, a.targetZoneId) : null;
-        var entity;
-        if (a.type === C.ALLOCATION_TYPE.EMPLOYEE) {
-          var emp = U.findById(s.employees, a.employeeId);
-          entity = emp ? emp.fullName : '';
-        } else {
-          var team = U.findById(s.teams, a.teamId);
-          entity = team ? team.name : '';
-        }
-        var phaseOut = office ? (office.type === C.OFFICE_TYPE.REMOTE ? 'remote' : (office.phase || '')) : '';
+      s.teams.forEach(function (t) {
         aoa.push(rowWithScenario(s, [
-          a.type, entity, phaseOut, a.employeesCount,
-          office ? office.name : '', zone ? zone.name : '', a.comment || ''
+          C.ALLOCATION_TYPE.TEAM, t.name,
+          teamPhasePlacements(s, t, C.OFFICE_PHASE.ASIS, t.currentOfficeId),
+          teamPhasePlacements(s, t, C.OFFICE_PHASE.TOBE, t.toBeOfficeId)
+        ], inc));
+      });
+      s.employees.forEach(function (e) {
+        aoa.push(rowWithScenario(s, [
+          C.ALLOCATION_TYPE.EMPLOYEE, e.fullName,
+          empPhasePlacement(s, e, C.OFFICE_PHASE.ASIS),
+          empPhasePlacement(s, e, C.OFFICE_PHASE.TOBE)
         ], inc));
       });
     });

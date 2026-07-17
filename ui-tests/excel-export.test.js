@@ -25,7 +25,7 @@ console.log('excel export builders');
 var offH = aoa('Offices')[0];
 assert(offH.indexOf('lease_end_date') > -1 && offH.indexOf('indexation_start_date') > -1, 'Offices has date columns');
 var allH = aoa('Allocations')[0];
-assert(allH.indexOf('phase') > -1, 'Allocations has phase column');
+assert(allH.indexOf('as_is') > -1 && allH.indexOf('to_be') > -1, 'Allocations has as_is/to_be columns');
 var ten = aoa('Tenants');
 assert(ten.length >= 2 && ten[1].indexOf('МР Групп') > -1, 'Tenants sheet has the tenant row');
 var cf = aoa('CF');

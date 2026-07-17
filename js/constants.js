@@ -201,6 +201,9 @@ App.constants = (function () {
     allocations: {
       type:    ['type',    'тип'],
       entity:  ['entity',  'название'],
+      as_is:   ['as_is',   'as-is', 'as is', 'as-is (офис/зона)', 'as-is офис/зона'],
+      to_be:   ['to_be',   'to-be', 'to be', 'to-be (офис/зона)', 'to-be офис/зона'],
+      // Legacy per-allocation columns (still parsed for backward compatibility).
       phase:   ['phase',   'фаза'],
       count:   ['count',   'количество'],
       office:  ['office',  'офис'],

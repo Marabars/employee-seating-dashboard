@@ -250,6 +250,9 @@ App.importValidation = (function () {
     var data = rowsAfterHeader(sheet);
     if (!data.rows.length) { return; }
     var idx = mapHeaders('allocations', data.header);
+    // New per-entity format has AS-IS / TO-BE columns; legacy format has
+    // per-allocation phase/office/zone columns.
+    var isEntityFormat = (idx.as_is !== undefined || idx.to_be !== undefined);
     data.rows.forEach(function (row) {
       if (isEmptyRow(row)) { return; }
       var typeRaw = String(cell(row, idx, 'type') || '').trim().toLowerCase();
@@ -257,16 +260,27 @@ App.importValidation = (function () {
       if (!entity) { return; }
       var type = (typeRaw === 'employee' || typeRaw === C.ALLOCATION_TYPE.EMPLOYEE)
         ? C.ALLOCATION_TYPE.EMPLOYEE : C.ALLOCATION_TYPE.TEAM;
-      var allocPhaseRaw = String(cell(row, idx, 'phase') || '').trim().toLowerCase();
-      result.allocations.push({
-        type:       type,
-        entity:     entity,
-        phase:      allocPhaseRaw ? (C.OFFICE_PHASE_ALIASES[allocPhaseRaw] || null) : null,
-        count:      U.toNonNegativeInt(cell(row, idx, 'count')) || 1,
-        officeName: String(cell(row, idx, 'office') || '').trim(),
-        zoneName:   String(cell(row, idx, 'zone')   || '').trim(),
-        comment:    String(cell(row, idx, 'comment') || '')
-      });
+      if (isEntityFormat) {
+        result.allocations.push({
+          kind:   'entity',
+          type:   type,
+          entity: entity,
+          asIs:   String(cell(row, idx, 'as_is') || '').trim(),
+          toBe:   String(cell(row, idx, 'to_be') || '').trim()
+        });
+      } else {
+        var allocPhaseRaw = String(cell(row, idx, 'phase') || '').trim().toLowerCase();
+        result.allocations.push({
+          kind:       'row',
+          type:       type,
+          entity:     entity,
+          phase:      allocPhaseRaw ? (C.OFFICE_PHASE_ALIASES[allocPhaseRaw] || null) : null,
+          count:      U.toNonNegativeInt(cell(row, idx, 'count')) || 1,
+          officeName: String(cell(row, idx, 'office') || '').trim(),
+          zoneName:   String(cell(row, idx, 'zone')   || '').trim(),
+          comment:    String(cell(row, idx, 'comment') || '')
+        });
+      }
       result.report.imported.allocations += 1;
     });
   }
