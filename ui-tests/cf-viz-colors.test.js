@@ -48,8 +48,10 @@ assert(tenantFills.indexOf('#5BCD8C') > -1, 'tenant TO BE "МР Групп" = #5
 assert(tenantFills.indexOf('#7549E8') > -1, 'tenant AS IS "МР Групп" = #7549E8');
 assert(tenantFills.indexOf('#CCECD7') > -1, 'tenant TO BE "СЗ T2 Девелопмент" = #CCECD7 — got ' + JSON.stringify(tenantFills));
 assert(tenantFills.indexOf('#D4B8DE') > -1, 'tenant AS IS "СЗ T2 Девелопмент" = #D4B8DE');
+var legTitles = U.qsa('.viz-cf-legend-title', cards[0]).map(function (e) { return e.textContent; });
+assert(legTitles.indexOf('AS IS') > -1 && legTitles.indexOf('TO BE') > -1, 'office legend split into AS IS / TO BE columns — got ' + JSON.stringify(legTitles));
 var lg = legendText(cards[0]);
-assert(lg.some(function (t) { return /AS IS/.test(t); }) && lg.some(function (t) { return /TO BE/.test(t); }), 'office legend is phase-aware — got ' + JSON.stringify(lg));
+assert(lg.some(function (t) { return /Нева 8й этаж/.test(t); }), 'office legend lists the office name — got ' + JSON.stringify(lg));
 
 console.log('\nPassed ' + results.pass + ', failed ' + results.fail);
 process.exit(results.fail === 0 ? 0 : 1);

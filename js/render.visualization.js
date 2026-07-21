@@ -451,8 +451,8 @@ window.App = window.App || {};
     yearsData.forEach(function (yd, bi) {
       var groups = groupsOf(yd);
       var nG = groups.length || 1;
-      var groupAreaW = colW * 0.70;
-      var gap = nG > 1 ? groupAreaW * 0.08 : 0;
+      var groupAreaW = colW * 0.78;
+      var gap = nG > 1 ? groupAreaW * 0.07 : 0;
       var barW = (groupAreaW - gap * (nG - 1)) / nG;
       var colStart = padL + bi * colW + (colW - groupAreaW) / 2;
 
@@ -561,34 +561,43 @@ window.App = window.App || {};
         ] };
       });
     }
-    // Colors differ by phase, so the legend labels each entry with its phase.
-    function legendOf(labeledArrays, colorMap) {
+    // Legend items for one phase's rows (deduped by name); phase-specific colors.
+    function legendItemsFor(rows, colorMap) {
       var seen = {}; var items = [];
-      labeledArrays.forEach(function (la) {
-        la.rows.forEach(function (r) {
-          var k = la.label + '|' + (r.name || '').toLowerCase();
-          if (!seen[k]) { seen[k] = true; items.push({ name: r.name + ' — ' + la.label, color: colorMap[rowKey(r)] }); }
-        });
+      rows.forEach(function (r) {
+        var k = (r.name || '').toLowerCase();
+        if (!seen[k]) { seen[k] = true; items.push({ name: r.name, color: colorMap[rowKey(r)] }); }
       });
       return items;
+    }
+    // A vertical legend column with a phase title, placed beside the chart.
+    function phaseLegend(rows, colorMap, label) {
+      var col = U.el('div', { class: 'viz-cf-legend-col' });
+      col.appendChild(U.el('div', { class: 'viz-cf-legend-title', text: label }));
+      col.appendChild(renderChartLegend(legendItemsFor(rows, colorMap)));
+      return col;
+    }
+    // Assemble a card: title, then [AS IS legend | chart | TO BE legend].
+    function buildCard(title, asisRows, tobeRows, colorMap) {
+      var card = U.el('div', { class: 'viz-cf-card' });
+      card.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: title }));
+      var chartWrap = U.el('div', { class: 'viz-cf-chart' });
+      chartWrap.appendChild(renderStackedBarSVG(groupedData(asisRows, tobeRows),
+        function (key) { return colorMap[key] || '#aaa'; }, { showTotals: true }));
+      var body = U.el('div', { class: 'viz-cf-body' }, [
+        phaseLegend(asisRows, colorMap, 'AS IS'),
+        chartWrap,
+        phaseLegend(tobeRows, colorMap, 'TO BE')
+      ]);
+      card.appendChild(body);
+      return card;
     }
 
     var section = U.el('div', { class: 'viz-cf-section' });
     section.appendChild(U.el('div', { class: 'viz-section-title', text: 'CF по аренде' }));
     var row = U.el('div', { class: 'viz-cf-row' });
-
-    var card1 = U.el('div', { class: 'viz-cf-card' });
-    card1.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по офисам (AS IS / TO BE)' }));
-    card1.appendChild(renderStackedBarSVG(groupedData(asisOfficeRows, tobeOfficeRows), function (key) { return officeColorMap[key] || '#aaa'; }, { showTotals: true }));
-    card1.appendChild(renderChartLegend(legendOf([{ rows: asisOfficeRows, label: 'AS IS' }, { rows: tobeOfficeRows, label: 'TO BE' }], officeColorMap)));
-
-    var card2 = U.el('div', { class: 'viz-cf-card' });
-    card2.appendChild(U.el('div', { class: 'viz-cf-chart-title', text: 'CF по аренде по годам по арендаторам (AS IS / TO BE)' }));
-    card2.appendChild(renderStackedBarSVG(groupedData(asisTenantRows, tobeTenantRows), function (key) { return tenantColorMap[key] || '#aaa'; }, { showTotals: true }));
-    card2.appendChild(renderChartLegend(legendOf([{ rows: asisTenantRows, label: 'AS IS' }, { rows: tobeTenantRows, label: 'TO BE' }], tenantColorMap)));
-
-    row.appendChild(card1);
-    row.appendChild(card2);
+    row.appendChild(buildCard('CF по аренде по годам по офисам (AS IS / TO BE)', asisOfficeRows, tobeOfficeRows, officeColorMap));
+    row.appendChild(buildCard('CF по аренде по годам по арендаторам (AS IS / TO BE)', asisTenantRows, tobeTenantRows, tenantColorMap));
     section.appendChild(row);
     return section;
   }
