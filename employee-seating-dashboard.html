@@ -4567,14 +4567,31 @@ App.allocations = (function () {
   function setTeamPhaseAllocations(teamId, phase, rows) {
     state.commit('Распределение команды', function () {
       var s = scenario();
-      s.allocations = s.allocations.filter(function (a) {
-        if (a.teamId !== teamId || a.type !== C.ALLOCATION_TYPE.TEAM) { return true; }
+      // Offices kept by the new distribution rows (phase-scoped).
+      var keptOffices = {};
+      (rows || []).forEach(function (r) { if (r.officeId) { keptOffices[r.officeId] = true; } });
+      // Members of this team, so their individual (named) placements can be
+      // reconciled with the distribution below.
+      var memberIds = {};
+      s.employees.forEach(function (e) { if (e.teamId === teamId) { memberIds[e.id] = true; } });
+      function inThisPhase(a) {
         var o = U.findById(s.offices, a.targetOfficeId);
-        if (!o) { return true; }
-        var inPhase = phase === C.OFFICE_PHASE.ASIS
+        if (!o) { return false; }
+        return phase === C.OFFICE_PHASE.ASIS
           ? o.phase === C.OFFICE_PHASE.ASIS
           : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
-        return !inPhase;
+      }
+      s.allocations = s.allocations.filter(function (a) {
+        // Replace all TEAM allocations of the team in this phase.
+        if (a.teamId === teamId && a.type === C.ALLOCATION_TYPE.TEAM) {
+          return !inThisPhase(a);
+        }
+        // Drop named-member allocations in this phase whose office is no longer
+        // in the distribution — so deleting a row removes that placement too.
+        if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId && memberIds[a.employeeId]) {
+          if (inThisPhase(a) && !keptOffices[a.targetOfficeId]) { return false; }
+        }
+        return true;
       });
       (rows || []).forEach(function (r) {
         var count = U.toNonNegativeInt(r.count);

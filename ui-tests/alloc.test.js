@@ -62,7 +62,11 @@ assert(s.allocations.filter(function (a) { return a.id === 'old_asis'; }).length
 App.allocations.setTeamPhaseAllocations('tm', 'tobe', []);
 var s2 = App.state.getActiveScenario();
 assert(s2.allocations.filter(function (a) { return a.type === 'team' && a.teamId === 'tm' && (a.targetOfficeId === 't1o' || a.targetOfficeId === 't2o'); }).length === 0, 'empty rows remove all TO-BE team allocations');
-assert(s2.allocations.filter(function (a) { return a.id === 'emp_tobe'; }).length === 1, 'EMPLOYEE still untouched after empty sync');
+// Clearing the phase distribution also unplaces the team's named members in that
+// phase (offices no longer in the rows) — so deleting a row fully removes it.
+assert(s2.allocations.filter(function (a) { return a.id === 'emp_tobe'; }).length === 0, 'named member TO-BE allocation removed by empty sync');
+// AS-IS named/team placements are left intact (different phase).
+assert(s2.allocations.filter(function (a) { return a.id === 'old_asis'; }).length === 1, 'AS-IS allocation untouched by TO-BE clear');
 
 console.log('\nPassed ' + results.pass + ', failed ' + results.fail);
 process.exit(results.fail === 0 ? 0 : 1);
