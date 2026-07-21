@@ -402,7 +402,7 @@ window.App = window.App || {};
     function stackSum(segs) { return segs.reduce(function (a, s) { return a + (s.value > 0 ? s.value : 0); }, 0); }
     var hasLabels = yearsData.length && groupsOf(yearsData[0])[0].label != null;
 
-    var svgW = 500; var svgH = 450;
+    var svgW = 640; var svgH = 450;
     var padL = 64; var padR = 14; var padT = showTotals ? 40 : 24; var padB = hasLabels ? 74 : 54;
     var chartW = svgW - padL - padR;
     var chartH = svgH - padT - padB;
@@ -451,8 +451,8 @@ window.App = window.App || {};
     yearsData.forEach(function (yd, bi) {
       var groups = groupsOf(yd);
       var nG = groups.length || 1;
-      var groupAreaW = colW * 0.60;
-      var gap = nG > 1 ? groupAreaW * 0.12 : 0;
+      var groupAreaW = colW * 0.70;
+      var gap = nG > 1 ? groupAreaW * 0.08 : 0;
       var barW = (groupAreaW - gap * (nG - 1)) / nG;
       var colStart = padL + bi * colW + (colW - groupAreaW) / 2;
 

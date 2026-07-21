@@ -1047,8 +1047,8 @@ tr.office-drop-below > td {
 .cf-override-banner {
   display: flex; align-items: center; gap: 10px;
   margin: 8px 0; padding: 6px 10px;
-  background: #eef4ff; border: 1px solid #c7d7f5; border-radius: 6px;
-  font-size: 13px; color: #1f2933;
+  background: rgba(128,128,128,0.10); border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; color: inherit;
 }
 
 .cf-del-row { color: #dc2626; font-size: 0.85em; padding: 0 4px; }
