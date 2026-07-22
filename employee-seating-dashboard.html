@@ -4694,9 +4694,46 @@ App.cfEdit = (function () {
     state.commit('Правка CF', function () { scenario.cfOverride = d; });
   }
   function cancel() { editingKey = null; draft = null; render(); }
+
+  /** CF years from settings (mirrors the finance/dashboard CF tables). */
+  function cfYears() {
+    var st = state.getSettings();
+    var cf = (st && st.cfSettings) || {};
+    var sy = cf.startYear || 2026;
+    var ey = cf.endYear || 2030;
+    var ys = [];
+    for (var y = sy; y <= ey; y++) { ys.push(y); }
+    return ys;
+  }
+  /** Manually-added CF rows (id prefix 'cfrow_') — not tied to an office/tenant. */
+  function isManualRow(r) { return r && typeof r.id === 'string' && r.id.indexOf('cfrow_') === 0; }
+  function manualRowsOf(ov) {
+    var out = { offices: [], tenants: [] };
+    if (!ov) { return out; }
+    (ov.offices || []).forEach(function (r) { if (isManualRow(r)) { out.offices.push(r); } });
+    (ov.tenants || []).forEach(function (r) { if (isManualRow(r)) { out.tenants.push(r); } });
+    return out;
+  }
+
+  /**
+   * "Пересчитать": recompute the office/card-derived CF rows from the current
+   * offices, while preserving rows the user added manually via the pencil. When
+   * there are no manual rows, drop the override entirely (fully live recompute).
+   */
   function reset(scenario) {
+    var manual = manualRowsOf(draft || scenario.cfOverride);
     editingKey = null; draft = null;
-    state.commit('Сброс CF (пересчёт из офисов)', function () { scenario.cfOverride = null; });
+    state.commit('Пересчёт CF из офисов', function () {
+      // Clear first so buildOverrideFromComputed recomputes from offices/cards
+      // (getScenarioCFData would otherwise echo the existing override).
+      scenario.cfOverride = null;
+      if (!manual.offices.length && !manual.tenants.length) { return; }
+      var computed = calc.buildOverrideFromComputed(scenario, cfYears());
+      scenario.cfOverride = {
+        offices: computed.offices.concat(manual.offices),
+        tenants: computed.tenants.concat(manual.tenants)
+      };
+    });
   }
   function editCell(listKey, rowId, year, monthIndex, value) {
     if (!draft) { return; }
