@@ -1036,9 +1036,11 @@ tr.office-drop-below > td {
 .viz-cf-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
 .viz-cf-card svg { max-height: 680px; }
 .viz-cf-chart-title { font-weight: 600; font-size: 1.05em; margin-bottom: 12px; }
-/* Chart flanked by AS-IS (left) and TO-BE (right) legend columns. */
-.viz-cf-body { display: flex; align-items: center; gap: 16px; }
-.viz-cf-chart { flex: 1 1 auto; min-width: 0; }
+/* Chart flanked by AS-IS (left) and TO-BE (right) legend columns. The chart is
+   width-bounded and the group is centered, so legends sit a fixed gap from the
+   chart's edge columns instead of stretching to the page edges. */
+.viz-cf-body { display: flex; align-items: center; justify-content: center; gap: 24px; }
+.viz-cf-chart { flex: 0 1 760px; min-width: 0; }
 .viz-cf-legend-col { flex: 0 0 auto; max-width: 200px; }
 .viz-cf-legend-title { font-size: 0.9em; font-weight: 700; opacity: 0.85; margin-bottom: 6px; }
 .viz-cf-legend-col .viz-chart-legend { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 6px; margin-top: 0; }
