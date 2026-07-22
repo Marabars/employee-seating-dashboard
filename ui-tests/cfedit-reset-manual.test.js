@@ -47,6 +47,19 @@ var o1After = scen.cfOverride.offices.filter(function (r) { return r.id === 'o1'
 assert(!!o1After, 'office row still present');
 assert(Math.abs(o1After.monthly['2026'][0] - computedJan) < 1e-9 && o1After.monthly['2026'][0] !== 999, 'office row recomputed (not the tampered 999)');
 
+// Imported override: office rows carry 'cfrow_' ids too (applyImport). Reset must
+// NOT duplicate them — the office-derived rows should be recomputed once, not kept
+// as manual AND recomputed.
+scen.cfOverride = { offices: [
+  { id: 'cfrow_imp1', name: 'A', phase: 'tobe', monthly: { '2026': [1,1,1,1,1,1,1,1,1,1,1,1] } },
+  { id: 'cfrow_imp2', name: 'Доп. строка', phase: 'tobe', monthly: { '2026': [7,0,0,0,0,0,0,0,0,0,0,0] } }
+], tenants: [] };
+CE.reset(scen);
+var aRows = (scen.cfOverride ? scen.cfOverride.offices : []).filter(function (r) { return r.name === 'A'; });
+assert(aRows.length === 1, 'office "A" appears once after reset (no import duplication) — got ' + aRows.length);
+var extra = (scen.cfOverride ? scen.cfOverride.offices : []).filter(function (r) { return r.name === 'Доп. строка'; });
+assert(extra.length === 1 && extra[0].monthly['2026'][0] === 7, 'extra imported row "Доп. строка" preserved');
+
 // No manual rows -> reset clears override fully (live recompute).
 scen.cfOverride = null;
 CE.enterEdit(scen, [2026], 'finance-office');

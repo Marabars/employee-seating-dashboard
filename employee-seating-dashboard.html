@@ -4705,33 +4705,38 @@ App.cfEdit = (function () {
     for (var y = sy; y <= ey; y++) { ys.push(y); }
     return ys;
   }
-  /** Manually-added CF rows (id prefix 'cfrow_') — not tied to an office/tenant. */
-  function isManualRow(r) { return r && typeof r.id === 'string' && r.id.indexOf('cfrow_') === 0; }
-  function manualRowsOf(ov) {
-    var out = { offices: [], tenants: [] };
-    if (!ov) { return out; }
-    (ov.offices || []).forEach(function (r) { if (isManualRow(r)) { out.offices.push(r); } });
-    (ov.tenants || []).forEach(function (r) { if (isManualRow(r)) { out.tenants.push(r); } });
-    return out;
+  // A CF row's identity = name + phase. Used to tell office/tenant-derived rows
+  // (which the recompute reproduces) from extra rows the user added. Identity —
+  // not the id — because imported overrides give every row a 'cfrow_' id.
+  function rowIdentity(r) { return (r.name || '').trim().toLowerCase() + '|' + (r.phase || ''); }
+  function extraRows(prev, computed) {
+    var keys = {};
+    computed.forEach(function (r) { keys[rowIdentity(r)] = true; });
+    return (prev || []).filter(function (r) { return !keys[rowIdentity(r)]; });
   }
 
   /**
    * "Пересчитать": recompute the office/card-derived CF rows from the current
-   * offices, while preserving rows the user added manually via the pencil. When
-   * there are no manual rows, drop the override entirely (fully live recompute).
+   * offices, while preserving extra rows the user added (rows whose name+phase
+   * doesn't match any computed office/tenant). When nothing extra remains, drop
+   * the override entirely (fully live recompute).
    */
   function reset(scenario) {
-    var manual = manualRowsOf(draft || scenario.cfOverride);
+    var source = draft || scenario.cfOverride;
+    var prevOffices = (source && source.offices) || [];
+    var prevTenants = (source && source.tenants) || [];
     editingKey = null; draft = null;
     state.commit('Пересчёт CF из офисов', function () {
       // Clear first so buildOverrideFromComputed recomputes from offices/cards
       // (getScenarioCFData would otherwise echo the existing override).
       scenario.cfOverride = null;
-      if (!manual.offices.length && !manual.tenants.length) { return; }
       var computed = calc.buildOverrideFromComputed(scenario, cfYears());
+      var extraOffices = extraRows(prevOffices, computed.offices);
+      var extraTenants = extraRows(prevTenants, computed.tenants);
+      if (!extraOffices.length && !extraTenants.length) { return; }
       scenario.cfOverride = {
-        offices: computed.offices.concat(manual.offices),
-        tenants: computed.tenants.concat(manual.tenants)
+        offices: computed.offices.concat(extraOffices),
+        tenants: computed.tenants.concat(extraTenants)
       };
     });
   }
