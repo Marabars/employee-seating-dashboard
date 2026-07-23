@@ -60,8 +60,21 @@ assert(aRows.length === 1, 'office "A" appears once after reset (no import dupli
 var extra = (scen.cfOverride ? scen.cfOverride.offices : []).filter(function (r) { return r.name === 'Доп. строка'; });
 assert(extra.length === 1 && extra[0].monthly['2026'][0] === 7, 'extra imported row "Доп. строка" preserved');
 
+// Adding a tenant that covers the whole office, then Пересчитать, must NOT keep a
+// stale "Без арендатора" row (it is a computed artifact, not a user row).
+scen.cfOverride = null;
+scen.offices[0].tenants = [];
+CE.enterEdit(scen, [2026], 'finance-tenant'); CE.save(scen); // override now has a "Без арендатора" tenant row
+assert(scen.cfOverride.tenants.filter(function (r) { return r.name === 'Без арендатора'; }).length === 1, 'setup: override has Без арендатора');
+scen.offices[0].tenants = [{ id: 't1', name: 'МР Групп', area: 100 }]; // tenant covers full area
+CE.reset(scen);
+var tenAfter = scen.cfOverride ? scen.cfOverride.tenants : [];
+assert(tenAfter.filter(function (r) { return r.name === 'Без арендатора'; }).length === 0, 'stale Без арендатора removed after adding full-area tenant + Пересчитать');
+assert(tenAfter.filter(function (r) { return r.name === 'МР Групп'; }).length <= 1, 'tenant not duplicated');
+
 // No manual rows -> reset clears override fully (live recompute).
 scen.cfOverride = null;
+scen.offices[0].tenants = [];
 CE.enterEdit(scen, [2026], 'finance-office');
 CE.editCell('offices', 'o1', 2026, 0, 5);
 CE.save(scen);

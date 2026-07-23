@@ -4671,6 +4671,7 @@ App.cfEdit = (function () {
   var U = App.utils;
   var calc = App.calc;
   var state = App.state;
+  var C = App.constants;
 
   var editingKey = null; // e.g. 'finance-office', 'dash-tenant-tobe'
   var draft = null;      // { offices:[...], tenants:[...] } | null
@@ -4705,21 +4706,41 @@ App.cfEdit = (function () {
     for (var y = sy; y <= ey; y++) { ys.push(y); }
     return ys;
   }
-  // A CF row's identity = name + phase. Used to tell office/tenant-derived rows
-  // (which the recompute reproduces) from extra rows the user added. Identity —
-  // not the id — because imported overrides give every row a 'cfrow_' id.
+  // A CF row's identity = name + phase.
   function rowIdentity(r) { return (r.name || '').trim().toLowerCase() + '|' + (r.phase || ''); }
-  function extraRows(prev, computed) {
-    var keys = {};
-    computed.forEach(function (r) { keys[rowIdentity(r)] = true; });
-    return (prev || []).filter(function (r) { return !keys[rowIdentity(r)]; });
+  var NO_TENANT_KEY = 'без арендатора';
+  // Names the CF computation itself produces, so they must NOT be preserved as
+  // "manual" on reset (else a stale office/tenant/"Без арендатора" row would be
+  // kept AND recomputed → duplicates). Keyed by name+phase, from the scenario's
+  // offices/tenants (identity — not row id — because imports give all rows
+  // 'cfrow_' ids).
+  function computedOfficeKeys(scenario) {
+    var set = {};
+    (scenario.offices || []).forEach(function (o) {
+      if (o.type === C.OFFICE_TYPE.PHYSICAL) { set[(o.name || '').trim().toLowerCase() + '|' + (o.phase || '')] = true; }
+    });
+    return set;
+  }
+  function computedTenantKeys(scenario) {
+    var set = {};
+    set[NO_TENANT_KEY + '|' + C.OFFICE_PHASE.ASIS] = true;
+    set[NO_TENANT_KEY + '|' + C.OFFICE_PHASE.TOBE] = true;
+    (scenario.offices || []).forEach(function (o) {
+      if (o.type !== C.OFFICE_TYPE.PHYSICAL) { return; }
+      (o.tenants || []).forEach(function (t) { set[(t.name || '').trim().toLowerCase() + '|' + (o.phase || '')] = true; });
+    });
+    return set;
+  }
+  // Rows the user genuinely added — names that no office/tenant/"Без арендатора" produces.
+  function extraRows(prev, knownKeys) {
+    return (prev || []).filter(function (r) { return !knownKeys[rowIdentity(r)]; });
   }
 
   /**
    * "Пересчитать": recompute the office/card-derived CF rows from the current
-   * offices, while preserving extra rows the user added (rows whose name+phase
-   * doesn't match any computed office/tenant). When nothing extra remains, drop
-   * the override entirely (fully live recompute).
+   * offices, preserving only rows the user genuinely added (names not produced
+   * by any office/tenant, incl. "Без арендатора"). Nothing extra → drop the
+   * override entirely (fully live recompute).
    */
   function reset(scenario) {
     var source = draft || scenario.cfOverride;
@@ -4731,8 +4752,8 @@ App.cfEdit = (function () {
       // (getScenarioCFData would otherwise echo the existing override).
       scenario.cfOverride = null;
       var computed = calc.buildOverrideFromComputed(scenario, cfYears());
-      var extraOffices = extraRows(prevOffices, computed.offices);
-      var extraTenants = extraRows(prevTenants, computed.tenants);
+      var extraOffices = extraRows(prevOffices, computedOfficeKeys(scenario));
+      var extraTenants = extraRows(prevTenants, computedTenantKeys(scenario));
       if (!extraOffices.length && !extraTenants.length) { return; }
       scenario.cfOverride = {
         offices: computed.offices.concat(extraOffices),
