@@ -822,7 +822,10 @@ App.importExport = (function () {
     var aoa = [withScenarioCol(['office_name', 'office_type', 'area', 'rent_per_sqm', 'opex_per_sqm', 'indexation_pct', 'lease_start_date', 'lease_end_date', 'indexation_start_date', 'is_draft', 'comment'], inc)];
     scenarios.forEach(function (s) {
       s.offices.forEach(function (o) {
-        var phaseOut = o.type === C.OFFICE_TYPE.REMOTE ? 'remote' : (o.phase || '');
+        // Remote offices are auto-created on load — exporting them would re-import
+        // as duplicate physical offices, so skip them.
+        if (o.type === C.OFFICE_TYPE.REMOTE) { return; }
+        var phaseOut = o.phase || '';
         aoa.push(rowWithScenario(s, [
           o.name, phaseOut, o.area || 0,
           (o.rentPerSqm !== null && o.rentPerSqm !== undefined) ? o.rentPerSqm : '',
@@ -892,15 +895,17 @@ App.importExport = (function () {
   }
 
   /**
-   * A team's placements as structured rows [{phase, officeName, zoneName, count}],
-   * grouped by office/zone per phase (count = max(bulk seats, named employees)).
+   * A team's BULK placements as rows [{phase, officeName, zoneName, count}],
+   * grouped by office/zone per phase. Counts only TEAM-type (bulk) seats — named
+   * employees are exported individually in the Employees sheet, so counting them
+   * here too would double them on import.
    */
   function teamPlacementRows(s, team) {
     var out = [];
     [C.OFFICE_PHASE.ASIS, C.OFFICE_PHASE.TOBE].forEach(function (phase) {
       var byKey = {}; var order = [];
       (s.allocations || []).forEach(function (a) {
-        if (a.teamId !== team.id) { return; }
+        if (a.teamId !== team.id || a.type !== C.ALLOCATION_TYPE.TEAM) { return; }
         var o = U.findById(s.offices, a.targetOfficeId);
         if (!o) { return; }
         var inPhase = phase === C.OFFICE_PHASE.ASIS
@@ -911,16 +916,12 @@ App.importExport = (function () {
         var key = a.targetOfficeId + '|' + zoneId;
         if (!byKey[key]) {
           var zone = zoneId ? U.findById(o.zones || [], zoneId) : null;
-          byKey[key] = { phase: phase, officeName: o.name, zoneName: zone ? zone.name : '', teamSeats: 0, named: 0 };
+          byKey[key] = { phase: phase, officeName: o.name, zoneName: zone ? zone.name : '', count: 0 };
           order.push(key);
         }
-        if (a.type === C.ALLOCATION_TYPE.TEAM) { byKey[key].teamSeats += (a.employeesCount || 0); }
-        else if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId) { byKey[key].named += 1; }
+        byKey[key].count += (a.employeesCount || 0);
       });
-      order.forEach(function (k) {
-        var e = byKey[k];
-        out.push({ phase: e.phase, officeName: e.officeName, zoneName: e.zoneName, count: Math.max(e.teamSeats, e.named) });
-      });
+      order.forEach(function (k) { out.push(byKey[k]); });
     });
     return out;
   }
@@ -956,15 +957,28 @@ App.importExport = (function () {
     return aoa;
   }
 
-  /** Office/zone names for an employee in a phase (from placementOf), or ['', '']. */
+  /**
+   * Office/zone names for an employee in a phase from the employee's OWN
+   * (individual) allocation only — NOT the team-fallback. This keeps the
+   * export/import round-trip idempotent (team-covered seats live in the Teams
+   * sheet as bulk; individual seats live here). Returns ['', ''] if not
+   * individually placed in that phase.
+   */
   function empPhaseOfficeZone(s, e, phase) {
-    var pl = App.employees.placementOf(s, e);
-    var ph = phase === C.OFFICE_PHASE.ASIS ? pl.asIs : pl.tobe;
-    if (!ph || !ph.officeId) { return ['', '']; }
-    var o = U.findById(s.offices, ph.officeId);
-    if (!o) { return ['', '']; }
-    var z = ph.zoneId ? U.findById(o.zones || [], ph.zoneId) : null;
-    return [o.name, z ? z.name : ''];
+    var allocs = (s.allocations || []).filter(function (a) {
+      return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === e.id;
+    });
+    for (var i = 0; i < allocs.length; i++) {
+      var o = U.findById(s.offices, allocs[i].targetOfficeId);
+      if (!o) { continue; }
+      var inPhase = phase === C.OFFICE_PHASE.ASIS
+        ? o.phase === C.OFFICE_PHASE.ASIS
+        : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
+      if (!inPhase) { continue; }
+      var z = allocs[i].targetZoneId ? U.findById(o.zones || [], allocs[i].targetZoneId) : null;
+      return [o.name, z ? z.name : ''];
+    }
+    return ['', ''];
   }
 
   function buildEmployees(scenarios, inc) {
