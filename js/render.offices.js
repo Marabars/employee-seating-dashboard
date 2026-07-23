@@ -196,7 +196,7 @@ window.App = window.App || {};
    */
   function openOfficeForm(phase, office) {
     // Working copy of zones so cancel doesn't mutate state.
-    var zones = (office && office.zones ? office.zones : [{ name: 'Опенспейс', type: C.ZONE_TYPE.OPEN_SPACE, capacity: 0, isVipZone: false }])
+    var zones = (office && office.zones ? office.zones : [{ name: 'Без зоны', type: C.ZONE_TYPE.OPEN_SPACE, capacity: 0, isVipZone: false }])
       .map(function (z) { return { name: z.name, type: z.type, capacity: z.capacity || 0, isVipZone: !!z.isVipZone }; });
 
     var body = U.el('div', { class: 'office-form' });
@@ -323,7 +323,7 @@ window.App = window.App || {};
         zc.addEventListener('input', function () { z.capacity = U.toNonNegativeInt(zc.value); updateTotal(); });
         var del = R.iconBtn('🗑', 'Удалить зону', function () {
           zones.splice(i, 1);
-          if (zones.length === 0) { zones.push({ name: 'Опенспейс', type: 'open_space', capacity: 0, isVipZone: false }); }
+          if (zones.length === 0) { zones.push({ name: 'Без зоны', type: 'open_space', capacity: 0, isVipZone: false }); }
           rebuildZones(); updateTotal();
         });
         row.appendChild(zn); row.appendChild(zt);

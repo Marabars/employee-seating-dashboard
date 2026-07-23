@@ -37,11 +37,12 @@ App.state = (function () {
     };
   }
 
-  /** Create an auto "Опенспейс" zone for a new office that has none. */
+  /** Create the auto "Без зоны" placeholder zone for an office that has none
+   *  (offices keep >=1 zone; the default is "no specific zone / whole office"). */
   function createDefaultOpenSpaceZone() {
     return {
       id: U.genId('zone'),
-      name: 'Опенспейс',
+      name: 'Без зоны',
       type: C.ZONE_TYPE.OPEN_SPACE,
       capacity: 0,
       isVipZone: false,
