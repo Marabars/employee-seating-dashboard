@@ -71,6 +71,13 @@ App.employees = (function () {
       }
       if (data.teamId !== undefined) {
         emp.teamId = data.teamId || null;
+        // Keep the employee's own allocations attributed to their current team so
+        // team counters (calculateTeamAllocated) follow the reassignment.
+        scenario().allocations.forEach(function (a) {
+          if (a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id) {
+            a.teamId = emp.teamId || null;
+          }
+        });
         bumpTeamCount(emp.teamId);
       }
       if (data.currentOfficeId !== undefined) {
