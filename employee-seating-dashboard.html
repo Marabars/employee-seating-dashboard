@@ -8648,6 +8648,27 @@ window.App = window.App || {};
    * A team of X people may consist of named and unnamed members; named ones
    * are the employees whose teamId points here.
    */
+  /**
+   * An employee's OWN (individual) allocation in a phase → { office, zone, label }
+   * or null. Deliberately ignores bulk team allocations — those are team-level.
+   */
+  function individualPlacement(scenario, emp, phase) {
+    var allocs = (scenario.allocations || []).filter(function (a) {
+      return a.type === C.ALLOCATION_TYPE.EMPLOYEE && a.employeeId === emp.id;
+    });
+    for (var i = 0; i < allocs.length; i++) {
+      var o = U.findById(scenario.offices, allocs[i].targetOfficeId);
+      if (!o) { continue; }
+      var inPhase = phase === C.OFFICE_PHASE.ASIS
+        ? o.phase === C.OFFICE_PHASE.ASIS
+        : (o.phase === C.OFFICE_PHASE.TOBE || o.type === C.OFFICE_TYPE.REMOTE);
+      if (!inPhase) { continue; }
+      var z = allocs[i].targetZoneId ? U.findById(o.zones || [], allocs[i].targetZoneId) : null;
+      return { office: o, zone: z, label: o.name + (z ? ' / ' + z.name : '') };
+    }
+    return null;
+  }
+
   function renderMembers(scenario, team, viewOnly) {
     var members = scenario.employees.filter(function (e) {
       return e.teamId === team.id;
@@ -8663,16 +8684,18 @@ window.App = window.App || {};
     // 1) Named employees on top.
     if (namedCount > 0) {
       members.forEach(function (emp) {
-        var placement = App.employees.placementOf(scenario, emp);
-        var asIsOffice = U.findById(scenario.offices, placement.asIs.officeId);
-        var tobeOffice = U.findById(scenario.offices, placement.tobe.officeId);
-        var asisText = asIsOffice ? asIsOffice.name : C.PLACEMENT_STATUS_LABEL[placement.asIs.status];
-        var tobeText = tobeOffice ? tobeOffice.name : C.PLACEMENT_STATUS_LABEL[placement.tobe.status];
+        // Per-member office is shown ONLY from the member's OWN (individual)
+        // allocation. Bulk team seats are team-level and must not be attributed
+        // to individual members (they show "—" until named-placed).
+        var asIsInd = individualPlacement(scenario, emp, C.OFFICE_PHASE.ASIS);
+        var tobeInd = individualPlacement(scenario, emp, C.OFFICE_PHASE.TOBE);
+        var asisText = asIsInd ? asIsInd.label : '—';
+        var tobeText = tobeInd ? tobeInd.label : '—';
         var placementEl = U.el('span', { class: 'placement-dual' }, [
           U.el('span', { class: 'placement-asis', text: 'AS-IS: ' + asisText }),
           U.el('span', { class: 'placement-tobe', text: 'TO-BE: ' + tobeText })
         ]);
-        var isPlaced = placement.tobe.status === C.PLACEMENT_STATUS.PLACED_OFFICE || placement.tobe.status === C.PLACEMENT_STATUS.PLACED_REMOTE;
+        var isPlaced = !!tobeInd;
         var row = U.el('div', { class: 'composition-row member-row' + (isPlaced ? ' zone-member-placed-here' : '') }, [
           U.el('span', { class: 'member-drag-handle', text: '⠿' }),
           U.el('span', { class: 'member-name', text: emp.fullName }),
