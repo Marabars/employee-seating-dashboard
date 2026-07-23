@@ -27,11 +27,11 @@ var sheets = {
   offices: [['office_name', 'office_type', 'area'], ['ОфисA', 'tobe', 100], ['ОфисB', 'tobe', 100], ['ОфисC', 'asis', 100]],
   zones: [['office_name', 'office_phase', 'zone_name', 'zone_type', 'capacity'], ['ОфисA', 'tobe', 'ЗонаA', 'open_space', 50]],
   employees: [],
+  // Parallel AS-IS / TO-BE columns, ragged: 1 AS-IS placement, 2 TO-BE placements.
   teams: [
-    ['team_name', 'employees_count', 'is_vip', 'linked_teams', 'comment', 'phase', 'office', 'zone', 'count'],
-    ['Alpha', 10, 'нет', '', '', 'TO-BE', 'ОфисA', 'ЗонаA', 4],   // zoned
-    ['Alpha', 10, 'нет', '', '', 'TO-BE', 'ОфисB', '—', 3],       // dash -> no zone
-    ['Alpha', 10, 'нет', '', '', 'AS-IS', 'ОфисC', 'Без зоны', 2] // "Без зоны" -> no zone
+    ['team_name', 'employees_count', 'is_vip', 'linked_teams', 'comment', 'as_is_office', 'as_is_zone', 'as_is_count', 'to_be_office', 'to_be_zone', 'to_be_count'],
+    ['Alpha', 10, 'нет', '', '', 'ОфисC', 'Без зоны', 2, 'ОфисA', 'ЗонаA', 4], // AS-IS "Без зоны" -> null; TO-BE zoned
+    ['Alpha', 10, 'нет', '', '', '', '', '', 'ОфисB', '—', 3]                   // TO-BE dash -> null
   ],
   tenants: [], allocations: [], cf: []
 };
@@ -60,7 +60,7 @@ App.state.setActiveScenario('s1');
 var parsed2 = App.importValidation.parseWorkbook({
   offices: [['office_name', 'office_type', 'area'], ['ОфисA', 'tobe', 100]],
   zones: [], employees: [],
-  teams: [['team_name', 'employees_count', 'is_vip', 'linked_teams', 'comment', 'phase', 'office', 'zone', 'count'], ['Beta', 5, 'нет', '', '', '', '', '', '']],
+  teams: [['team_name', 'employees_count', 'is_vip', 'linked_teams', 'comment', 'as_is_office', 'as_is_zone', 'as_is_count', 'to_be_office', 'to_be_zone', 'to_be_count'], ['Beta', 5, 'нет', '', '', '', '', '', '', '', '']],
   tenants: [], allocations: [], cf: []
 });
 App.importExport.applyImportParsed(parsed2, 'new', 'T2');

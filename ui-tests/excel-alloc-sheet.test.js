@@ -76,9 +76,10 @@ var sheets = {
   offices: [['office_name', 'office_type', 'area'], ['Старый', 'asis', 100], ['Новый', 'tobe', 100]],
   zones: [['office_name', 'office_phase', 'zone_name', 'zone_type', 'capacity'], ['Старый', 'asis', 'Опен', 'open_space', 50], ['Новый', 'tobe', 'Этаж3', 'open_space', 50]],
   employees: [],
-  teams: [['team_name', 'employees_count', 'current_office', 'to_be_office'], ['Alpha', 5, '', 'Новый / Этаж3 (5)']],
+  teams: [['team_name', 'employees_count', 'is_vip', 'linked_teams', 'comment', 'as_is_office', 'as_is_zone', 'as_is_count', 'to_be_office', 'to_be_zone', 'to_be_count'],
+          ['Alpha', 5, 'нет', '', '', '', '', '', 'Новый', 'Этаж3', 5]],
   tenants: [],
-  allocations: [['type', 'entity', 'as_is', 'to_be'], ['team', 'Alpha', '', 'Старый / Опен (2)']],
+  allocations: [['type', 'entity', 'as_is', 'to_be'], ['team', 'Alpha', 'Старый / Опен (2)', '']],
   cf: []
 };
 var parsedB = App.importValidation.parseWorkbook(sheets);

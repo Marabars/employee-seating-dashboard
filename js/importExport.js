@@ -219,7 +219,7 @@ App.importExport = (function () {
     // Russian headers (the importer accepts both RU and EN — see EXCEL_HEADERS).
     addSheetFromHeaders(wb, 'Offices', ['Название офиса', 'Тип офиса', 'Площадь', 'Аренда, ₽/м²', 'Эксплуатация, ₽/м²', 'Индексация, %/год', 'Дата начала аренды', 'Дата окончания аренды', 'Дата начала индексации', 'Черновик', 'Комментарий']);
     addSheetFromHeaders(wb, 'Zones', ['Название офиса', 'Фаза офиса', 'Название зоны', 'Тип зоны', 'Вместимость', 'VIP-зона', 'Комментарий']);
-    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'VIP', 'Связанные команды', 'Комментарий', 'Фаза', 'Офис', 'Зона', 'Кол-во']);
+    addSheetFromHeaders(wb, 'Teams', ['Название команды', 'Количество сотрудников', 'VIP', 'Связанные команды', 'Комментарий', 'AS-IS офис', 'AS-IS зона', 'AS-IS кол-во', 'TO-BE офис', 'TO-BE зона', 'TO-BE кол-во']);
     addSheetFromHeaders(wb, 'Employees', ['ФИО', 'Должность', 'Команда', 'AS-IS офис', 'AS-IS зона', 'VIP', 'Формат работы', 'TO-BE офис', 'TO-BE зона', 'VIP (TO-BE)', 'Формат работы (TO-BE)', 'Комментарий']);
     addSheetFromHeaders(wb, 'Tenants', ['Название офиса', 'Фаза офиса', 'Арендатор', 'Площадь']);
     addSheetFromHeaders(wb, 'Allocations', ['Тип', 'Название', 'AS-IS (офис/зона)', 'TO-BE (офис/зона)']);
@@ -927,7 +927,7 @@ App.importExport = (function () {
 
   function buildTeams(scenarios, inc) {
     var aoa = [withScenarioCol(['team_name', 'employees_count', 'is_vip', 'linked_teams', 'comment',
-      'phase', 'office', 'zone', 'count'], inc)];
+      'as_is_office', 'as_is_zone', 'as_is_count', 'to_be_office', 'to_be_zone', 'to_be_count'], inc)];
     scenarios.forEach(function (s) {
       s.teams.forEach(function (t) {
         var linkedNames = (t.linkedTeamIds || []).map(function (id) {
@@ -936,15 +936,20 @@ App.importExport = (function () {
         }).filter(Boolean).join(', ');
         var base = [t.name, t.employeesCount || 0, t.isVip ? 'да' : 'нет', linkedNames, t.comment || ''];
         var places = teamPlacementRows(s, t);
-        if (!places.length) {
-          aoa.push(rowWithScenario(s, base.concat(['', '', '', '']), inc));
+        var asis = places.filter(function (p) { return p.phase === C.OFFICE_PHASE.ASIS; });
+        var tobe = places.filter(function (p) { return p.phase === C.OFFICE_PHASE.TOBE; });
+        var n = Math.max(asis.length, tobe.length);
+        // AS-IS and TO-BE placements listed in parallel down the rows (ragged).
+        if (n === 0) {
+          aoa.push(rowWithScenario(s, base.concat(['', '', '', '', '', '']), inc));
         } else {
-          places.forEach(function (p) {
+          for (var i = 0; i < n; i++) {
+            var a = asis[i], b = tobe[i];
             aoa.push(rowWithScenario(s, base.concat([
-              p.phase === C.OFFICE_PHASE.ASIS ? 'AS-IS' : 'TO-BE',
-              p.officeName, p.zoneName || '', p.count
+              a ? a.officeName : '', a ? (a.zoneName || '') : '', a ? a.count : '',
+              b ? b.officeName : '', b ? (b.zoneName || '') : '', b ? b.count : ''
             ]), inc));
-          });
+          }
         }
       });
     });

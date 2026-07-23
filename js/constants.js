@@ -195,14 +195,18 @@ App.constants = (function () {
       is_vip: ['is_vip', 'vip'],
       linked_teams: ['linked_teams', 'связанные команды'],
       comment: ['comment', 'комментарий'],
-      // One row per placement: phase + office + zone + count.
+      // Parallel AS-IS / TO-BE placement columns (one row per placement, ragged).
+      as_is_office: ['as_is_office', 'as-is офис', 'as is офис'],
+      as_is_zone:   ['as_is_zone', 'as-is зона', 'as is зона'],
+      as_is_count:  ['as_is_count', 'as-is кол-во', 'кол-во (as-is)'],
+      to_be_office: ['to_be_office', 'to-be офис', 'to be офис', 'tobe офис', 'целевой офис'],
+      to_be_zone:   ['to_be_zone', 'to-be зона', 'to be зона', 'целевая зона'],
+      to_be_count:  ['to_be_count', 'to-be кол-во', 'кол-во (to-be)'],
+      // Legacy row-per-placement columns (phase + office + zone + count).
       phase:  ['phase', 'фаза'],
       office: ['office', 'офис'],
       zone:   ['zone', 'зона'],
-      count:  ['count', 'количество мест', 'кол-во'],
-      // Legacy combined columns (still recognised on import of older files).
-      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
-      to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис']
+      count:  ['count', 'количество мест', 'кол-во']
     },
     allocations: {
       type:    ['type',    'тип'],

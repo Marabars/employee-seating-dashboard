@@ -48,14 +48,14 @@ assert(eh.indexOf('current_office') > -1 && eh.indexOf('cabinet') > -1 && eh.ind
 assert(er[eh.indexOf('current_office')] === 'Старый' && er[eh.indexOf('cabinet')] === 'Опен', 'employee AS-IS = Старый/Опен');
 assert(er[eh.indexOf('to_be_office')] === 'Новый' && er[eh.indexOf('to_be_zone')] === 'Этаж3', 'employee TO-BE = Новый/Этаж3');
 
-console.log('export: Teams one row per placement');
+console.log('export: Teams parallel AS-IS / TO-BE columns');
 var t = aoa(wb, 'Teams'); var th = t[0];
+assert(th.indexOf('as_is_office') > -1 && th.indexOf('as_is_zone') > -1 && th.indexOf('to_be_office') > -1 && th.indexOf('to_be_zone') > -1, 'Teams header has AS-IS + TO-BE office/zone columns');
 var trows = t.slice(1).filter(function (r) { return r[th.indexOf('team_name')] === 'Финансы'; });
-assert(trows.length === 2, 'two placement rows for Финансы (AS-IS + TO-BE) — got ' + trows.length);
-var asisRow = trows.filter(function (r) { return /AS-IS/i.test(r[th.indexOf('phase')]); })[0];
-var tobeRow = trows.filter(function (r) { return /TO-BE/i.test(r[th.indexOf('phase')]); })[0];
-assert(asisRow && asisRow[th.indexOf('office')] === 'Старый' && asisRow[th.indexOf('zone')] === 'Опен' && asisRow[th.indexOf('count')] === 3, 'AS-IS row Старый/Опен/3');
-assert(tobeRow && tobeRow[th.indexOf('office')] === 'Новый' && tobeRow[th.indexOf('zone')] === 'Этаж3' && tobeRow[th.indexOf('count')] === 5, 'TO-BE row Новый/Этаж3/5');
+assert(trows.length === 1, 'one placement row for Финансы (1 AS-IS + 1 TO-BE) — got ' + trows.length);
+var r0 = trows[0];
+assert(r0[th.indexOf('as_is_office')] === 'Старый' && r0[th.indexOf('as_is_zone')] === 'Опен' && r0[th.indexOf('as_is_count')] === 3, 'AS-IS Старый/Опен/3');
+assert(r0[th.indexOf('to_be_office')] === 'Новый' && r0[th.indexOf('to_be_zone')] === 'Этаж3' && r0[th.indexOf('to_be_count')] === 5, 'TO-BE Новый/Этаж3/5');
 
 console.log('round-trip: teams + employees placement reconstructed');
 var bin = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });

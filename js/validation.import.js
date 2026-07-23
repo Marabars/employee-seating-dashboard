@@ -178,16 +178,18 @@ App.importValidation = (function () {
   }
 
   /**
-   * Teams: one row per placement. Rows with the same team_name belong to one
-   * team; team attributes come from its first row, and each row contributes a
-   * placement { phase, officeName, zoneName, count }. Legacy files with combined
-   * current_office/to_be_office columns are still accepted (one row per team).
+   * Teams: rows with the same team_name belong to one team (attributes from the
+   * first row). Each row contributes placements { phase, officeName, zoneName,
+   * count }. Two accepted layouts:
+   *   - Parallel columns: as_is_office/zone/count + to_be_office/zone/count.
+   *   - Row-per-placement: phase + office + zone + count.
    */
   function parseTeams(sheet, result) {
     var data = rowsAfterHeader(sheet);
     if (!data.rows.length) { return; }
     var idx = mapHeaders('teams', data.header);
-    var hasRowFormat = (idx.office !== undefined || idx.phase !== undefined);
+    var isParallel = (idx.as_is_office !== undefined || idx.to_be_office !== undefined);
+    var isPhaseRows = !isParallel && (idx.office !== undefined || idx.phase !== undefined);
     var byName = {};
     data.rows.forEach(function (row, i) {
       if (isEmptyRow(row)) { return; }
@@ -206,16 +208,26 @@ App.importValidation = (function () {
           isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
           linkedTeamNames: String(cell(row, idx, 'linked_teams') || '').trim(),
           comment: String(cell(row, idx, 'comment') || ''),
-          placements: [],
-          // Legacy combined columns (used only when the row format is absent).
-          currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
-          toBeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim()
+          placements: []
         };
         byName[key] = team;
         result.teams.push(team);
         result.report.imported.teams += 1;
       }
-      if (hasRowFormat) {
+      if (isParallel) {
+        var ao = String(cell(row, idx, 'as_is_office') || '').trim();
+        if (ao) {
+          team.placements.push({ phase: C.OFFICE_PHASE.ASIS, officeName: ao,
+            zoneName: String(cell(row, idx, 'as_is_zone') || '').trim(),
+            count: U.toNonNegativeInt(cell(row, idx, 'as_is_count')) || null });
+        }
+        var bo = String(cell(row, idx, 'to_be_office') || '').trim();
+        if (bo) {
+          team.placements.push({ phase: C.OFFICE_PHASE.TOBE, officeName: bo,
+            zoneName: String(cell(row, idx, 'to_be_zone') || '').trim(),
+            count: U.toNonNegativeInt(cell(row, idx, 'to_be_count')) || null });
+        }
+      } else if (isPhaseRows) {
         var officeName = String(cell(row, idx, 'office') || '').trim();
         if (officeName) {
           var phaseRaw = String(cell(row, idx, 'phase') || '').trim().toLowerCase();
