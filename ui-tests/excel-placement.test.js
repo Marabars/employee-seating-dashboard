@@ -1,7 +1,9 @@
 'use strict';
-// Teams/Employees sheets must reflect ACTUAL placement (derived from allocations),
-// and the Teams office columns must drive placement on import when there is no
-// Allocations sheet. The Allocations sheet stays authoritative (no double-count).
+// New Excel format round-trip:
+//  - Employees sheet has AS-IS (office/zone/vip/work_format) + TO-BE blocks and
+//    drives per-phase employee placement on import.
+//  - Teams sheet is one row per placement (phase/office/zone/count) and drives
+//    team placement on import.
 var fs = require('fs'); var path = require('path'); var JSDOM = require('jsdom').JSDOM;
 var REPO = process.argv[2] || path.join(__dirname, '..');
 var results = { pass: 0, fail: 0 };
@@ -21,91 +23,56 @@ function baseProject() {
     settings: { thresholds: { greenMaxPercent: 85, yellowMaxPercent: 100 }, viewOnlyMode: false, lastSelectedScenarioId: 's1', cfSettings: { startYear: 2026, endYear: 2026 } },
     scenarios: [{ id: 's1', name: 'S', comment: '', cfOverride: null,
       offices: [
-        { id: 'asisO', type: 'physical', phase: 'asis', name: 'Старый офис', area: 200, zones: [{ id: 'za', name: 'Опенспейс', capacity: 100, isVipZone: false }], tenants: [] },
-        { id: 'tobeO', type: 'physical', phase: 'tobe', name: 'Новый офис', area: 300, zones: [{ id: 'zt', name: 'Опенспейс', capacity: 150, isVipZone: false }], tenants: [] },
+        { id: 'aO', type: 'physical', phase: 'asis', name: 'Старый', area: 100, zones: [{ id: 'az', name: 'Опен', capacity: 100, isVipZone: false }], tenants: [] },
+        { id: 'tO', type: 'physical', phase: 'tobe', name: 'Новый', area: 100, zones: [{ id: 'tz', name: 'Этаж3', capacity: 100, isVipZone: false }], tenants: [] },
         { id: 'rem', type: 'remote', phase: 'tobe', name: 'Удаленка', unlimitedCapacity: true, isSystem: true }
       ],
-      teams: [{ id: 'tm1', name: 'Финансы', employeesCount: 8, currentOfficeId: null, toBeOfficeId: null, linkedTeamIds: [], isVip: false, comment: '' }],
-      employees: [{ id: 'e1', fullName: 'Иванов И.И.', position: 'CFO', teamId: 'tm1', currentOfficeId: null, isVip: false, workFormat: 'office', comment: '' }],
+      teams: [{ id: 'tm', name: 'Финансы', employeesCount: 8, linkedTeamIds: [], isVip: false }],
+      employees: [{ id: 'e1', fullName: 'Иванов', position: 'CFO', teamId: 'tm', isVip: false, workFormat: 'office' }],
       allocations: [
-        { id: 'al1', type: 'team', teamId: 'tm1', employeeId: null, employeesCount: 3, targetOfficeId: 'asisO', targetZoneId: 'za', comment: '' },
-        { id: 'al2', type: 'team', teamId: 'tm1', employeeId: null, employeesCount: 5, targetOfficeId: 'tobeO', targetZoneId: 'zt', comment: '' }
+        { id: 'a1', type: 'team', teamId: 'tm', employeesCount: 3, targetOfficeId: 'aO', targetZoneId: 'az' },
+        { id: 'a2', type: 'team', teamId: 'tm', employeesCount: 5, targetOfficeId: 'tO', targetZoneId: 'tz' },
+        { id: 'a3', type: 'employee', teamId: 'tm', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'aO', targetZoneId: 'az' },
+        { id: 'a4', type: 'employee', teamId: 'tm', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'tO', targetZoneId: 'tz' }
       ] }] };
 }
 
-// ---- Test 1: export reflects actual placement ----
 App.state.setProject(baseProject());
 App.state.setActiveScenario('s1');
-var src = App.state.getActiveScenario();
-var wb = App.importExport.buildWorkbook([src], false);
-function aoa(wbook, name) { var ws = wbook.Sheets[name]; return ws ? XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) : []; }
+var wb = App.importExport.buildWorkbook([App.state.getActiveScenario()], false);
+function aoa(wbk, n) { var ws = wbk.Sheets[n]; return ws ? XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) : []; }
 
-console.log('export reflects placement');
-var tRows = aoa(wb, 'Teams');
-var tHead = tRows[0], tRow = tRows[1];
-var ciCur = tHead.indexOf('current_office'), ciTobe = tHead.indexOf('to_be_office');
-assert(/Старый офис/.test(tRow[ciCur]), 'Teams current_office shows AS-IS placement office — got "' + tRow[ciCur] + '"');
-assert(/Новый офис/.test(tRow[ciTobe]), 'Teams to_be_office shows TO-BE placement office — got "' + tRow[ciTobe] + '"');
-var eRows = aoa(wb, 'Employees');
-var eHead = eRows[0], eRow = eRows[1];
-var eiCur = eHead.indexOf('current_office');
-assert(/Новый офис/.test(eRow[eiCur]), 'Employees current_office shows placement office — got "' + eRow[eiCur] + '"');
+console.log('export: Employees AS-IS + TO-BE blocks');
+var e = aoa(wb, 'Employees'); var eh = e[0], er = e[1];
+assert(eh.indexOf('current_office') > -1 && eh.indexOf('cabinet') > -1 && eh.indexOf('to_be_office') > -1 && eh.indexOf('to_be_zone') > -1, 'Employees header has AS-IS + TO-BE office/zone');
+assert(er[eh.indexOf('current_office')] === 'Старый' && er[eh.indexOf('cabinet')] === 'Опен', 'employee AS-IS = Старый/Опен');
+assert(er[eh.indexOf('to_be_office')] === 'Новый' && er[eh.indexOf('to_be_zone')] === 'Этаж3', 'employee TO-BE = Новый/Этаж3');
 
-// ---- Test 2: Teams columns drive import when no Allocations sheet ----
-App.state.setProject(baseProject());
-App.state.setActiveScenario('s1');
-var sheets2 = {
-  offices: [['office_name', 'office_type', 'area'], ['Старый офис', 'asis', 200], ['Новый офис', 'tobe', 300]],
-  zones: [], employees: [],
-  teams: [['team_name', 'employees_count', 'current_office', 'to_be_office'], ['Финансы', 8, 'Старый офис', 'Новый офис']],
-  tenants: [], allocations: [], cf: []
-};
-var parsed2 = App.importValidation.parseWorkbook(sheets2);
-App.importExport.applyImportParsed(parsed2, 'new', 'FromColumns');
-var dst2 = App.state.getActiveScenario();
-var team2 = dst2.teams.filter(function (t) { return t.name === 'Финансы'; })[0];
-function teamAllocOfficeNames(scn, teamId, phasePred) {
-  return scn.allocations.filter(function (a) { return a.type === 'team' && a.teamId === teamId; })
-    .map(function (a) { return U.findById(scn.offices, a.targetOfficeId); })
-    .filter(function (o) { return o && phasePred(o); }).map(function (o) { return o.name; });
-}
-console.log('Teams columns drive import (no Allocations sheet)');
-assert(!!team2, 'team imported');
-assert(teamAllocOfficeNames(dst2, team2.id, function (o) { return o.phase === 'asis'; }).indexOf('Старый офис') > -1, 'AS-IS placement allocation created from current_office column');
-assert(teamAllocOfficeNames(dst2, team2.id, function (o) { return o.phase === 'tobe'; }).indexOf('Новый офис') > -1, 'TO-BE placement allocation created from to_be_office column');
+console.log('export: Teams one row per placement');
+var t = aoa(wb, 'Teams'); var th = t[0];
+var trows = t.slice(1).filter(function (r) { return r[th.indexOf('team_name')] === 'Финансы'; });
+assert(trows.length === 2, 'two placement rows for Финансы (AS-IS + TO-BE) — got ' + trows.length);
+var asisRow = trows.filter(function (r) { return /AS-IS/i.test(r[th.indexOf('phase')]); })[0];
+var tobeRow = trows.filter(function (r) { return /TO-BE/i.test(r[th.indexOf('phase')]); })[0];
+assert(asisRow && asisRow[th.indexOf('office')] === 'Старый' && asisRow[th.indexOf('zone')] === 'Опен' && asisRow[th.indexOf('count')] === 3, 'AS-IS row Старый/Опен/3');
+assert(tobeRow && tobeRow[th.indexOf('office')] === 'Новый' && tobeRow[th.indexOf('zone')] === 'Этаж3' && tobeRow[th.indexOf('count')] === 5, 'TO-BE row Новый/Этаж3/5');
 
-// ---- Test 3: full round-trip keeps split exactly, no double-count ----
-App.state.setProject(baseProject());
-App.state.setActiveScenario('s1');
-var src3 = App.state.getActiveScenario();
-var wb3 = App.importExport.buildWorkbook([src3], false);
-var bin = XLSX.write(wb3, { type: 'array', bookType: 'xlsx' });
+console.log('round-trip: teams + employees placement reconstructed');
+var bin = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
 var rb = XLSX.read(bin, { type: 'array' });
-function rt(name) { var ws = rb.Sheets[name]; return ws ? XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' }) : []; }
-var parsed3 = App.importValidation.parseWorkbook({ offices: rt('Offices'), zones: rt('Zones'), teams: rt('Teams'), employees: rt('Employees'), tenants: rt('Tenants'), allocations: rt('Allocations'), cf: rt('CF') });
-App.importExport.applyImportParsed(parsed3, 'new', 'RT');
-var dst3 = App.state.getActiveScenario();
-var t3 = dst3.teams.filter(function (t) { return t.name === 'Финансы'; })[0];
-var teamAllocs3 = dst3.allocations.filter(function (a) { return a.type === 'team' && a.teamId === t3.id; });
-console.log('full round-trip: split preserved, no double-count');
-assert(teamAllocs3.length === 2, 'exactly 2 team allocations after round-trip (no double from columns) — got ' + teamAllocs3.length);
-var counts = teamAllocs3.map(function (a) { return a.employeesCount; }).sort();
-assert(counts[0] === 3 && counts[1] === 5, 'per-office counts preserved (3 + 5) — got ' + counts.join('+'));
-
-// ---- Test 4: export reflects placement made via NAMED-EMPLOYEE allocations ----
-var namedProj = baseProject();
-var scn4 = namedProj.scenarios[0];
-scn4.allocations = [
-  { id: 'ne1', type: 'employee', teamId: 'tm1', employeeId: 'e1', employeesCount: 1, targetOfficeId: 'asisO', targetZoneId: 'za', comment: '' }
-];
-scn4.teams[0].toBeOfficeId = null; scn4.teams[0].currentOfficeId = null;
-App.state.setProject(namedProj);
-App.state.setActiveScenario('s1');
-var wb4 = App.importExport.buildWorkbook([App.state.getActiveScenario()], false);
-var t4 = aoa(wb4, 'Teams');
-var h4 = t4[0], r4 = t4[1];
-console.log('export reflects named-employee placement');
-assert(/Старый офис/.test(r4[h4.indexOf('current_office')]), 'current_office shows office of named-employee placement — got "' + r4[h4.indexOf('current_office')] + '"');
+function rt(n) { var ws = rb.Sheets[n]; return ws ? XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' }) : []; }
+var parsed = App.importValidation.parseWorkbook({ offices: rt('Offices'), zones: rt('Zones'), teams: rt('Teams'), employees: rt('Employees'), tenants: rt('Tenants'), allocations: rt('Allocations'), cf: rt('CF') });
+App.importExport.applyImportParsed(parsed, 'new', 'RT');
+var dst = App.state.getActiveScenario();
+function off(id) { return U.findById(dst.offices, id); }
+var team = dst.teams.filter(function (x) { return x.name === 'Финансы'; })[0];
+var teamAllocs = dst.allocations.filter(function (a) { return a.type === 'team' && a.teamId === team.id; });
+assert(teamAllocs.filter(function (a) { return off(a.targetOfficeId).name === 'Старый' && a.employeesCount === 3; }).length === 1, 'team AS-IS Старый=3 round-trip');
+assert(teamAllocs.filter(function (a) { return off(a.targetOfficeId).name === 'Новый' && a.employeesCount === 5; }).length === 1, 'team TO-BE Новый=5 round-trip');
+var emp = dst.employees.filter(function (x) { return x.fullName === 'Иванов'; })[0];
+var empAllocs = dst.allocations.filter(function (a) { return a.type === 'employee' && a.employeeId === emp.id; });
+assert(empAllocs.filter(function (a) { return off(a.targetOfficeId).name === 'Старый'; }).length === 1, 'employee AS-IS individual alloc round-trip');
+assert(empAllocs.filter(function (a) { return off(a.targetOfficeId).name === 'Новый'; }).length === 1, 'employee TO-BE individual alloc round-trip');
 
 console.log('\nPassed ' + results.pass + ', failed ' + results.fail);
 process.exit(results.fail === 0 ? 0 : 1);

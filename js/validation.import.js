@@ -177,39 +177,56 @@ App.importValidation = (function () {
     });
   }
 
+  /**
+   * Teams: one row per placement. Rows with the same team_name belong to one
+   * team; team attributes come from its first row, and each row contributes a
+   * placement { phase, officeName, zoneName, count }. Legacy files with combined
+   * current_office/to_be_office columns are still accepted (one row per team).
+   */
   function parseTeams(sheet, result) {
     var data = rowsAfterHeader(sheet);
-    if (!data.rows.length) {
-      return;
-    }
+    if (!data.rows.length) { return; }
     var idx = mapHeaders('teams', data.header);
-    var names = {};
+    var hasRowFormat = (idx.office !== undefined || idx.phase !== undefined);
+    var byName = {};
     data.rows.forEach(function (row, i) {
-      if (isEmptyRow(row)) {
-        return;
-      }
+      if (isEmptyRow(row)) { return; }
       var rowNo = i + 2;
       var name = String(cell(row, idx, 'team_name') || '').trim();
       if (!name) {
         result.report.errors.push('Teams, строка ' + rowNo + ': пустое название команды');
         return;
       }
-      if (names[name.toLowerCase()]) {
-        result.report.errors.push('Teams, строка ' + rowNo + ': дубликат команды «' + name + '»');
-        return;
+      var key = name.toLowerCase();
+      var team = byName[key];
+      if (!team) {
+        team = {
+          name: name,
+          employeesCount: U.toNonNegativeInt(cell(row, idx, 'employees_count')),
+          isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
+          linkedTeamNames: String(cell(row, idx, 'linked_teams') || '').trim(),
+          comment: String(cell(row, idx, 'comment') || ''),
+          placements: [],
+          // Legacy combined columns (used only when the row format is absent).
+          currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
+          toBeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim()
+        };
+        byName[key] = team;
+        result.teams.push(team);
+        result.report.imported.teams += 1;
       }
-      names[name.toLowerCase()] = true;
-      result.teams.push({
-        name: name,
-        employeesCount: U.toNonNegativeInt(cell(row, idx, 'employees_count')),
-        currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
-        toBeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim(),
-        cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
-        isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
-        linkedTeamNames: String(cell(row, idx, 'linked_teams') || '').trim(),
-        comment: String(cell(row, idx, 'comment') || '')
-      });
-      result.report.imported.teams += 1;
+      if (hasRowFormat) {
+        var officeName = String(cell(row, idx, 'office') || '').trim();
+        if (officeName) {
+          var phaseRaw = String(cell(row, idx, 'phase') || '').trim().toLowerCase();
+          team.placements.push({
+            phase: phaseRaw ? (C.OFFICE_PHASE_ALIASES[phaseRaw] || null) : null,
+            officeName: officeName,
+            zoneName: String(cell(row, idx, 'zone') || '').trim(),
+            count: U.toNonNegativeInt(cell(row, idx, 'count')) || null
+          });
+        }
+      }
     });
   }
 
@@ -235,11 +252,14 @@ App.importValidation = (function () {
         fullName: fullName,
         position: String(cell(row, idx, 'position') || ''),
         teamName: String(cell(row, idx, 'team_name') || '').trim(),
-        currentOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
-        cabinetName: String(cell(row, idx, 'cabinet') || '').trim(),
         isVip: U.parseBoolean(cell(row, idx, 'is_vip')),
         workFormat: workFormat,
-        comment: String(cell(row, idx, 'comment') || '')
+        comment: String(cell(row, idx, 'comment') || ''),
+        // AS-IS block (office + zone) and TO-BE block (office + zone).
+        asisOfficeName: String(cell(row, idx, 'current_office') || '').trim(),
+        asisZoneName: String(cell(row, idx, 'cabinet') || '').trim(),
+        tobeOfficeName: String(cell(row, idx, 'to_be_office') || '').trim(),
+        tobeZoneName: String(cell(row, idx, 'to_be_zone') || '').trim()
       });
       result.report.imported.employees += 1;
     });

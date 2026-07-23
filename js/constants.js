@@ -192,11 +192,17 @@ App.constants = (function () {
     teams: {
       team_name: ['team_name', 'название команды'],
       employees_count: ['employees_count', 'количество сотрудников'],
-      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
-      to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис'],
       is_vip: ['is_vip', 'vip'],
       linked_teams: ['linked_teams', 'связанные команды'],
-      comment: ['comment', 'комментарий']
+      comment: ['comment', 'комментарий'],
+      // One row per placement: phase + office + zone + count.
+      phase:  ['phase', 'фаза'],
+      office: ['office', 'офис'],
+      zone:   ['zone', 'зона'],
+      count:  ['count', 'количество мест', 'кол-во'],
+      // Legacy combined columns (still recognised on import of older files).
+      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
+      to_be_office: ['to_be_office', 'to be офис', 'to-be офис', 'tobe офис', 'целевой офис']
     },
     allocations: {
       type:    ['type',    'тип'],
@@ -214,10 +220,16 @@ App.constants = (function () {
       full_name: ['full_name', 'фио'],
       position: ['position', 'должность'],
       team_name: ['team_name', 'команда'],
-      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис'],
-      cabinet: ['cabinet', 'кабинет'],
+      // AS-IS block (D-G): office, zone, vip, work format.
+      current_office: ['current_office', 'текущий офис', 'as-is офис', 'as is офис', 'as-is офис (текущее размещение)'],
+      cabinet: ['cabinet', 'кабинет', 'as-is зона', 'as is зона'],
       is_vip: ['is_vip', 'vip'],
       work_format: ['work_format', 'формат работы'],
+      // TO-BE block: office, zone, vip, work format.
+      to_be_office: ['to_be_office', 'to-be офис', 'to be офис', 'tobe офис', 'целевой офис'],
+      to_be_zone: ['to_be_zone', 'to-be зона', 'to be зона', 'целевая зона'],
+      to_be_is_vip: ['to_be_is_vip', 'vip (to-be)', 'to-be vip'],
+      to_be_work_format: ['to_be_work_format', 'формат работы (to-be)', 'to-be формат работы'],
       comment: ['comment', 'комментарий']
     },
     tenants: {
@@ -245,6 +257,7 @@ App.constants = (function () {
     asis: OFFICE_PHASE.ASIS,
     'as is': OFFICE_PHASE.ASIS,
     'as_is': OFFICE_PHASE.ASIS,
+    'as-is': OFFICE_PHASE.ASIS,
     'старый': OFFICE_PHASE.ASIS,
     'старый офис': OFFICE_PHASE.ASIS,
     'как есть': OFFICE_PHASE.ASIS,
@@ -253,6 +266,7 @@ App.constants = (function () {
     tobe: OFFICE_PHASE.TOBE,
     'to be': OFFICE_PHASE.TOBE,
     'to_be': OFFICE_PHASE.TOBE,
+    'to-be': OFFICE_PHASE.TOBE,
     'новый': OFFICE_PHASE.TOBE,
     'новый офис': OFFICE_PHASE.TOBE,
     'как будет': OFFICE_PHASE.TOBE
