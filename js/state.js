@@ -361,6 +361,11 @@ App.state = (function () {
         if (o.zones.length === 0) {
           o.zones.push(createDefaultOpenSpaceZone());
         }
+        // Migrate the legacy system default zone name "Опенспейс" -> "Без зоны"
+        // (only the auto/system placeholder; user-created Опенспейс zones stay).
+        o.zones.forEach(function (z) {
+          if (z.isSystem && (z.name || '').trim() === 'Опенспейс') { z.name = 'Без зоны'; }
+        });
         if (o.rentPerSqm === undefined) { o.rentPerSqm = null; }
         if (o.opexPerSqm === undefined) { o.opexPerSqm = null; }
         if (o.indexationPct === undefined) { o.indexationPct = null; }

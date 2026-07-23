@@ -26,5 +26,22 @@ assert(tobe.zones.length === 1 && tobe.zones[0].name === 'Без зоны', 'TO-
 var withOpen = App.state.createOffice('tobe', { name: 'O', zones: [{ name: 'Опенспейс', type: 'open_space', capacity: 10 }] });
 assert(withOpen.zones.length === 1 && withOpen.zones[0].name === 'Опенспейс', 'explicit Опенспейс zone preserved');
 
+console.log('migration on load: system "Опенспейс" -> "Без зоны" (user zones untouched)');
+var norm = App.state.normalizeProject({
+  projectVersion: '1.0.0', appName: 't',
+  settings: { thresholds: { greenMaxPercent: 85, yellowMaxPercent: 100 }, viewOnlyMode: false, cfSettings: { startYear: 2026, endYear: 2030 } },
+  scenarios: [{ id: 's1', name: 'S', comment: '', cfOverride: null,
+    offices: [{ id: 'o1', type: 'physical', phase: 'asis', name: 'Old', area: 100, tenants: [], zones: [
+      { id: 'zs', name: 'Опенспейс', type: 'open_space', capacity: 10, isVipZone: false, isSystem: true },
+      { id: 'zu', name: 'Опенспейс', type: 'open_space', capacity: 5, isVipZone: false, isSystem: false }
+    ] }],
+    teams: [], employees: [], allocations: [] }]
+});
+var o1 = norm.scenarios[0].offices.filter(function (x) { return x.name === 'Old'; })[0];
+var sysZone = o1.zones.filter(function (z) { return z.isSystem; })[0];
+var userZone = o1.zones.filter(function (z) { return !z.isSystem; })[0];
+assert(sysZone && sysZone.name === 'Без зоны', 'system "Опенспейс" zone migrated to "Без зоны" — got ' + (sysZone && sysZone.name));
+assert(userZone && userZone.name === 'Опенспейс', 'user-created "Опенспейс" zone unchanged');
+
 console.log('\nPassed ' + results.pass + ', failed ' + results.fail);
 process.exit(results.fail === 0 ? 0 : 1);
