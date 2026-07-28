@@ -305,10 +305,17 @@ App.calc = (function () {
    * otherwise the sum of team headcounts (aggregated mode).
    */
   function calculateTotalEmployees(scenario) {
-    if (scenario.employees && scenario.employees.length > 0) {
-      return scenario.employees.length;
-    }
-    return U.sumBy(scenario.teams, 'employeesCount');
+    // Team headcount already includes both named and unnamed members
+    // (employeesCount >= named count). Named employees not attached to any
+    // existing team are standalone and counted on top.
+    var teams = scenario.teams || [];
+    var total = U.sumBy(teams, 'employeesCount');
+    var teamIds = {};
+    teams.forEach(function (t) { teamIds[t.id] = true; });
+    (scenario.employees || []).forEach(function (e) {
+      if (!e.teamId || !teamIds[e.teamId]) { total += 1; }
+    });
+    return total;
   }
 
   /** Sum of capacities of all new offices. */

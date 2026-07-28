@@ -3714,10 +3714,17 @@ App.calc = (function () {
    * otherwise the sum of team headcounts (aggregated mode).
    */
   function calculateTotalEmployees(scenario) {
-    if (scenario.employees && scenario.employees.length > 0) {
-      return scenario.employees.length;
-    }
-    return U.sumBy(scenario.teams, 'employeesCount');
+    // Team headcount already includes both named and unnamed members
+    // (employeesCount >= named count). Named employees not attached to any
+    // existing team are standalone and counted on top.
+    var teams = scenario.teams || [];
+    var total = U.sumBy(teams, 'employeesCount');
+    var teamIds = {};
+    teams.forEach(function (t) { teamIds[t.id] = true; });
+    (scenario.employees || []).forEach(function (e) {
+      if (!e.teamId || !teamIds[e.teamId]) { total += 1; }
+    });
+    return total;
   }
 
   /** Sum of capacities of all new offices. */
@@ -5831,6 +5838,9 @@ App.modals = (function () {
     container.appendChild(addBtn);
     container.appendChild(counter);
     updateCounter();
+    // Allow the headcount ("всего N") to be updated live from another field
+    // (e.g. the team's "Количество сотрудников" input) via form() wiring.
+    container.prSetHeadcount = function (n) { headcount = parseInt(n, 10) || 0; updateCounter(); };
     return container;
   }
 
@@ -5943,6 +5953,19 @@ App.modals = (function () {
         fieldWrap.appendChild(U.el('div', { class: 'form-help', text: field.help }));
       }
       formEl.appendChild(fieldWrap);
+    });
+
+    // Keep placementrows counters ("всего N") in sync with a headcount source
+    // field (field.headcountFrom = name of a number field), live as it changes.
+    (options.fields || []).forEach(function (field) {
+      if (field.type !== 'placementrows' || !field.headcountFrom) { return; }
+      var ctl = inputs[field.name];
+      var src = inputs[field.headcountFrom];
+      if (!ctl || !src || !ctl.prSetHeadcount) { return; }
+      var sync = function () { ctl.prSetHeadcount(parseInt(src.value, 10) || 0); };
+      src.addEventListener('input', sync);
+      src.addEventListener('change', sync);
+      sync();
     });
 
     function collect() {
@@ -9085,10 +9108,10 @@ window.App = window.App || {};
         { name: 'members', label: 'Сотрудники с ФИО', type: 'namelist', value: existingMembers,
           help: 'Именованные сотрудники команды. Остальные до численности считаются без ФИО.' },
         { name: 'asisRows', label: 'Распределение AS-IS (офис / зона / кол-во)', type: 'placementrows',
-          offices: asisOffices, headcount: headcountNow, value: teamPhaseRows(scenario, team, C.OFFICE_PHASE.ASIS),
+          offices: asisOffices, headcount: headcountNow, headcountFrom: 'employeesCount', value: teamPhaseRows(scenario, team, C.OFFICE_PHASE.ASIS),
           help: 'Куда команда посажена сейчас. Можно несколько строк; сумма не больше численности.' },
         { name: 'toBeRows', label: 'Распределение TO-BE (офис / зона / кол-во)', type: 'placementrows',
-          offices: tobeOffices, headcount: headcountNow, value: teamPhaseRows(scenario, team, C.OFFICE_PHASE.TOBE),
+          offices: tobeOffices, headcount: headcountNow, headcountFrom: 'employeesCount', value: teamPhaseRows(scenario, team, C.OFFICE_PHASE.TOBE),
           help: 'План переезда. Удалёнку тоже можно выбрать. Сумма не больше численности.' },
         { name: 'isVip', label: 'VIP / руководство', type: 'checkbox', value: team ? team.isVip : false },
         { name: 'linkedTeamIds', label: 'Связанные команды (переезжают вместе, в одном офисе)',

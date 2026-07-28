@@ -262,6 +262,9 @@ App.modals = (function () {
     container.appendChild(addBtn);
     container.appendChild(counter);
     updateCounter();
+    // Allow the headcount ("всего N") to be updated live from another field
+    // (e.g. the team's "Количество сотрудников" input) via form() wiring.
+    container.prSetHeadcount = function (n) { headcount = parseInt(n, 10) || 0; updateCounter(); };
     return container;
   }
 
@@ -374,6 +377,19 @@ App.modals = (function () {
         fieldWrap.appendChild(U.el('div', { class: 'form-help', text: field.help }));
       }
       formEl.appendChild(fieldWrap);
+    });
+
+    // Keep placementrows counters ("всего N") in sync with a headcount source
+    // field (field.headcountFrom = name of a number field), live as it changes.
+    (options.fields || []).forEach(function (field) {
+      if (field.type !== 'placementrows' || !field.headcountFrom) { return; }
+      var ctl = inputs[field.name];
+      var src = inputs[field.headcountFrom];
+      if (!ctl || !src || !ctl.prSetHeadcount) { return; }
+      var sync = function () { ctl.prSetHeadcount(parseInt(src.value, 10) || 0); };
+      src.addEventListener('input', sync);
+      src.addEventListener('change', sync);
+      sync();
     });
 
     function collect() {

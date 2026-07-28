@@ -113,6 +113,15 @@
       var s = fixture();
       expect(calc.calculateTotalEmployees(s)).toBe(40);
     });
+    it('total = team headcount (incl. unnamed) + standalone named employees', function () {
+      var s = fixture();
+      // Team headcount 40 with only 1 named member must still total 40 (not 1).
+      s.employees = [{ id: 'e1', fullName: 'A', teamId: 't1' }];
+      expect(calc.calculateTotalEmployees(s)).toBe(40);
+      // A named employee with no team adds on top.
+      s.employees.push({ id: 'e2', fullName: 'B', teamId: null });
+      expect(calc.calculateTotalEmployees(s)).toBe(41);
+    });
     it('required seats = total - remote', function () {
       var s = fixture();
       var k = calc.calculateScenarioKpis(s, []);
@@ -325,7 +334,7 @@
       var after = calc.calculateUnplacedCount(s);
 
       expect(before).toBe(after); // drag must not affect unplaced count
-      expect(before).toBe(1);     // only e2 is unplaced
+      expect(before).toBe(9);     // team headcount 10, 1 placed -> 9 unplaced
     });
   });
 
