@@ -179,6 +179,13 @@ window.App = window.App || {};
   }
 
   function selectFilter(key, label, options) {
+    // Ids of teams/offices are regenerated on every import and differ between
+    // scenarios, so a value kept from the previous scenario matches nothing:
+    // the table would silently show 0 rows while the dropdown still reads
+    // "все". Drop such a stale value so the filter matches what is displayed.
+    var stillExists = options.some(function (opt) { return opt.value === criteria[key]; });
+    if (criteria[key] && !stillExists) { criteria[key] = ''; }
+
     var sel = U.el('select', { 'aria-label': label });
     sel.appendChild(U.el('option', { value: '' }, label + ': все'));
     options.forEach(function (opt) {
