@@ -225,19 +225,50 @@ App.calc = (function () {
 
   /**
    * Total lease cost over N years with compound annual indexation.
-   * Year k cost = annual * (1+i)^k, summed k=0..N-1. null if no annual cost.
+   * With office.indexationStartDate set, indexation follows the real schedule:
+   * once a year on the anniversary of that date, so a mid-year anniversary
+   * splits each calendar year between two rates. The N years are counted from
+   * startYear (the CF window's first year); callers pass it from settings.
+   * Without a start date — legacy behaviour: year k cost = annual * (1+i)^k.
+   * null if no annual cost.
    */
-  function officeCostNYears(office, years) {
+  function officeCostNYears(office, years, startYear) {
     var annual = officeAnnualCost(office);
     if (annual == null) {
       return null;
     }
     var i = (office.indexationPct || 0) / 100;
     var total = 0;
-    for (var k = 0; k < years; k++) {
+    var k;
+    if (office.indexationStartDate && startYear) {
+      for (k = 0; k < years; k++) {
+        total += annual * yearIndexationFactor(office.indexationStartDate, i, startYear + k);
+      }
+      return total;
+    }
+    for (k = 0; k < years; k++) {
       total += annual * Math.pow(1 + i, k);
     }
     return total;
+  }
+
+  /**
+   * Day-weighted average indexation multiplier over a calendar year. A year
+   * with a mid-year anniversary is a blend of the old and the new rate.
+   */
+  function yearIndexationFactor(indexationStartDate, idxRate, year) {
+    var parts = parseYmd(indexationStartDate);
+    if (!parts || !idxRate) { return 1; }
+    var sum = 0;
+    var days = 0;
+    for (var m = 1; m <= 12; m++) {
+      var dim = daysInMonth(year, m);
+      for (var d = 1; d <= dim; d++) {
+        sum += Math.pow(1 + idxRate, indexationExponentFrom(parts, year, m, d));
+        days += 1;
+      }
+    }
+    return sum / days;
   }
 
   /** Total seats allocated to the TOBE remote office (used in planning KPIs). */
@@ -544,37 +575,68 @@ App.calc = (function () {
     };
   }
 
-  /**
-   * Annual CF for a given area with rent+opex, applying indexation
-   * from leaseStartDate to the projection year.
-   * Returns value in millions of RUB (area × (rent+opex) × factor / 1_000_000).
-   * 7th param baseYear (number|null) is the fallback indexation origin when leaseStartDate is absent.
-   */
   function daysInMonth(year, month) {
     return new Date(year, month, 0).getDate();
   }
 
-  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear, indexationStartDate) {
-    var a = area || 0;
-    var rent = rentPerSqm || 0;
-    var opex = opexPerSqm || 0;
-    var idx = (indexationPct || 0) / 100;
-    var base = a * (rent + opex);
-    var yearsElapsed = 0;
-    if (indexationStartDate) {
-      var idxYear = parseInt(String(indexationStartDate).substring(0, 4), 10);
-      if (!isNaN(idxYear) && year >= idxYear) {
-        yearsElapsed = year - idxYear + 1;
-      }
+  /** Parse 'YYYY-MM-DD' into {y, m, d}. Returns null for empty/unparsable input. */
+  function parseYmd(value) {
+    if (!value) {
+      return null;
     }
-    return base * Math.pow(1 + idx, yearsElapsed) / 1000000;
+    var s = String(value);
+    var y = parseInt(s.substring(0, 4), 10);
+    var m = parseInt(s.substring(5, 7), 10);
+    var d = parseInt(s.substring(8, 10), 10) || 1;
+    if (isNaN(y) || isNaN(m)) {
+      return null;
+    }
+    return { y: y, m: m, d: d };
+  }
+
+  /**
+   * How many times the rate has been indexed by the given calendar date.
+   * Indexation is ANNUAL and recurs on the anniversary of the start date:
+   * start 01.09.2026 → exponent 1 from 01.09.2026, 2 from 01.09.2027,
+   * 3 from 01.09.2028 and so on. Before the start date — 0; no start date —
+   * 0 forever (indexation is not applied at all).
+   * parts is parseYmd(indexationStartDate); month is 1-based.
+   */
+  function indexationExponentFrom(parts, year, month, day) {
+    if (!parts || year < parts.y) {
+      return 0;
+    }
+    var anniversaryPassed = month > parts.m || (month === parts.m && day >= parts.d);
+    return (year - parts.y) + (anniversaryPassed ? 1 : 0);
+  }
+
+  /** Same, taking the raw 'YYYY-MM-DD' string. Exported for the Money charts. */
+  function indexationExponent(indexationStartDate, year, month, day) {
+    return indexationExponentFrom(parseYmd(indexationStartDate), year, month, day);
+  }
+
+  /**
+   * Annual CF for a given area with rent+opex — the sum of the 12 months, so a
+   * mid-year indexation anniversary splits the year at the right month.
+   * Returns value in millions of RUB (area × (rent+opex) × factor / 1_000_000).
+   * Lease bounds are deliberately ignored here (as before): this is the pure
+   * indexation view. Use cfForMonth when lease start/end matter.
+   * 7th param baseYear is kept for signature compatibility and is unused.
+   */
+  function cfForYear(area, rentPerSqm, opexPerSqm, indexationPct, leaseStartDate, year, baseYear, indexationStartDate) {
+    var total = 0;
+    for (var m = 1; m <= 12; m++) {
+      total += cfForMonth(area, rentPerSqm, opexPerSqm, indexationPct, null, year, m, baseYear, indexationStartDate, null);
+    }
+    return total;
   }
 
   /**
    * Monthly CF (in millions RUB) for a given area with rent+opex.
    * Sums per-day rates over the month's active days: a day is active while the
    * lease runs (from leaseStartDate through leaseEndDate inclusive) and carries
-   * the indexation exponent for its date. Returns 0 for months entirely outside
+   * the indexation exponent for its date (indexation recurs every year on the
+   * anniversary of indexationStartDate). Returns 0 for months entirely outside
    * the lease. Days are grouped by exponent so a full month stays exact.
    * Month is 1-based (1=January, 12=December).
    */
@@ -614,22 +676,11 @@ App.calc = (function () {
 
     if (lastActiveDay < firstActiveDay) { return 0; }
 
-    // ---- Indexation start (per-day exponent) ----
-    var idxYear = null, idxMonth = null, idxDay = 1;
-    if (indexationStartDate) {
-      var idxStr = String(indexationStartDate);
-      idxYear  = parseInt(idxStr.substring(0, 4), 10);
-      idxMonth = parseInt(idxStr.substring(5, 7), 10);
-      idxDay   = parseInt(idxStr.substring(8, 10), 10) || 1;
-      if (isNaN(idxYear) || isNaN(idxMonth)) { idxYear = null; }
-    }
+    // ---- Indexation start (per-day exponent, annual on the anniversary) ----
+    var idxParts = parseYmd(indexationStartDate);
 
     function dayExponent(d) {
-      if (idxYear === null) { return 0; }
-      if (year < idxYear) { return 0; }
-      if (year === idxYear && month < idxMonth) { return 0; }
-      if (year === idxYear && month === idxMonth && d < idxDay) { return 0; }
-      return year - idxYear + 1;
+      return indexationExponentFrom(idxParts, year, month, d);
     }
 
     // ---- Tally active days by indexation exponent, then combine ----
@@ -909,6 +960,8 @@ App.calc = (function () {
     calculateScenarioKpis: calculateScenarioKpis,
     cfForYear: cfForYear,
     cfForMonth: cfForMonth,
+    indexationExponent: indexationExponent,
+    yearIndexationFactor: yearIndexationFactor,
     getScenarioCFData: getScenarioCFData,
     buildOverrideFromComputed: buildOverrideFromComputed
   };

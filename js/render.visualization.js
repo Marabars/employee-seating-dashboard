@@ -604,11 +604,22 @@ window.App = window.App || {};
 
   // ── Money section helpers ────────────────────────────────────────────────
 
+  /**
+   * Indexation multiplier for a whole calendar year. Indexation recurs every
+   * year on the anniversary of office.indexationStartDate, so a mid-year
+   * anniversary (01.09) splits the year: the factor shown is the day-weighted
+   * average over the year, which matches the CF tab's yearly total.
+   * Offices with no indexation start date keep the legacy behaviour —
+   * indexed once per year from the CF window's first year.
+   */
   function indexationFactor(office, year, baseYear) {
     var idx = (office.indexationPct || 0) / 100;
     if (!idx) { return 1; }
-    var relYears = Math.max(0, year - (baseYear || year));
-    return Math.pow(1 + idx, relYears);
+    if (!office.indexationStartDate) {
+      var relYears = Math.max(0, year - (baseYear || year));
+      return Math.pow(1 + idx, relYears);
+    }
+    return calc.yearIndexationFactor(office.indexationStartDate, idx, year);
   }
 
   function rentCostPerSqm(office, year, baseYear) {

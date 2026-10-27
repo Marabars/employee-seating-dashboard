@@ -410,6 +410,102 @@
     });
   });
 
+  describe('officeCostNYears — индексация по дате начала', function () {
+    it('без даты начала поведение прежнее (compound от нулевого года)', function () {
+      var office = { type: 'physical', phase: 'tobe', area: 100, zones: [], rentPerSqm: 10000, opexPerSqm: 0, indexationPct: 10 };
+      expect(Math.round(calc.officeCostNYears(office, 5, 2026))).toBe(6105100);
+    });
+
+    it('дата 01.09.2026 и окно с 2026: первый год — 4 мес по 1.1', function () {
+      var office = { type: 'physical', phase: 'tobe', area: 100, zones: [], rentPerSqm: 10000, opexPerSqm: 0,
+        indexationPct: 10, indexationStartDate: '2026-09-01' };
+      // годовой платёж 1 000 000; коэффициенты по дням года, годовщина 1 сентября
+      var annual = 1000000;
+      var expected = 0;
+      for (var k = 0; k < 5; k++) {
+        expected += annual * calc.yearIndexationFactor('2026-09-01', 0.1, 2026 + k);
+      }
+      expect(Math.round(calc.officeCostNYears(office, 5, 2026))).toBe(Math.round(expected));
+      // первый год — смесь базовой и проиндексированной ставки (8 мес + 4 мес)
+      expect(calc.yearIndexationFactor('2026-09-01', 0.1, 2026)).toBeCloseTo(1 + 0.1 * 122 / 365, 4);
+    });
+  });
+
+  describe('indexationExponent — ежегодная индексация по годовщине', function () {
+    // Дата начала 01.09.2026: индексации 01.09.2026, 01.09.2027, 01.09.2028...
+    it('до даты начала — 0', function () {
+      expect(calc.indexationExponent('2026-09-01', 2026, 8, 31)).toBe(0);
+      expect(calc.indexationExponent('2026-09-01', 2025, 12, 31)).toBe(0);
+    });
+
+    it('в день начала — 1', function () {
+      expect(calc.indexationExponent('2026-09-01', 2026, 9, 1)).toBe(1);
+      expect(calc.indexationExponent('2026-09-01', 2026, 12, 31)).toBe(1);
+    });
+
+    it('январь следующего года — всё ещё 1 (годовщина не наступила)', function () {
+      expect(calc.indexationExponent('2026-09-01', 2027, 1, 1)).toBe(1);
+      expect(calc.indexationExponent('2026-09-01', 2027, 8, 31)).toBe(1);
+    });
+
+    it('годовщина 01.09.2027 — 2, 01.09.2028 — 3', function () {
+      expect(calc.indexationExponent('2026-09-01', 2027, 9, 1)).toBe(2);
+      expect(calc.indexationExponent('2026-09-01', 2028, 9, 1)).toBe(3);
+      expect(calc.indexationExponent('2026-09-01', 2028, 8, 31)).toBe(2);
+    });
+
+    it('годовщина в середине месяца', function () {
+      expect(calc.indexationExponent('2026-09-15', 2027, 9, 14)).toBe(1);
+      expect(calc.indexationExponent('2026-09-15', 2027, 9, 15)).toBe(2);
+    });
+
+    it('без даты начала — индексации нет', function () {
+      expect(calc.indexationExponent(null, 2030, 1, 1)).toBe(0);
+    });
+  });
+
+  describe('cfForMonth — ежегодная индексация по годовщине', function () {
+    // area=1000, rent=100, opex=0 => 0.1 млн/год => 1/120 млн/мес, idx=10%
+    var baseM = 0.1 / 12;
+    function f(year, month) {
+      return calc.cfForMonth(1000, 100, 0, 10, '2024-01-01', year, month, null, '2026-09-01', null) / baseM;
+    }
+
+    it('август 2026 — без индексации, сентябрь 2026 — x1.1', function () {
+      expect(f(2026, 8)).toBeCloseTo(1, 4);
+      expect(f(2026, 9)).toBeCloseTo(1.1, 4);
+    });
+
+    it('январь–август 2027 остаются на x1.1 (вторая индексация только 01.09.2027)', function () {
+      expect(f(2027, 1)).toBeCloseTo(1.1, 4);
+      expect(f(2027, 8)).toBeCloseTo(1.1, 4);
+    });
+
+    it('сентябрь 2027 — x1.21, сентябрь 2028 — x1.331', function () {
+      expect(f(2027, 9)).toBeCloseTo(1.21, 4);
+      expect(f(2028, 9)).toBeCloseTo(1.331, 4);
+      expect(f(2028, 8)).toBeCloseTo(1.21, 4);
+    });
+
+    it('месяц годовщины в середине месяца — пропорция по дням', function () {
+      // сентябрь 2027 (30 дней), годовщина 16-го: 15 дней x1.1 + 15 дней x1.21
+      var v = calc.cfForMonth(1000, 100, 0, 10, '2024-01-01', 2027, 9, null, '2026-09-16', null) / baseM;
+      expect(v).toBeCloseTo((1.1 * 15 + 1.21 * 15) / 30, 4);
+    });
+  });
+
+  describe('cfForYear — ежегодная индексация по годовщине', function () {
+    // base 0.1 млн/год; дата начала 01.09.2026 => 2027 = 8 мес x1.1 + 4 мес x1.21
+    it('год после даты начала — смесь двух ставок', function () {
+      var expected = 0.1 * (1.1 * 8 + 1.21 * 4) / 12;
+      expect(calc.cfForYear(1000, 100, 0, 10, null, 2027, null, '2026-09-01')).toBeCloseTo(expected, 6);
+    });
+
+    it('индексация 1 января — весь год по одной ставке', function () {
+      expect(calc.cfForYear(1000, 100, 0, 10, null, 2028, null, '2026-01-01')).toBeCloseTo(0.1 * Math.pow(1.1, 3), 6);
+    });
+  });
+
   describe('cfForMonth — indexationStartDate', function () {
     it('month before indexationStartDate gives base rate (0.15/12 = 0.0125)', function () {
       // March 2023, idx starts June 2023 => exponent 0

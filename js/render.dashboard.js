@@ -493,7 +493,10 @@ window.App = window.App || {};
       wrap.appendChild(U.el('div', { class: 'muted', text: 'Ставки аренды не заданы. Укажите их в карточке офиса.' }));
       return wrap;
     }
-    var fiveY = calc.officeCostNYears(office, C.MONEY_5Y);
+    // 5 лет считаем от первого года окна CF — так индексация по годовщине
+    // в карточке офиса сходится с вкладкой «Финансы».
+    var cfStart = (state.getSettings().cfSettings || {}).startYear || null;
+    var fiveY = calc.officeCostNYears(office, C.MONEY_5Y, cfStart);
     wrap.appendChild(rowMoney('Аренда, ₽/м² с НДС', office.rentPerSqm != null ? office.rentPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Эксплуатация, ₽/м² с НДС', office.opexPerSqm != null ? office.opexPerSqm.toLocaleString('ru-RU') : '—'));
     wrap.appendChild(rowMoney('Индексация, %/год', office.indexationPct != null ? office.indexationPct : '—'));
