@@ -1,6 +1,6 @@
 /**
  * Headless UI test (jsdom): KPI tiles after the 28.10.2026 visual rework.
- *  - dashboard: one main row of 6 tiles, no secondary row;
+ *  - dashboard: one main row of 5 tiles, no secondary row, no balance tiles;
  *    "Нехватка мест" = сотрудники − места TO BE, "Прирост мест" = TO BE − AS IS;
  *  - visualization: top row keeps only "Количество мест" and "Количество кв.м.".
  * Run:  cd ui-tests && npm install && node kpi-tiles.test.js
@@ -62,13 +62,21 @@ App.render.render();
 
 var main = cards('.kpi-grid-main');
 var labels = main.map(function (c) { return c.label; });
-assert(main.length === 6, 'main row has 6 tiles (got ' + main.length + ': ' + labels.join(', ') + ')');
+var asis = cards('.kpi-grid-asis');
+var asisLabels = asis.map(function (c) { return c.label; });
+assert(main.length === 5, 'main row has 5 tiles (got ' + main.length + ': ' + labels.join(', ') + ')');
+assert(asis.length === 2, 'AS IS row has 2 tiles (got ' + asis.length + ': ' + asisLabels.join(', ') + ')');
 assert(U.qsa('.kpi-grid-sub', tc()).length === 0, 'secondary KPI row is gone');
-['Всего мест (TO BE)', 'Всего сотрудников', 'Потребность мест', 'Баланс мест (TO BE)', 'Нехватка мест', 'Прирост мест'].forEach(function (lab) {
+['Всего мест (TO BE)', 'Всего сотрудников', 'Потребность мест', 'Нехватка мест', 'Прирост мест'].forEach(function (lab) {
   assert(labels.indexOf(lab) !== -1, 'tile present: ' + lab);
 });
-['На удаленке', 'Не размещено', 'Распределено в офисы', 'Переполнение зон', 'Предупреждения', 'Ошибки'].forEach(function (lab) {
-  assert(tc().textContent.indexOf('>' + lab) === -1 && labels.indexOf(lab) === -1, 'removed tile absent: ' + lab);
+['Вместимость (AS IS)', 'Занято (AS IS)'].forEach(function (lab) {
+  assert(asisLabels.indexOf(lab) !== -1, 'AS IS tile present: ' + lab);
+});
+var allLabels = labels.concat(asisLabels);
+['На удаленке', 'Не размещено', 'Распределено в офисы', 'Переполнение зон', 'Предупреждения', 'Ошибки',
+ 'Баланс мест (TO BE)', 'Баланс мест (AS IS)', 'Удаленка (AS IS)'].forEach(function (lab) {
+  assert(allLabels.indexOf(lab) === -1, 'removed tile absent: ' + lab);
 });
 
 assert(valueOf(main, 'Всего мест (TO BE)') === '120', 'TO BE capacity = 120');
@@ -77,7 +85,7 @@ assert(valueOf(main, 'Всего сотрудников') === '150', 'employees 
 assert(valueOf(main, 'Нехватка мест') === '30', 'Нехватка мест = 150 − 120 = 30 (got ' + valueOf(main, 'Нехватка мест') + ')');
 // 120 мест TO BE − 90 мест AS IS
 assert(valueOf(main, 'Прирост мест') === '+30', 'Прирост мест = 120 − 90 = +30 (got ' + valueOf(main, 'Прирост мест') + ')');
-assert(valueOf(cards('.kpi-grid-asis'), 'Вместимость (AS IS)') === '90', 'AS IS row still renders capacity 90');
+assert(valueOf(asis, 'Вместимость (AS IS)') === '90', 'AS IS row still renders capacity 90');
 
 console.log('visualization: top row');
 App.render.setActiveTab('visualization');

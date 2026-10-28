@@ -68,9 +68,6 @@ window.App = window.App || {};
     main.appendChild(R.kpiCard('Всего мест (TO BE)', kpis.totalPlaces));
     main.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
     main.appendChild(R.kpiCard('Потребность мест', kpis.requiredSeats));
-    main.appendChild(R.kpiCard('Баланс мест (TO BE)',
-      (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance,
-      kpis.placesBalance >= 0 ? 'green' : 'red'));
     main.appendChild(R.kpiCard('Нехватка мест', seatsShortage,
       seatsShortage > 0 ? 'red' : 'green'));
     main.appendChild(R.kpiCard('Прирост мест',
@@ -83,15 +80,9 @@ window.App = window.App || {};
       var asisOccupied = asisOffices.reduce(function (sum, o) {
         return sum + calc.calculateOfficeOccupancy(scenario, o.id);
       }, 0);
-      var asisBalance = asisCapacity - asisOccupied;
-      var asisRemoteCount = calc.calculateAsisRemoteCount(scenario);
       var asisRow = U.el('div', { class: 'kpi-grid kpi-grid-asis' });
       asisRow.appendChild(R.kpiCard('Вместимость (AS IS)', asisCapacity, 'blue'));
       asisRow.appendChild(R.kpiCard('Занято (AS IS)', asisOccupied, 'blue'));
-      asisRow.appendChild(R.kpiCard('Баланс мест (AS IS)',
-        (asisBalance >= 0 ? '+' : '') + asisBalance,
-        asisBalance >= 0 ? 'blue' : 'red'));
-      asisRow.appendChild(R.kpiCard('Удаленка (AS IS)', asisRemoteCount, 'blue'));
       panel.appendChild(asisRow);
     }
 
