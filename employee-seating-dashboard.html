@@ -6630,7 +6630,6 @@ window.App = window.App || {};
     var main = U.el('div', { class: 'kpi-grid kpi-grid-main' });
     main.appendChild(R.kpiCard('Всего мест (TO BE)', kpis.totalPlaces));
     main.appendChild(R.kpiCard('Всего сотрудников', kpis.totalEmployees));
-    main.appendChild(R.kpiCard('Потребность мест', kpis.requiredSeats));
     main.appendChild(R.kpiCard('Нехватка мест', seatsShortage,
       seatsShortage > 0 ? 'red' : 'green'));
     main.appendChild(R.kpiCard('Прирост мест',

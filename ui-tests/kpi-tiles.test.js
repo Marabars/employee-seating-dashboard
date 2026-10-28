@@ -1,6 +1,6 @@
 /**
  * Headless UI test (jsdom): KPI tiles after the 28.10.2026 visual rework.
- *  - dashboard: one main row of 5 tiles, no secondary row, no balance tiles;
+ *  - dashboard: one main row of 4 tiles, no secondary row, no balance tiles;
  *    "Нехватка мест" = сотрудники − места TO BE, "Прирост мест" = TO BE − AS IS;
  *  - visualization: top row keeps only "Количество мест" and "Количество кв.м.".
  * Run:  cd ui-tests && npm install && node kpi-tiles.test.js
@@ -64,10 +64,10 @@ var main = cards('.kpi-grid-main');
 var labels = main.map(function (c) { return c.label; });
 var asis = cards('.kpi-grid-asis');
 var asisLabels = asis.map(function (c) { return c.label; });
-assert(main.length === 5, 'main row has 5 tiles (got ' + main.length + ': ' + labels.join(', ') + ')');
+assert(main.length === 4, 'main row has 4 tiles (got ' + main.length + ': ' + labels.join(', ') + ')');
 assert(asis.length === 2, 'AS IS row has 2 tiles (got ' + asis.length + ': ' + asisLabels.join(', ') + ')');
 assert(U.qsa('.kpi-grid-sub', tc()).length === 0, 'secondary KPI row is gone');
-['Всего мест (TO BE)', 'Всего сотрудников', 'Потребность мест', 'Нехватка мест', 'Прирост мест'].forEach(function (lab) {
+['Всего мест (TO BE)', 'Всего сотрудников', 'Нехватка мест', 'Прирост мест'].forEach(function (lab) {
   assert(labels.indexOf(lab) !== -1, 'tile present: ' + lab);
 });
 ['Вместимость (AS IS)', 'Занято (AS IS)'].forEach(function (lab) {
@@ -75,7 +75,7 @@ assert(U.qsa('.kpi-grid-sub', tc()).length === 0, 'secondary KPI row is gone');
 });
 var allLabels = labels.concat(asisLabels);
 ['На удаленке', 'Не размещено', 'Распределено в офисы', 'Переполнение зон', 'Предупреждения', 'Ошибки',
- 'Баланс мест (TO BE)', 'Баланс мест (AS IS)', 'Удаленка (AS IS)'].forEach(function (lab) {
+ 'Баланс мест (TO BE)', 'Баланс мест (AS IS)', 'Удаленка (AS IS)', 'Потребность мест'].forEach(function (lab) {
   assert(allLabels.indexOf(lab) === -1, 'removed tile absent: ' + lab);
 });
 
