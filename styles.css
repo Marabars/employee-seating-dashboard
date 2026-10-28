@@ -228,9 +228,6 @@ h4 { font-size: 14px; color: var(--text-muted); }
 /* 4 large KPIs on top, smaller secondary row below. */
 .kpi-grid-main { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 10px; }
 .kpi-grid-main .kpi-value { font-size: 32px; }
-.kpi-grid-sub { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
-.kpi-grid-sub .kpi-card { padding: 10px; }
-.kpi-grid-sub .kpi-value { font-size: 20px; }
 .kpi-grid-asis { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin-top: 8px; }
 .kpi-grid-asis .kpi-card { border-color: var(--blue); }
 .kpi-grid-asis .kpi-value { font-size: 22px; color: var(--blue); }

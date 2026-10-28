@@ -50,9 +50,18 @@ window.App = window.App || {};
     container.appendChild(renderWarningsPanel(ctx));
   }
 
-  /** 4 large KPIs + a compact secondary row + AS-IS row. */
+  /** Large KPI row + AS-IS row. */
   function renderKpiBlock(kpis, scenario) {
     var panel = R.section('Ключевые показатели');
+
+    // AS-IS capacity is needed twice: for the growth KPI and for the AS-IS row.
+    var asisOffices = calc.getAsisOffices(scenario);
+    var asisCapacity = asisOffices.reduce(function (sum, o) {
+      return sum + calc.calculateOfficeCapacity(o);
+    }, 0);
+    // Сколько сотрудников не помещается в места TO BE (отрицательное = мест с запасом).
+    var seatsShortage = kpis.totalEmployees - kpis.totalPlaces;
+    var seatsGrowth = kpis.totalPlaces - asisCapacity;
 
     // Main KPIs show bare numbers (units are shown in details, not here).
     var main = U.el('div', { class: 'kpi-grid kpi-grid-main' });
@@ -62,27 +71,15 @@ window.App = window.App || {};
     main.appendChild(R.kpiCard('Баланс мест (TO BE)',
       (kpis.placesBalance >= 0 ? '+' : '') + kpis.placesBalance,
       kpis.placesBalance >= 0 ? 'green' : 'red'));
+    main.appendChild(R.kpiCard('Нехватка мест', seatsShortage,
+      seatsShortage > 0 ? 'red' : 'green'));
+    main.appendChild(R.kpiCard('Прирост мест',
+      (seatsGrowth >= 0 ? '+' : '') + seatsGrowth,
+      seatsGrowth >= 0 ? 'green' : 'red'));
     panel.appendChild(main);
 
-    var sub = U.el('div', { class: 'kpi-grid kpi-grid-sub' });
-    sub.appendChild(R.kpiCard('На удаленке', kpis.remoteCount, 'blue'));
-    sub.appendChild(R.kpiCard('Не размещено', kpis.unplacedCount,
-      kpis.unplacedCount > 0 ? 'yellow' : null));
-    sub.appendChild(R.kpiCard('Распределено в офисы', kpis.placedInOffices));
-    sub.appendChild(R.kpiCard('Переполнение зон', kpis.zoneOverflow,
-      kpis.zoneOverflow > 0 ? 'red' : null));
-    sub.appendChild(R.kpiCard('Предупреждения', kpis.warningsCount,
-      kpis.warningsCount > 0 ? 'yellow' : null));
-    sub.appendChild(R.kpiCard('Ошибки', kpis.errorsCount,
-      kpis.errorsCount > 0 ? 'red' : null));
-    panel.appendChild(sub);
-
     // AS-IS metrics row (shown only when AS-IS offices exist).
-    var asisOffices = calc.getAsisOffices(scenario);
     if (asisOffices.length > 0) {
-      var asisCapacity = asisOffices.reduce(function (sum, o) {
-        return sum + calc.calculateOfficeCapacity(o);
-      }, 0);
       var asisOccupied = asisOffices.reduce(function (sum, o) {
         return sum + calc.calculateOfficeOccupancy(scenario, o.id);
       }, 0);

@@ -92,17 +92,6 @@ window.App = window.App || {};
     return total;
   }
 
-  function phaseBalance(scenario, phase) {
-    var capacity = 0;
-    var occupied = 0;
-    (scenario.offices || []).forEach(function (o) {
-      if (o.type !== C.OFFICE_TYPE.PHYSICAL || o.phase !== phase) { return; }
-      var cap = calc.calculateOfficeCapacity(o);
-      if (cap !== Infinity) { capacity += cap; occupied += calc.calculateOfficeOccupancy(scenario, o.id); }
-    });
-    return capacity - occupied;
-  }
-
   // Generic two-bar summary card used by all top-row charts.
   // useAbsWidth=true: bar width = abs(value), label shows signed value (balance mode).
   // useAbsWidth=false: bar width = value directly (counts mode).
@@ -159,24 +148,6 @@ window.App = window.App || {};
       totalSeats(scenario, C.OFFICE_PHASE.TOBE),
       totalSeats(scenario, C.OFFICE_PHASE.ASIS),
       false
-    );
-  }
-
-  function renderRemoteChart(scenario) {
-    return renderPhaseBarChart(
-      'Удалёнка',
-      calc.calculateRemoteCount(scenario),
-      calc.calculateAsisRemoteCount(scenario),
-      false
-    );
-  }
-
-  function renderBalanceChart(scenario) {
-    return renderPhaseBarChart(
-      'Баланс мест',
-      phaseBalance(scenario, C.OFFICE_PHASE.TOBE),
-      phaseBalance(scenario, C.OFFICE_PHASE.ASIS),
-      true
     );
   }
 
@@ -748,8 +719,6 @@ window.App = window.App || {};
     var topRow = U.el('div', { class: 'viz-top-row' });
     topRow.appendChild(renderSeatsChart(scenario));
     topRow.appendChild(renderAreaChart(scenario));
-    topRow.appendChild(renderRemoteChart(scenario));
-    topRow.appendChild(renderBalanceChart(scenario));
     container.appendChild(topRow);
 
     container.appendChild(U.el('div', { class: 'viz-section-title', text: 'Распределение команд' }));
